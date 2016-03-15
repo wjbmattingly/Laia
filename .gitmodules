@@ -1,0 +1,3 @@
+[submodule "third-party/crnn"]
+	path = third-party/crnn
+	url = git@github.com:bgshih/crnn.git
