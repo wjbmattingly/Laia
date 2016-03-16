@@ -39,3 +39,12 @@ luac.out
 *.x86_64
 *.hex
 
+# Ignore emacs temporal files
+*~
+
+# Ignore Python compiled files
+*.pyc
+
+# Ignore automatically generated directories
+data/iam
+lang
