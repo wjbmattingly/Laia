@@ -1,3 +1,6 @@
 [submodule "third-party/crnn"]
 	path = third-party/crnn
 	url = git@github.com:bgshih/crnn.git
+[submodule "third-party/lmdb.torch"]
+	path = third-party/lmdb.torch
+	url = git@github.com:eladhoffer/lmdb.torch.git

@@ -55,4 +55,14 @@ done;
 	lang/iam/chars/original_symbols.txt;
 )
 
+# Prepare data for Torch7
+# Image colors are inverted: 0->white, 1->black, and then binarized.
+# Other preprocessing worth trying: normalization (mean = 0, stddev = 1), ZCA
+for p in train valid test; do
+    [ -s data/iam/$p.h5 -a $overwrite = false ] || \
+	th "$SDIR/create_hdf5.lua" --invert true --binarize 0.5 --height 64 \
+	lang/iam/chars/$p.txt lang/iam/chars/original_symbols.txt \
+	data/iam/imgs data/iam/$p.h5;
+done;
+
 exit 0;
