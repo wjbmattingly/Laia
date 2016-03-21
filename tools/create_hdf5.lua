@@ -26,12 +26,9 @@ parser:option('-b --binarize', 'Binarize image using simple threshdolding ' ..
 parser:option('-i --invert', 'Invert colors (0 is white and 1 is black)',
 	      'false'):convert(str2bool_table);
 parser:option('-H --height',
-	      'Resize samples to have this height and a proportional width',
-	      nil):convert(tonumber):action(
-   function(_, _, height)
-      assert(height == nil or height > 0,
-	     string.format('Height value must be greater than 0'));
-   end);
+	      'If > 0, resize samples to have this height and a ' ..
+	      'proportional width, keeping the aspecet ratio',
+	      0):convert(tonumber);
 parser:option('-M --mean',
 	      'Subtract this value to the pixel intensity',
 	      0.0):convert(tonumber):action(
@@ -97,7 +94,7 @@ while true do
    local img_path = string.format('%s/%s.png', args.images_dir, id)
    local img = image.load(img_path, 1, 'float')
    -- Resize to fixed height
-   if args.height ~= nil then
+   if args.height > 0 then
       local width = img:size()[3] * args.height / img:size()[2];
       img = image.scale(img, width, args.height)
    end;
