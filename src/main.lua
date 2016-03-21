@@ -6,49 +6,125 @@ require 'cunn';
 require 'cudnn';
 require 'rnn';
 require 'image';
+require 'warp_ctc';
+require 'optim';
 
-require 'WidthBatchDataset';
-require 'ImageSequencer';
-require 'Permute';
+require 'WidthBatcher';
 
-function convBlock(depth_in, depth_out, size, stride, batch_norm)
-   batch_norm = batch_norm or false;
-   local block = nn.Sequential();
-   -- Spatial 2D convolution, Image is padded with zeroes so that the output
-   -- has the same size as the input / stride
-   block:add(nn.SpatialConvolution(depth_in, depth_out, size, size,
-				   stride, stride,
-				   (size - 1) / 2, (size - 1) / 2));
-   -- Batch normalization (optional)
-   if batch_norm then
-      block:add(nn.SpatialBatchNormalization(depth_out));
+local use_gpu = true
+local BATCH_SIZE = 16;
+local SAMPLE_HEIGHT = 64;
+local NUM_CHARS = 78;
+
+function createModel(sample_height, num_labels)
+   local ks = {3, 3, 3, 3, 3, 3, 2}
+   local ss = {1, 1, 1, 1, 1, 1, 1}
+   local nm = {64, 128, 256, 256, 512, 512, 512}
+   local nh = {256, 256}
+
+   function convBlock(depth_in, depth_out, size, stride, batch_norm)
+      batch_norm = batch_norm or false;
+      local block = nn.Sequential();
+      -- Spatial 2D convolution, Image is padded with zeroes so that the output
+      -- has the same size as the input / stride
+      block:add(nn.SpatialConvolution(depth_in, depth_out, size, size,
+				      stride, stride,
+				      (size - 1) / 2, (size - 1) / 2));
+      -- Batch normalization (optional)
+      if batch_norm then
+	 block:add(nn.SpatialBatchNormalization(depth_out));
+      end;
+      -- Parametric Rectifier Linear Unit
+      block:add(nn.ReLU(true));
+      return block;
    end;
-   -- Parametric Rectifier Linear Unit
-   block:add(nn.ReLU(true));
-   return block;
+
+   local model = nn.Sequential();
+   model:add(convBlock(1, nm[1], ks[1], ss[1]));
+   model:add(nn.SpatialMaxPooling(2, 2, 2, 2));
+   model:add(convBlock(nm[1], nm[2], ks[2], ss[2]));
+   model:add(nn.SpatialMaxPooling(2, 2, 2, 2));
+
+   model:add(convBlock(nm[2], nm[3], ks[3], ss[3], true));
+   model:add(convBlock(nm[3], nm[4], ks[4], ss[4]));
+   model:add(nn.SpatialMaxPooling(2, 2, 1, 2));
+
+   model:add(convBlock(nm[4], nm[5], ks[5], ss[5], true));
+   model:add(convBlock(nm[5], nm[6], ks[6], ss[6]));
+   model:add(nn.SplitTable(4));
+   model:add(nn.Sequencer(nn.Reshape(-1, true)));
+   model:add(nn.BiSequencer(nn.LSTM(nm[6] * sample_height / 8, nh[1]),
+			    nn.LSTM(nm[6] * sample_height / 8, nh[1]),
+			    nn.CAddTable()));
+   model:add(nn.BiSequencer(nn.LSTM(nh[1], nh[2]),
+			    nn.LSTM(nh[1], nh[2]),
+			    nn.CAddTable()));
+   model:add(nn.Sequencer(nn.Linear(nh[2], num_labels + 1)));
+   model:add(nn.Sequencer(nn.SoftMax()));
+   model:add(nn.JoinTable(1));
+   return model;
 end;
 
-local BATCH_SIZE = 64;
-local SAMPLE_HEIGHT = 64;
-
-local ds = WidthBatchDataset('../data/iam/train.h5', true);
-local batch_img, batch_gt, batch_sizes = ds:nextBatch(BATCH_SIZE);
-batch_img, batch_gt, batch_sizes = ds:nextBatch(BATCH_SIZE);
-batch_img = batch_img:float():cuda();
-batch_gt = batch_gt:float():cuda();
 
 
-local model = nn.Sequential();
-model:add(convBlock(1, 64, 5, 2));
-model:add(convBlock(64, 128, 3, 2)); -- N x D x H x W
-model:add(nn.SplitTable(4));         -- {N x D x H, N x D x H, ...}
-model:add(nn.Sequencer(nn.Reshape(-1, true))); -- {N x (D*H), N x (D*H), ...}
-model:add(nn.BiSequencer(nn.LSTM(SAMPLE_HEIGHT * 128 / 4, 500),
-			 nn.LSTM(SAMPLE_HEIGHT * 128 / 4, 500),
-			 nn.CAddTable()));
-model:add(nn.BiSequencer(nn.LSTM(500, 250),
-			 nn.LSTM(500, 250),
-			 nn.CAddTable()));
-model = model:cuda();
+local ds = WidthBatcher('../data/iam/train.h5', true);
 
-print(model:forward(batch_img));
+local model = createModel(SAMPLE_HEIGHT, NUM_CHARS);
+if use_gpu then
+   model = model:cuda();
+end
+
+-- retrieve parameters and gradients
+local parameters,gradParameters = model:getParameters()
+
+function reduce(list)
+    local acc
+    for k, v in ipairs(list) do
+        if 1 == k then
+            acc = v
+        else
+            acc = acc +  v
+        end
+    end
+    return acc
+end
+
+for epoch=1,10 do
+   local processedSamples = 0
+   while processedSamples < ds:numSamples() do
+      local batch_img, batch_gt, batch_sizes = ds:next(BATCH_SIZE);
+      if use_gpu then
+	 batch_img = batch_img:cuda();
+      end
+
+      local feval = function(x)
+	 collectgarbage()
+
+	 if x ~= parameters then
+	    parameters:copy(x)
+	 end
+	 gradParameters:zero()
+
+	 local output = model:forward(batch_img);
+	 local sizes = {}
+	 local seq_len = output:size()[1] / BATCH_SIZE;
+	 for i=1,BATCH_SIZE do table.insert(sizes, seq_len) end;
+
+	 local grads = output:clone():zero();
+	 local f = 0;
+	 if use_gpu then
+	    f = reduce(gpu_ctc(output, grads, batch_gt, sizes)) / (BATCH_SIZE * seq_len)
+	 else
+	    output = output:float()
+	    grads = grads:float()
+	    f = reduce(cpu_ctc(output, grads, batch_gt, sizes)) / (BATCH_SIZE * seq_len)
+	 end
+	 grads = grads / (BATCH_SIZE * seq_len)
+	 model:backward(batch_img, grads)
+	 print (epoch, processedSamples, f)
+	 return f,gradParameters
+      end
+      optim.sgd(feval, parameters, {learningRate = 0.01, momentum = 0.0, learningRateDecay = 5e-7})
+      processedSamples = processedSamples + BATCH_SIZE
+   end
+end
