@@ -9,7 +9,9 @@ require 'image';
 require 'warp_ctc';
 require 'optim';
 
+
 require 'WidthBatcher';
+require 'utils';
 
 local use_gpu = false
 local BATCH_SIZE = 4;
@@ -87,7 +89,16 @@ parameters, gradParameters = model:getParameters()
 
 local batch_img, batch_gt, batch_sizes = ds:next(BATCH_SIZE);
 
-
+function printHistogram(x, nbins, bmin, bmax)
+   local hist, bins = torch.loghistc(x, nbins, bmin, bmax)
+   local n = x:storage():size()
+   io.write(string.format('(-inf, %g] -> %.2g%%\n',
+			  bins[1], 100 * hist[1] / n))
+   for i=2,#hist do
+      io.write(string.format('(%g, %g] -> %.2g%%\n',
+			     bins[i-1], bins[i], 100 * hist[i] / n))
+   end
+end
 
 for epoch=1,1000 do
    if use_gpu then
@@ -108,20 +119,25 @@ for epoch=1,1000 do
       local loss = 0;
       -- Compute loss function and gradients respect the output
       if use_gpu then
-	 loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes), operator.add, 0)
+	 loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
+			     operator.add, 0)
       else
 	 output = output:float()
 	 grad_output = grad_output:float()
-	 loss = table.reduce(cpu_ctc(output, grad_output, batch_gt, sizes), operator.add, 0)
+	 loss = table.reduce(cpu_ctc(output, grad_output, batch_gt, sizes),
+			     operator.add, 0)
       end
       -- Make loss function (and output gradients) independent of batch size and sequence length
       loss = loss / (BATCH_SIZE * seq_len)
       grad_output:div(BATCH_SIZE * seq_len)
       -- Compute gradients of the loss function respect the parameters
       model:backward(batch_img, grad_output)
-      local gradParamAbs = torch.abs(gradParameters)
-
-      print(loss)
+      -- local histc = torch.histc(torch.abs(gradParameters), 10)
+      local gmin, gmax, mass = torch.sumarizeMagnitudes(
+	 gradParameters, 0.85, 100)
+      print(string.format('Epoch = %-5d  Loss = %7.4f  -- ' ..
+			  '%5.2f%% of gradients are in range (%g, %g]',
+			  epoch, loss, mass * 100, gmin, gmax))
 
       if grad_clip > 0 then
 	 gradParameters:clip(-grad_clip, grad_clip)
