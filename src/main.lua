@@ -11,6 +11,8 @@ require 'optim';
 
 
 require 'WidthBatcher';
+require 'CurriculumBatcher';
+require 'RandomBatcher';
 require 'utils';
 
 local use_gpu = false
@@ -76,8 +78,13 @@ function createModel(sample_height, num_labels)
 end;
 
 
-
 local ds = WidthBatcher('../data/iam/train.h5', true);
+
+-- local ds = CurriculumBatcher('../data/iam/train.h5', true);
+-- ds:shuffle();
+
+-- local ds = RandomBatcher('../data/iam/train.h5', true);
+-- ds:sample(3, 5);
 
 local model = createModel(SAMPLE_HEIGHT, NUM_CHARS);
 if use_gpu then
@@ -85,6 +92,7 @@ if use_gpu then
 end
 
 parameters, gradParameters = model:getParameters()
+
 
 
 local batch_img, batch_gt, batch_sizes = ds:next(BATCH_SIZE);
