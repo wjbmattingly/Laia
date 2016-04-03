@@ -1,5 +1,5 @@
 require 'CachedBatcher';
-require 'utils';
+require 'Utils';
 
 local CurriculumBatcher, Parent = torch.class('CurriculumBatcher',
 					      'CachedBatcher');

@@ -7,7 +7,8 @@ local str2bool_table = {
    ['true'] = true, ['false'] = false,
    ['t'] = true, ['f'] = false,
    ['True'] = true, ['False'] = false,
-   ['1'] = true, ['0'] = false
+   ['1'] = true, ['0'] = false,
+   ['TRUE'] = true, ['FALSE'] = false
 };
 
 -- Tool options and arguments.

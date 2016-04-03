@@ -133,6 +133,7 @@ function CachedBatcher:next(batch_size)
    local batch_img = torch.Tensor(batch_size, n_channels, max_sizes[{1,1}],
 				  max_sizes[{1,2}]):zero();
    local batch_gt  = {};
+   local batch_ids = {};
    local old_gpu = -1
    if self._cache_gpu >= 0 then
       old_gpu = cutorch.getDevice()
@@ -153,6 +154,7 @@ function CachedBatcher:next(batch_size)
 			 dy + 1, dy + img:size()[2],
 			 dx + 1, dx + img:size()[3]):copy(img);
       table.insert(batch_gt, gt);
+      table.insert(batch_ids, self._samples[j]);
    end;
    if old_gpu >= 0 then
       cutorch.setDevice(old_gpu)
@@ -160,5 +162,5 @@ function CachedBatcher:next(batch_size)
    -- Increase index for next batch
    self._idx = (self._idx + batch_size) % self._num_samples;
    collectgarbage();
-   return batch_img, batch_gt, batch_sizes;
+   return batch_img, batch_gt, batch_sizes, batch_ids;
 end;
