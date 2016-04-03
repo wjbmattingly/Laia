@@ -37,8 +37,10 @@ torch.loghistc = function(x, nbins, bmin, bmax)
    bmin = bmin or torch.min(x)
    bmax = bmax or torch.max(x)
    if bmin == 0.0 then bmin = 1E-16 end
-   assert(nbins > 1)
-   assert(bmax > bmin)
+   assert(nbins > 1,
+	  string.format('nbins must be greater than 1 (actual: %d)', nbins))
+   assert(bmax > bmin,
+	  string.format('bmax (%g) must be greater than bmin (%g)', bmax, bmin))
    local hist = { }
    local bins = { }
    local step = math.exp(math.log(bmax / bmin) / (nbins - 1))

@@ -1,12 +1,12 @@
 require 'CachedBatcher';
 require 'utils';
 
-local CurriculumBatcher, parent = torch.class('CurriculumBatcher',
+local CurriculumBatcher, Parent = torch.class('CurriculumBatcher',
 					      'CachedBatcher');
 
 function CurriculumBatcher:__init(hdf5_path, centered_patch, cache_max_size,
 				  cache_gpu)
-   parent:__init(hdf5_path, centered_patch, cache_max_size, cache_gpu)
+   Parent.__init(self, hdf5_path, centered_patch, cache_max_size, cache_gpu)
    -- Load GT length of each sample
    self._sample_length = {};
    for k, _ in next,self._hf:read('/')._children do

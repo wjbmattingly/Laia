@@ -1,10 +1,10 @@
 require 'CachedBatcher';
 
-local RandomBatcher, parent = torch.class('RandomBatcher', 'CachedBatcher');
+local RandomBatcher, Parent = torch.class('RandomBatcher', 'CachedBatcher');
 
 function RandomBatcher:__init(hdf5_path, centered_patch, cache_max_size,
 			     cache_gpu)
-   parent:__init(hdf5_path, centered_patch, cache_max_size, cache_gpu)
+   Parent.__init(self, hdf5_path, centered_patch, cache_max_size, cache_gpu)
 end;
 
 --[[
