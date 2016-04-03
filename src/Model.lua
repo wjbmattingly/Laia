@@ -50,3 +50,26 @@ function createModel(sample_height, num_labels)
    model:add(nn.JoinTable(1));
    return model;
 end;
+
+function createModel_BLSTM(sample_height, num_labels, num_layers, num_hidden,
+			   batch_norm, dropout)
+   batch_norm = batch_norm or false;
+   dropout = dropout or 0.0;
+
+   local model = nn.Sequential();
+   model:add(nn.SplitTable(4));
+   model:add(nn.Sequencer(nn.Reshape(-1, true)));
+   model:add(nn.BiSequencer(nn.LSTM(sample_height, num_hidden),
+			    nn.LSTM(sample_height, num_hidden),
+			    nn.CAddTable()));
+   for i=2,num_hidden do
+      if batch_norm then model:add(nn.BatchNormalization(num_hidden)) end;
+      if dropout > 0.0 then model:add(nn.Sequencer(nn.Dropout(dropout))); end;
+      model:add(nn.BiSequencer(nn.LSTM(num_hidden, num_hidden),
+			       nn.LSTM(num_hidden, num_hidden),
+			       nn.CAddTable()));
+   end;
+   model:add(nn.Sequencer(nn.Linear(num_hidden, num_labels + 1)));
+   model:add(nn.JoinTable(1));
+   return model;
+end;

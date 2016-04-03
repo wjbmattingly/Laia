@@ -38,9 +38,8 @@ model:remove();  -- Remove last module (JoinTable)
 if args.use_gpu then
    model = model:cuda();
    if use_cudnn then cudnn.convert(model, cudnn); end;
-else
-   model = model:float();
 end;
+model:evaluate();
 
 local dv = WidthBatcher(args.data, true);
 local n = 0;

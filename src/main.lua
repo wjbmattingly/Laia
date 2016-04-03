@@ -40,6 +40,7 @@ if use_gpu then
    model = model:cuda();
    if use_cudnn then cudnn.convert(model, cudnn); end;
 end;
+model:training();
 
 parameters, gradParameters = model:getParameters();
 
@@ -171,5 +172,6 @@ for epoch=1,1000 do
 			  'Avg. Valid Loss = %7.4f',
 		       epoch, train_loss_epoch, valid_loss_epoch))
    -- Save model
-   torch.save(string.format('model_epoch%05d.net', epoch), model)
+   model:clearState();
+   torch.save(string.format('model_epoch%05d.net', epoch), model:float())
 end

@@ -8,10 +8,14 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     exit 1;
 
 overwrite=false;
+height=64;
 help_message="
 Usage: ${0##*/} [options]
 
 Options:
+  --height     : (type = integer, default = $height)
+                 Scale lines to have this height, keeping the aspect ratio
+                 of the original image.
   --overwrite  : (type = boolean, default = $overwrite)
                  Overwrite previously created files.
 ";
@@ -60,7 +64,8 @@ done;
 # Other preprocessing worth trying: normalization (mean = 0, stddev = 1), ZCA
 for p in train valid test; do
     [ -s data/iam/$p.h5 -a $overwrite = false ] || \
-	th "$SDIR/create_hdf5.lua" --invert true --binarize 0.5 --height 64 \
+	th "$SDIR/create_hdf5.lua" --invert true --binarize 0.5 \
+	--height "$height" \
 	lang/iam/chars/$p.txt lang/iam/chars/original_symbols.txt \
 	data/iam/imgs data/iam/$p.h5;
 done;
