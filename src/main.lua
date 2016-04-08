@@ -13,8 +13,8 @@ require 'Model';
 local seed = 1234;
 local use_gpu = true;
 local use_cudnn = true;
-local BATCH_SIZE = 16;
-local SAMPLE_HEIGHT = 64;
+local BATCH_SIZE = 6;
+local SAMPLE_HEIGHT = 32;
 local NUM_CHARS = 78;
 local grad_clip = 3;
 local rmsprop_opts = {

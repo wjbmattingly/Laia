@@ -8,7 +8,7 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     exit 1;
 
 overwrite=false;
-height=64;
+height=32;
 help_message="
 Usage: ${0##*/} [options]
 
