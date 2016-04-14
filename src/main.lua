@@ -198,7 +198,7 @@ for epoch=1,1000 do
   -- Write the results in the file
   file = io.open('../res/' .. id .. '.res', 'a')
   file:write(string.format('Epoch = %-5d  Avg. Train Loss = %7.4f  ' ..
-      'Avg. Valid Loss = %7.4f',
+      'Avg. Valid Loss = %7.4f\n',
          epoch, train_loss_epoch, valid_loss_epoch))
   file:close()
 
