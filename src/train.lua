@@ -13,7 +13,7 @@ require 'Model'
 local seed = 1234
 local use_gpu = true
 local use_cudnn = true
-local BATCH_SIZE = 50
+local BATCH_SIZE = 32
 local SAMPLE_HEIGHT = 64
 local NUM_CHARS = 78
 local grad_clip = 3
@@ -27,6 +27,7 @@ local learning_rate_decay_after = 10
 local curriculum_lambda_start = 3
 local curriculum_lambda_iters = 10
 local l1_decay = 0.001
+local l2_decay = 1e-6 -- L2 weight decay penalty strength
 
 if use_gpu then
   require 'cutorch'
@@ -130,7 +131,10 @@ for epoch=1,1000 do
       model:backward(batch_img, grad_output)
       
       -- L1 Normalization
-      -- gradParams:add(torch.sign(parameters):mul(l1_decay))
+      gradParameters:add(l1_decay, torch.sign(parameters))
+
+      -- L2 Normalization
+      gradParameters:add(l2_decay, parameters)
      
       -- Clip gradients
       if grad_clip > 0 then
