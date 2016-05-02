@@ -26,7 +26,7 @@ local learning_rate_decay = 0.97
 local learning_rate_decay_after = 10
 local curriculum_lambda_start = 3
 local curriculum_lambda_iters = 10
-local l1_decay = 0.001
+local l1_decay = 1e-6
 local l2_decay = 1e-6 -- L2 weight decay penalty strength
 
 if use_gpu then

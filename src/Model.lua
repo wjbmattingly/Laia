@@ -44,6 +44,7 @@ function createModel(sample_height, num_labels)
    model:add(nn.BiSequencer(nn.LSTM(nm[4] * sample_height / 8, nh[1]),
 			    nn.LSTM(nm[4] * sample_height / 8, nh[1]),
 			    nn.CAddTable()))
+   model:add(nn.Sequencer(nn.Dropout(0.5)))
    model:add(nn.BiSequencer(nn.LSTM(nh[1], nh[2]),
 			    nn.LSTM(nh[1], nh[2]),
 			    nn.CAddTable()))
