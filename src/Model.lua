@@ -38,19 +38,32 @@ function createModel(sample_height, num_labels)
    --model:add(convBlock(nm[4], nm[5], ks[5], ss[5], true))
    --model:add(convBlock(nm[5], nm[6], ks[6], ss[6]))
 
+   -- Required format change: tensor to table
    model:add(nn.SplitTable(4))
    model:add(nn.Sequencer(nn.Reshape(-1, true)))
+   --
    model:add(nn.Sequencer(nn.Dropout(0.5)))
+   -- First BLSTM
    model:add(nn.BiSequencer(nn.LSTM(nm[4] * sample_height / 8, nh[1]),
 			    nn.LSTM(nm[4] * sample_height / 8, nh[1]),
 			    nn.CAddTable()))
+   --
    model:add(nn.Sequencer(nn.Dropout(0.5)))
+   -- Second BLSTM
    model:add(nn.BiSequencer(nn.LSTM(nh[1], nh[2]),
 			    nn.LSTM(nh[1], nh[2]),
 			    nn.CAddTable()))
+   --
    model:add(nn.Sequencer(nn.Dropout(0.5)))
+   -- Third BLSTM: Test
+   model:add(nn.BiSequencer(nn.LSTM(nh[1], nh[2]),
+          nn.LSTM(nh[1], nh[2]),
+          nn.CAddTable()))
+   model:add(nn.Sequencer(nn.Dropout(0.5)))
+   --
    model:add(nn.Sequencer(nn.Linear(nh[2], num_labels + 1)))
    model:add(nn.JoinTable(1))
+
    return model
 end
 
