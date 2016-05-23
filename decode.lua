@@ -1,9 +1,9 @@
 require 'torch'
-
 require 'cudnn'
-require 'Model'
-require 'Utils'
-require 'WidthBatcher'
+require 'src.Model'
+
+require 'src.utilities'
+require 'src.WidthBatcher'
 
 local str2bool_table = {
    ['true'] = true, ['false'] = false,
