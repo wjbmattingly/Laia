@@ -27,6 +27,7 @@ function createModel(sample_height, num_labels)
 
    local model = nn.Sequential()
 
+   -- Convolutional part
    model:add(convBlock(1, nm[1], ks[1], ss[1]))
    model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
    model:add(convBlock(nm[1], nm[2], ks[2], ss[2]))

@@ -14,16 +14,17 @@ require 'utilities'
 local seed = 1234
 local use_gpu = true
 local use_cudnn = true
-local BATCH_SIZE = 32
+local BATCH_SIZE = 40
 local SAMPLE_HEIGHT = 64
 local NUM_CHARS = 78
 local grad_clip = 3
 
 local rmsprop_opts = {
    learningRate = 0.001,
-   alpha = 0.95
+   learningRateDecay = 0.97,
+   alpha = 0.95,
 }
-local learning_rate_decay = 0.97
+
 local learning_rate_decay_after = 10
 local curriculum_lambda_start = 3
 local curriculum_lambda_iters = 10
@@ -52,45 +53,6 @@ if use_gpu then
 end
 
 parameters, gradParameters = model:getParameters()
-
-function printHistogram(x, nbins, bmin, bmax)
-  local hist, bins = torch.loghistc(x, nbins, bmin, bmax)
-  local n = x:storage():size()
-  io.write(string.format('(-inf, %g] -> %.2g%%\n',
-            bins[1], 100 * hist[1] / n))
-  for i=2,#hist do
-    io.write(string.format('(%g, %g] -> %.2g%%\n',
-              bins[i-1], bins[i], 100 * hist[i] / n))
-  end
-end
-
-function framewise_decode(batch_size, rnn_output)
-   local hyps = {};
-   -- Initialize hypotheses for each batch element
-   for i=1,batch_size do
-      table.insert(hyps, {})
-   end
-   -- Put hypotheses with non repeated symbols
-   for t=1,rnn_output do
-      local _, idx = torch.max(rnn_output[t], 2);
-      idx = torch.totable(idx - 1);
-      for i=1,batch_size do
-	 if t == 1 or idx[i][t] == idx[i][t - 1] then
-	    table.insert(hyps[i], idx[i][t])
-         end;
-      end;
-   end;
-   local hyps2 = {}
-   for i=1,batch_size do
-      table.insert(hyps2, {})
-      for t=1,#hyps[i] do
-	 if hyps[i][t] != 0 then
-	    table.insert(hyps2[i], hyps[i][t])
-	 end
-      end
-   end
-   return hyps2
-end
 
 -- local dt = WidthBatcher('../data/iam/train.h5', true)
 -- local dt = RandomBatcher('../data/iam/train.h5', true)
