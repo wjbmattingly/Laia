@@ -21,7 +21,7 @@ model="$(realpath "$1")";
 data="$(realpath "$2")";
 symbols_table="$(realpath "$symbols_table")";
 
-cd "$SDIR/../src";
+#cd "$SDIR/..";
 th decode.lua "$model" "$data" | \
     sed -r 's|([0-9]+)( \1)+|\1 |g;s| 0||g;s|\ +| |g' | \
     awk -v STF="$symbols_table" '

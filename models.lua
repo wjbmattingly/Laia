@@ -21,6 +21,12 @@ function M.setup(opt)
   --   leakyrelu_modules.negval = opt.drop_prob
   -- end
 
+  -- Find all Dropout layers and set their probabilities
+  local blstm_module = model:findModules('cudnn.BLSTM')
+  blstm_module.dropout = opt.drop_prob
+
+  model:reset()
+
   -- If using gpu
   if opt.gpu >= 0 then
     model:cuda()

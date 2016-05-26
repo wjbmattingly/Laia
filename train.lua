@@ -99,7 +99,12 @@ while true do
       --collectgarbage()
       gradParameters:zero()
 
-      local output = model:forward(batch_img)
+      model:forward(batch_img)
+      
+      local output = model.output
+      -- print(output)
+      -- print(output:size())
+      -- os.exit()
       local sizes = {}
       local seq_len = output:size()[1] / opt.batch_size
       for i=1,opt.batch_size do table.insert(sizes, seq_len) end
@@ -119,11 +124,11 @@ while true do
       end
       
       -- Perform framewise decoding to estimate CER
-      local batch_decode = framewise_decode(opt.batch_size, model:get(model:size()-1).output)
+      local batch_decode = framewise_decode(opt.batch_size, output)
       for i=1,opt.batch_size do
-       local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
-       train_num_edit_ops = train_num_edit_ops + num_edit_ops
-       train_ref_length = train_ref_length + #batch_gt[i]
+        local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
+        train_num_edit_ops = train_num_edit_ops + num_edit_ops
+        train_ref_length = train_ref_length + #batch_gt[i]
       end
 
       -- Make loss function (and output gradients) independent of batch size
@@ -169,7 +174,9 @@ while true do
       batch_img = batch_img:cuda()
     end
 
-    local output = model:forward(batch_img)
+    model:forward(batch_img)
+
+    local output = model.output
     local sizes = {}
     local seq_len = output:size()[1] / opt.batch_size
     
@@ -193,11 +200,11 @@ while true do
     
     -- Perform framewise decoding to estimate CER
     -- get rid of last layer
-    local batch_decode = framewise_decode(opt.batch_size, model:get(model:size()-1).output) 
+    local batch_decode = framewise_decode(opt.batch_size, output)
     for i=1,opt.batch_size do
-       local num_edit_ops, _ = levenshtein(batch_gt[i], batch_decode[i])
-       valid_num_edit_ops = valid_num_edit_ops + num_edit_ops
-       valid_ref_length = valid_ref_length + #batch_gt[i]
+      local num_edit_ops, _ = levenshtein(batch_gt[i], batch_decode[i])
+      valid_num_edit_ops = valid_num_edit_ops + num_edit_ops
+      valid_ref_length = valid_ref_length + #batch_gt[i]
     end
 
     -- Make loss function (and output gradients) independent of batch size

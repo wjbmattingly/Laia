@@ -170,45 +170,77 @@ function printHistogram(x, nbins, bmin, bmax)
 end
 
 function framewise_decode(batch_size, rnn_output)
-  local hyps = {};
+  local hyps = {}
+  local seq_len = rnn_output:size(1) / batch_size
 
   -- Initialize hypotheses for each batch element
-  for i=1,batch_size do
+  for b=1,batch_size do
     table.insert(hyps, {})
   end
-  -- Put hypotheses with non repeated symbols
-  local hyps = {};
-  for t=1,#rnn_output do
-    local _, idx = torch.max(rnn_output[t], 2)
-    --print(idx[1])
-    idx = torch.totable(idx - 1)
-    --print(idx, _)
-    for i=1,batch_size do
-      if i <= #hyps then
-        table.insert(hyps[i], idx[i][1])
-      else
-        hyps[i] = idx[i];
+  
+  local _, idx = torch.max(rnn_output,2)
+  for b=0,batch_size-1 do
+    for l=0, seq_len-1 do
+      label = idx[l*batch_size+b+1][1]-1
+      -- do not insert repeated labels
+      if label ~= hyps[b+1][#hyps[b+1]] then
+        table.insert(hyps[b+1], label)
       end
     end
----    print(hyps)
   end
+  -- remove 0s (BLANK) from decoding
   local hyps2 = {}
-  for i=1,batch_size do
+  for b=1,batch_size do
     table.insert(hyps2, {})
-    for t=1,#hyps[i] do
-      is_ok = true
-      -- if blank -> do not add 
-      if hyps[i][t] == 0 then
-        is_ok = false
-      end
-      -- if previous symbol is the same -> do not add
-      if hyps[i][t] == hyps2[i][#hyps2[i]] then
-        is_ok = false
-      end      
-      if is_ok then
-        table.insert(hyps2[i], hyps[i][t])
+    for l=1,#hyps[b] do
+      if hyps[b][l] ~= 0 then
+        table.insert(hyps2[b], hyps[b][l])
       end
     end
   end
   return hyps2
 end
+
+-- function framewise_decode(batch_size, rnn_output)
+--   local hyps = {}
+--   --print(rnn_output)
+--   -- Initialize hypotheses for each batch element
+--   for i=1,batch_size do
+--     table.insert(hyps, {})
+--   end
+--   -- Put hypotheses with non repeated symbols
+--   local hyps = {}
+--   for t=1,#rnn_output do
+--     local _, idx = torch.max(rnn_output[t], 2)
+--     --print(idx[1])
+--     idx = torch.totable(idx - 1)
+--     --print(idx, _)
+--     for i=1,batch_size do
+--       if i <= #hyps then
+--         table.insert(hyps[i], idx[i][1])
+--       else
+--         hyps[i] = idx[i]
+--       end
+--     end
+-- ---    print(hyps)
+--   end
+--   local hyps2 = {}
+  -- for i=1,batch_size do
+  --   table.insert(hyps2, {})
+  --   for t=1,#hyps[i] do
+  --     is_ok = true
+  --     -- if blank -> do not add 
+  --     if hyps[i][t] == 0 then
+  --       is_ok = false
+  --     end
+  --     -- if previous symbol is the same -> do not add
+  --     if hyps[i][t] == hyps2[i][#hyps2[i]] then
+  --       is_ok = false
+  --     end      
+  --     if is_ok then
+  --       table.insert(hyps2[i], hyps[i][t])
+  --     end
+  --   end
+  -- end
+--   return hyps2
+-- end
