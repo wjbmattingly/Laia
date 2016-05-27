@@ -3,9 +3,9 @@ require 'src.BiLSTM'
 require 'src.BGRU'
 
 function createModel(sample_height, num_labels)
-  local ks = {3, 3, 3, 3, 3, 3, 2}
-  local ss = {1, 1, 1, 1, 1, 1, 1}
-  local nm = {16, 16, 32, 32, 64, 128, 128}
+  local ks = {3, 3, 3, 3}
+  local ss = {1, 1, 1, 1}
+  local nm = {16, 16, 32, 32}
   local nh = {256}
 
   function convBlock(depth_in, depth_out, size, stride, batch_norm)
@@ -37,15 +37,15 @@ function createModel(sample_height, num_labels)
   model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
   model:add(convBlock(nm[2], nm[3], ks[3], ss[3], true))
   model:add(convBlock(nm[3], nm[4], ks[4], ss[4]))
-  model:add(nn.SpatialMaxPooling(2, 2, 2, 2))             -- 32 x 8
+  model:add(nn.SpatialMaxPooling(2, 2, 2, 2))             -- nm[4] x (sample_height / 8)
   
   -- RNN part
   model:add(nn.Transpose({2,4},{1,2}))
   model:add(nn.Contiguous())
-  model:add(nn.Reshape(-1,256,true))
+  model:add(nn.Reshape(-1, nm[4] x (sample_height / 8), true))
   model:add(nn.Dropout(0.5))
-  --model:add(cudnn.BiLSTM(nh[1], nh[1], 3, nil, 0.5))
-  model:add(cudnn.BGRU(256, nh[1], 3, nil, 0.5))
+  model:add(cudnn.BiLSTM(nm[4] x (sample_height / 8), nh[1], 3, nil, 0.5))
+  --model:add(cudnn.BGRU(nm[4] x (sample_height / 8), nh[1], 3, nil, 0.5))
   model:add(nn.Dropout(0.5))
   model:add(nn.Contiguous())  
   model:add(nn.Reshape(-1, nh[1]*2, false))
