@@ -10,10 +10,12 @@ require 'torch'
 require 'warp_ctc'
 require 'optim'
 require 'xlua'
+local cjson = require 'cjson'
 
 require 'src.CurriculumBatcher'
 require 'src.RandomBatcher'
 
+--require 'src.Model-VGG_A'
 require 'src.Model'
 require 'src.utilities'
 local opts = require 'train_opts'
@@ -27,6 +29,20 @@ local opt = opts.parse(arg)
 print('Hyperparameters: ', opt)
 
 task_id = os.date("%d.%m.%H.%M")
+
+-- start log file
+local file = io.open(opt.output_path .. '/' .. task_id .. '.csv', 'w')
+local output_log_line = string.format('EPOCH BEST LOSS_TRAIN LOSS_VALID CER_TRAIN CER_VALID\n')
+file:write(output_log_line)
+file:close()
+
+-- serialize a json file that has all the opts
+cjson.encode_number_precision(4) -- number of sig digits to use in encoding
+cjson.encode_sparse_array(true, 2, 10)
+local json_opt = cjson.encode(opt)
+local file = io.open(opt.output_path .. '/' .. task_id .. '.json', 'w')
+file:write(json_opt)
+file:close()
 
 torch.manualSeed(opt.seed)
 math.randomseed(opt.seed)
@@ -102,9 +118,6 @@ while true do
       model:forward(batch_img)
       
       local output = model.output
-      -- print(output)
-      -- print(output:size())
-      -- os.exit()
       local sizes = {}
       local seq_len = output:size()[1] / opt.batch_size
       for i=1,opt.batch_size do table.insert(sizes, seq_len) end
@@ -157,8 +170,6 @@ while true do
     optim.rmsprop(feval, parameters, rmsprop_opts)
     xlua.progress(batch + opt.batch_size - 1, dt:numSamples())
   end
-  
-  --local lastGradParameters = gradParameters:clone()
 
   -- VALIDATION
   model:evaluate()
@@ -220,27 +231,34 @@ while true do
   train_cer_epoch = train_num_edit_ops / train_ref_length
   valid_cer_epoch = valid_num_edit_ops / valid_ref_length
 
+  ------------------------------------
+  -- Logging code
+  ------------------------------------
 
   best_model = false 
   -- Calculate if this is the best checkpoint so far
   if best_valid_cer == nil or valid_cer_epoch < best_valid_cer then 
     best_valid_cer = valid_cer_epoch
     best_model = true
+
+    local checkpoint = {}
+    checkpoint.opt  = opt
+    checkpoint.epoch = epoch
+    checkpoint.model = model
+  
+    model:clearState()
+
     -- Only save t7 checkpoint if there is an improvement in CER
-    torch.save(string.format(opt.output_path .. '/' .. task_id .. '.t7'), model:clearState())
+    torch.save(string.format(opt.output_path .. '/' .. task_id .. '.t7'), checkpoint)
   end
 
-  ------------------------------------
-  -- Logging code
-  ------------------------------------
-
   -- Write the results in the file
-  local file = io.open(opt.output_path .. '/' .. task_id .. '.log', 'a')
+  local file = io.open(opt.output_path .. '/' .. task_id .. '.csv', 'a')
   if best_model then
-    output_log_line = string.format('%-5d * loss = ( %7.4f , %7.4f ), cer = ( %7.2f , %7.2f )\n', 
+    output_log_line = string.format('%-5d   *  %10.6f %10.6f %9.2f %9.2f\n', 
             epoch, train_loss_epoch, valid_loss_epoch, train_cer_epoch * 100, valid_cer_epoch * 100)
   else
-    output_log_line = string.format('%-5d   loss = ( %7.4f , %7.4f ), cer = ( %7.2f , %7.2f )\n', 
+    output_log_line = string.format('%-5d      %10.6f %10.6f %9.2f %9.2f\n', 
             epoch, train_loss_epoch, valid_loss_epoch, train_cer_epoch * 100, valid_cer_epoch * 100)
   end
   file:write(output_log_line)
