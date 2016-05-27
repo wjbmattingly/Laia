@@ -19,7 +19,7 @@ parser:argument('model', 'Path to the neural network model file')
 parser:argument('data', 'Path to the dataset HDF5 file')
 parser:option('-b --batch_size', 'Batch size', 16):convert(tonumber)
 parser:option('--use_gpu',
-              'If true, perform computations on a GPU card supporintg CUDA',
+              'If true, perform computations on a GPU card supporting CUDA',
               'true'):convert(str2bool_table)
 parser:option('--use_cudnn',
               'If true, use NVIDIA cuDNN toolkit',
@@ -35,7 +35,6 @@ if args.use_gpu then
 end
 
 local model = torch.load(args.model)
-model:remove()  -- Remove last module (JoinTable)
 
 if args.use_gpu then
   model = model:cuda()
@@ -55,27 +54,15 @@ for batch=1,dv:numSamples(),args.batch_size do
   end
   -- Forward through network
   local output = model:forward(batch_img)
-  -- Prepare hypothesis
-  local hyps = {}
-  for t=1,#output do
-    local _, idx = torch.max(output[t], 2)
-    idx = torch.totable(idx - 1)
-    for i=1,args.batch_size do
-      if i <= #hyps then
-        table.insert(hyps[i], idx[i][1])
-      else
-        hyps[i] = idx[i]
-      end
-    end
-  end
-  for i=1,args.batch_size do
+  local batch_decode = framewise_decode(args.batch_size, output)
+  for i=1, args.batch_size do
     n = n + 1
     if n > dv:numSamples() then 
       break 
     end
     io.write(string.format('%s  ', batch_ids[i]))
-    for t=1,#hyps[i] do
-      io.write(string.format(' %d', hyps[i][t]))
+    for t=1, #batch_decode[i] do
+      io.write(string.format(' %d', batch_decode[i][t]))
     end
     io.write('\n')
   end
