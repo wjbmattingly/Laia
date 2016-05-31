@@ -200,3 +200,50 @@ function framewise_decode(batch_size, rnn_output)
   end
   return hyps2
 end
+
+-- see if the file exists
+function file_exists(file)
+  local f = io.open(file, "rb")
+  if f then f:close() end
+  return f ~= nil
+end
+
+-- get all lines from a file, returns an empty 
+-- list/table if the file does not exist
+function lines_from(file)
+  if not file_exists(file) then return {} end
+  lines = {}
+  for line in io.lines(file) do 
+    lines[#lines + 1] = line
+  end
+  return lines
+end
+
+-- python-like split function
+string.split = function(str, pattern)
+  pattern = pattern or "[^%s]+"
+  if pattern:len() == 0 then pattern = "[^%s]+" end
+  local parts = {__index = table.insert}
+  setmetatable(parts, parts)
+  str:gsub(pattern, parts)
+  setmetatable(parts, nil)
+  parts.__index = nil
+  return parts
+end
+
+-- read symbols_table file. this file contains
+-- two columns: "symbol     id"
+function read_symbols_table(file)
+  local lines = lines_from(file)
+  -- check if exists or is not empty
+  if lines == nil then return {} end
+  --
+  symbols_table = {}
+  for i=1, #lines do
+    local sline = lines[i]:split()
+    symbol = sline[1]
+    id = tonumber(sline[2])
+    symbols_table[id] = symbol
+  end
+  return symbols_table
+end
