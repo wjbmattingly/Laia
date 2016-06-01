@@ -3,31 +3,27 @@ local M = { }
 function M.parse(arg)
 
   cmd = torch.CmdLine()
+
   cmd:text()
   cmd:text('Train a DCNN-LSTM-CTC model.')
   cmd:text()
   cmd:text('Options')
 
-  -- Core ConvNet settings
-  cmd:option('-backend', 'cudnn', 'nn|cudnn')
-  
   -- Data input/ouput settings
   cmd:argument('training',
       'HDF5 file containing the training set (from prepare_XXXX.sh)')
   cmd:argument('validation',
       'HDF5 file containing the validation set (from prepare_XXXX.sh)')
-  --
-  cmd:option('-checkpoint_start_from', '',
-      'Load model from a checkpoint instead of random initialization.')
-  --
-  cmd:option('-output_path', '.',
-      'Directory to store ouput')
-
   -- Model settings
   cmd:argument('-vocab_size',  
       'Number of characters (see original_symbols.txt)')
   cmd:argument('-sample_height',  
       'Height of the samples')
+  cmd:option('-checkpoint_start_from', '',
+      'Load model from a checkpoint instead of random initialization.')
+  --
+  cmd:option('-output_path', '.',
+      'Directory to store ouput')
 
   -- Loss function
   cmd:option('-weight_l1_decay', 1e-6, 'L1 weight decay penalty strength')

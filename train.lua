@@ -15,7 +15,6 @@ local cjson = require 'cjson'
 require 'src.CurriculumBatcher'
 require 'src.RandomBatcher'
 
---require 'src.Model-VGG_A'
 require 'src.Model'
 require 'src.utilities'
 local opts = require 'train_opts'
@@ -56,13 +55,10 @@ if opt.gpu >= 0 then
   -- cuda related includes and settings
   require 'cutorch'
   require 'cunn'
+  require 'cudnn'
 
   cutorch.manualSeed(opt.seed)
   cutorch.setDevice(opt.gpu + 1) -- +1 because lua is 1-indexed
-
-  if opt.backend == 'cudnn' then
-    require 'cudnn'
-  end
 end
 
 -- initialize data loaders
@@ -200,7 +196,7 @@ while true do
     
     -- Compute loss function and gradients respect the output
     if opt.gpu >= 0 then
-    loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
+      loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
                           operator.add, 0)
     else
       output:float()
@@ -210,7 +206,6 @@ while true do
     end
     
     -- Perform framewise decoding to estimate CER
-    -- get rid of last layer
     local batch_decode = framewise_decode(opt.batch_size, output)
     for i=1,opt.batch_size do
       local num_edit_ops, _ = levenshtein(batch_gt[i], batch_decode[i])
