@@ -93,7 +93,58 @@ while true do
     dt:sample(0, 5)
   end
 
-  model:training()
+  local fb_pass = function(batch_img, batch_gt, do_backprop)
+    do_backprop = do_backprop or false
+    if do_backprop then
+       model:training()
+    else
+       model:evaluate()
+    end
+
+    gradParameters:zero()
+    model:forward(batch_img)
+
+    local output = model.output
+    local sizes = {}
+    local seq_len = output:size()[1] / opt.batch_size
+    for i=1,opt.batch_size do table.insert(sizes, seq_len) end
+
+    local grad_output = output:clone():zero()
+    local loss = 0
+
+    -- Compute loss function and gradients respect the output
+    if opt.gpu >= 0 then
+       loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
+			   operator.add, 0)
+    else
+       output:float()
+       grad_output:float()
+       loss = table.reduce(cpu_ctc(output, grad_output, batch_gt, sizes),
+			   operator.add, 0)
+    end
+
+    -- Perform framewise decoding to estimate CER
+    local batch_decode = framewise_decode(opt.batch_size, output)
+    local batch_num_edit_ops = 0
+    local batch_ref_length = 0
+    for i=1,opt.batch_size do
+       local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
+       batch_num_edit_ops = batch_num_edit_ops + num_edit_ops
+       batch_ref_length = batch_ref_length + #batch_gt[i]
+    end
+
+    -- Make loss function (and output gradients) independent of batch size
+    -- and sequence length.
+    loss = loss / (opt.batch_size * seq_len)
+    grad_output:div(opt.batch_size * seq_len)
+
+    -- Compute gradients of the loss function w.r.t parameters
+    if do_backprop then
+      model:backward(batch_img, grad_output)
+    end
+
+    return loss, batch_num_edit_ops, batch_ref_length
+  end
 
   local train_loss_epoch = 0.0
   local train_num_edit_ops = 0
@@ -101,7 +152,7 @@ while true do
 
   for batch=1,dt:numSamples(),opt.batch_size do
     local batch_img, batch_gt, batch_sizes = dt:next(opt.batch_size)
-    
+
     if opt.gpu >= 0 then
      batch_img = batch_img:cuda()
     end
@@ -109,58 +160,45 @@ while true do
     local feval = function(x)
       assert (x == parameters)
       --collectgarbage()
-      gradParameters:zero()
 
-      model:forward(batch_img)
-      
-      local output = model.output
-      local sizes = {}
-      local seq_len = output:size()[1] / opt.batch_size
-      for i=1,opt.batch_size do table.insert(sizes, seq_len) end
+      -- Regular backpropagation pass
+      local batch_loss, batch_num_edit_ops, batch_ref_length =
+        fb_pass(batch_img, batch_gt, true)
 
-      local grad_output = output:clone():zero()
-      local loss = 0
-      
-      -- Compute loss function and gradients respect the output
-      if opt.gpu >= 0 then
-        loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
-                              operator.add, 0)
-      else
-        output:float()
-        grad_output:float()
-        loss = table.reduce(cpu_ctc(output, grad_output, batch_gt, sizes),
-                              operator.add, 0)
-      end
-      
-      -- Perform framewise decoding to estimate CER
-      local batch_decode = framewise_decode(opt.batch_size, output)
-      for i=1,opt.batch_size do
-        local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
-        train_num_edit_ops = train_num_edit_ops + num_edit_ops
-        train_ref_length = train_ref_length + #batch_gt[i]
+      -- Adversarial training
+      if opt.adversarial_weight > 0.0 then
+        local dJx = model:get(1).gradInput  -- Gradient w.r.t. the inputs
+	-- Distort images so that the loss increases the maximum but the
+	-- pixel-wise differences do not exceed opt.adversarial_epsilon
+	local adv_img = torch.add(batch_img, opt.adversarial_epsilon,
+				  torch.sign(dJx))
+
+	local orig_gradParameters = torch.mul(gradParameters,
+					      1.0 - opt.adversarial_weight)
+	-- Backprop pass to get the gradients respect the adv images
+	local adv_loss, adv_edit_ops, adv_ref_len = fb_pass(adv_img, batch_gt,
+							    true)
+	-- dJ_final = (1 - w) * dJ_orig + w * dJ_adv
+	gradParameters:add(orig_gradParameters,
+			   opt.adversarial_weight, gradParameters)
       end
 
-      -- Make loss function (and output gradients) independent of batch size
-      -- and sequence length.
-      loss = loss / (opt.batch_size * seq_len)
-      grad_output:div(opt.batch_size * seq_len)
-      
-      -- Compute gradients of the loss function w.r.t parameters
-      model:backward(batch_img, grad_output)
-      
       -- L1 Normalization
       gradParameters:add(opt.weight_l1_decay, torch.sign(parameters))
 
       -- L2 Normalization
       gradParameters:add(opt.weight_l2_decay, parameters)
-     
+
       -- Clip gradients
       if opt.grad_clip > 0 then
         gradParameters:clamp(-opt.grad_clip, opt.grad_clip)
       end
-      
-      train_loss_epoch = train_loss_epoch + opt.batch_size * loss
-      return loss, gradParameters
+
+      train_loss_epoch = train_loss_epoch + opt.batch_size * batch_loss
+      train_num_edit_ops = train_num_edit_ops + batch_num_edit_ops
+      train_ref_length = train_ref_length + batch_ref_length
+
+      return batch_loss, gradParameters
     end
 
     optim.rmsprop(feval, parameters, rmsprop_opts)
@@ -174,49 +212,21 @@ while true do
   local valid_loss_epoch = 0.0
   local valid_num_edit_ops = 0
   local valid_ref_length = 0
-  
+
   for batch=1,dv:numSamples(),opt.batch_size do
     local batch_img, batch_gt, batch_sizes = dv:next(opt.batch_size)
     if opt.gpu >= 0 then
       batch_img = batch_img:cuda()
     end
 
-    model:forward(batch_img)
-
-    local output = model.output
-    local sizes = {}
-    local seq_len = output:size()[1] / opt.batch_size
-    
-    for i=1,opt.batch_size do 
-      table.insert(sizes, seq_len) 
-    end
-
-    local grad_output = output:clone():zero()
-    local loss = 0
-    
-    -- Compute loss function and gradients respect the output
-    if opt.gpu >= 0 then
-      loss = table.reduce(gpu_ctc(output, grad_output, batch_gt, sizes),
-                          operator.add, 0)
-    else
-      output:float()
-      grad_output = grad_output:float()
-      loss = table.reduce(cpu_ctc(output, grad_output, batch_gt, sizes),
-                            operator.add, 0)
-    end
-    
-    -- Perform framewise decoding to estimate CER
-    local batch_decode = framewise_decode(opt.batch_size, output)
-    for i=1,opt.batch_size do
-      local num_edit_ops, _ = levenshtein(batch_gt[i], batch_decode[i])
-      valid_num_edit_ops = valid_num_edit_ops + num_edit_ops
-      valid_ref_length = valid_ref_length + #batch_gt[i]
-    end
+    batch_loss, batch_num_edit_ops, batch_ref_length =
+      fb_pass(batch_img, batch_gt, false)
 
     -- Make loss function (and output gradients) independent of batch size
     -- and sequence length.
-    loss = loss / (opt.batch_size * seq_len)
-    valid_loss_epoch = valid_loss_epoch + opt.batch_size * loss
+    valid_loss_epoch = valid_loss_epoch + opt.batch_size * batch_loss
+    valid_num_edit_ops = valid_num_edit_ops + batch_num_edit_ops
+    valid_ref_length = valid_ref_length + batch_ref_length
     xlua.progress(batch + opt.batch_size - 1, dv:numSamples())
   end
 
@@ -230,9 +240,9 @@ while true do
   -- Logging code
   ------------------------------------
 
-  best_model = false 
+  best_model = false
   -- Calculate if this is the best checkpoint so far
-  if best_valid_cer == nil or valid_cer_epoch < best_valid_cer then 
+  if best_valid_cer == nil or valid_cer_epoch < best_valid_cer then
     best_valid_cer = valid_cer_epoch
     best_model = true
 
@@ -240,21 +250,26 @@ while true do
     checkpoint.opt  = opt
     checkpoint.epoch = epoch
     checkpoint.model = model
-  
+
     model:clearState()
 
     -- Only save t7 checkpoint if there is an improvement in CER
-    torch.save(string.format(opt.output_path .. '/' .. task_id .. '.t7'), checkpoint)
+    torch.save(string.format(opt.output_path .. '/' .. task_id .. '.t7'),
+	       checkpoint)
   end
 
   -- Write the results in the file
   local file = io.open(opt.output_path .. '/' .. task_id .. '.csv', 'a')
   if best_model then
-    output_log_line = string.format('%-5d   *  %10.6f %10.6f %9.2f %9.2f\n', 
-            epoch, train_loss_epoch, valid_loss_epoch, train_cer_epoch * 100, valid_cer_epoch * 100)
+    output_log_line = string.format('%-5d   *  %10.6f %10.6f %9.2f %9.2f\n',
+            epoch,
+	    train_loss_epoch, valid_loss_epoch,
+	    train_cer_epoch * 100, valid_cer_epoch * 100)
   else
-    output_log_line = string.format('%-5d      %10.6f %10.6f %9.2f %9.2f\n', 
-            epoch, train_loss_epoch, valid_loss_epoch, train_cer_epoch * 100, valid_cer_epoch * 100)
+    output_log_line = string.format('%-5d      %10.6f %10.6f %9.2f %9.2f\n',
+            epoch,
+	    train_loss_epoch, valid_loss_epoch,
+	    train_cer_epoch * 100, valid_cer_epoch * 100)
   end
   file:write(output_log_line)
   file:close()
