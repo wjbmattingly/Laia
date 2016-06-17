@@ -22,8 +22,7 @@ function M.parse(arg)
   cmd:option('-checkpoint_start_from', '',
       'Load model from a checkpoint instead of random initialization.')
   --
-  cmd:option('-output_path', '.',
-      'Directory to store ouput')
+  cmd:option('-output_path', '.', 'Directory to store ouput')
 
   -- Loss function
   cmd:option('-weight_l1_decay', 1e-6, 'L1 weight decay penalty strength')
@@ -36,12 +35,21 @@ function M.parse(arg)
   cmd:option('-learning_rate_decay', 0.97, 'Learning rate decay to use')
   cmd:option('-learning_rate_decay_after', 10, 'Learning rate decay to use')
   cmd:option('-alpha',0.95, 'RMS Prop alpha value to use')
-  cmd:option('-curriculum_learning_after', 3, 'Epoch in which Curriculum Learning starts to work')
-  cmd:option('-curriculum_learning_update', 10,
-      'Update Curriculum Learning lambda every n epoch')
-  cmd:option('-max_epochs', -1, 'Number of iterations to run; -1 to run forever')
-  cmd:option('-adversarial_weight', 0.0, 'Weight of the loss adversarial samples')
-  cmd:option('-adversarial_epsilon', 0.007, 'Maximum differences in the adversarial samples')
+  cmd:option('-curriculum_learning_init', 3,
+	     'Initial value of the curriculum learning parameter. ' ..
+	     'This parameter will be linearly decreased in each epoch until' ..
+	     ' it reaches 0 in -curriculum_learning_epochs.')
+  cmd:option('-curriculum_learning_epochs', 10,
+	     'Use curriculum learning for the first n epochs')
+  cmd:option('-max_epochs', -1,
+	     'Number of epochs to run; -1 to disable this maximum')
+  cmd:option('-max_no_improv_epochs', 15,
+	     'Stop training after this number of epochs without improvement;' ..
+             ' -1 to disable this maximum')
+  cmd:option('-adversarial_weight', 0.0,
+	     'Weight of the loss adversarial samples')
+  cmd:option('-adversarial_epsilon', 0.007,
+	     'Maximum differences in the adversarial samples')
 
   -- Layers stuff
   cmd:option('-drop_prob', 0.5, 'Dropout strength throughout the model')

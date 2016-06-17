@@ -77,7 +77,8 @@ print('Number of parameters: ', gradParameters:nElement())
 ------------------------------------
 
 local best_valid_cer = nil
-local epoch = 0
+local best_valid_epoch = nil
+local epoch = 1
 
 while true do
   -- Apply learning rate decay
@@ -86,11 +87,11 @@ while true do
       rmsprop_opts.learningRate * opt.learning_rate_decay
   end
   -- Curriculum learning
-  if epoch <= opt.curriculum_learning_after then
-    dt:sample(opt.curriculum_learning_after *
-              (1.0 - (epoch - 1) / opt.curriculum_learning_update), 5)
+  if epoch <= opt.curriculum_learning_epochs then
+    dt:sample(opt.curriculum_learning_init *
+              (1.0 - (epoch - 1) / opt.curriculum_learning_epochs), 5)
   else
-    dt:sample(0, 5)
+    dt:sample(0, 5)     -- Uniform sampling
   end
 
   local fb_pass = function(batch_img, batch_gt, do_backprop)
@@ -244,6 +245,7 @@ while true do
   -- Calculate if this is the best checkpoint so far
   if best_valid_cer == nil or valid_cer_epoch < best_valid_cer then
     best_valid_cer = valid_cer_epoch
+    best_valid_epoch = epoch
     best_model = true
 
     local checkpoint = {}
@@ -274,9 +276,12 @@ while true do
   file:write(output_log_line)
   file:close()
 
-  -- stopping criterions
-  epoch = epoch + 1
   -- Collect garbage every so often
   if epoch % 10 == 0 then collectgarbage() end
   if opt.max_epochs > 0 and epoch >= opt.max_epochs then break end
+  if opt.max_no_improv_epochs > 0 and
+  epoch - best_valid_epoch >= opt.max_no_improv_epochs then break end
+
+  -- stopping criterions
+  epoch = epoch + 1
 end
