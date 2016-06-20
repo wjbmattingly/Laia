@@ -39,7 +39,7 @@ function M.parse(arg)
 	     'Initial value of the curriculum learning parameter. ' ..
 	     'This parameter will be linearly decreased in each epoch until' ..
 	     ' it reaches 0 in -curriculum_learning_epochs.')
-  cmd:option('-curriculum_learning_epochs', 10,
+  cmd:option('-curriculum_learning_epochs', 5,
 	     'Use curriculum learning for the first n epochs')
   cmd:option('-max_epochs', -1,
 	     'Number of epochs to run; -1 to disable this maximum')
