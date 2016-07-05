@@ -127,17 +127,17 @@ function levenshtein(u, v)
    curr_ops[0]['SUB'] = 0
    curr_ops[0]['DEL'] = x
    curr_ops[0]['INS'] = 0
-   
+
    for i=1, #v, 1 do
     curr_ops[i]={}
    end
-   
+
    for y=1, #v, 1 do
     --local cost = (s[i] == t[j] and 0 or 1)
-    local delcost = prev[y] + 1 
+    local delcost = prev[y] + 1
     local addcost = curr[y-1] + 1
     local subcost = prev[y-1] + (u[x] ~= v[y] and 1 or 0)
-    
+
     curr[y] = math.min(subcost, delcost, addcost)
 
     if curr[y] == subcost then
@@ -145,11 +145,11 @@ function levenshtein(u, v)
       curr_ops[y]['DEL'] = prev_ops[y-1]['DEL']
       curr_ops[y]['INS'] = prev_ops[y-1]['INS']
     elseif curr[y] == delcost then
-      curr_ops[y]['SUB'] = prev_ops[y]['SUB'] 
+      curr_ops[y]['SUB'] = prev_ops[y]['SUB']
       curr_ops[y]['DEL'] = prev_ops[y]['DEL'] + 1
-      curr_ops[y]['INS'] = prev_ops[y]['INS']        
+      curr_ops[y]['INS'] = prev_ops[y]['INS']
     else
-      curr_ops[y]['SUB'] = curr_ops[y-1]['SUB'] 
+      curr_ops[y]['SUB'] = curr_ops[y-1]['SUB']
       curr_ops[y]['DEL'] = curr_ops[y-1]['DEL']
       curr_ops[y]['INS'] = curr_ops[y-1]['INS'] + 1
     end
@@ -177,7 +177,7 @@ function framewise_decode(batch_size, rnn_output)
   for b=1,batch_size do
     table.insert(hyps, {})
   end
-  
+
   local _, idx = torch.max(rnn_output,2)
   for b=0,batch_size-1 do
     for l=0, seq_len-1 do
@@ -208,18 +208,18 @@ function file_exists(file)
   return f ~= nil
 end
 
--- get all lines from a file, returns an empty 
+-- get all lines from a file, returns an empty
 -- list/table if the file does not exist
 function lines_from(file)
   if not file_exists(file) then return {} end
   lines = {}
-  for line in io.lines(file) do 
+  for line in io.lines(file) do
     lines[#lines + 1] = line
   end
   return lines
 end
 
--- python-like split function
+-- split function for strings
 string.split = function(str, pattern)
   pattern = pattern or "[^%s]+"
   if pattern:len() == 0 then pattern = "[^%s]+" end
@@ -246,4 +246,11 @@ function read_symbols_table(file)
     symbols_table[id] = symbol
   end
   return symbols_table
+end
+
+table.extend_with_last_element = function(t, n)
+   n = n or (#t + 1)
+   while #t < n do
+      table.insert(t, t[#t])
+   end
 end
