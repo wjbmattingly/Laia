@@ -1,4 +1,4 @@
-# dcnn-lstm-ctc4htr
+# Laia: A deep learning toolkit for HTR based on Torch
 
 ## Create a model
 
@@ -23,5 +23,5 @@ th decode.lua $MODEL $DATA_H5
 - CUDA 7.5 + cuDNN
 - Torch7
 - cuTorch
-- Torch cuDNN [Install it from https://github.com/jpuigcerver/cudnn.torch]
+- Torch cuDNN [Install it from https://github.com/soumith/cudnn.torch]
 - Warp CTC [https://github.com/baidu-research/warp-ctc]
