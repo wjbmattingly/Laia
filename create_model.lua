@@ -17,13 +17,13 @@ cmd:option('-cnn_batch_norm', 'false false true false',
 cmd:option('-cnn_type', 'relu',
 	   'Type of the activation in each convolutional layer (values: ' ..
 	   'tanh, relu, prelu, rrelu, leakyrelu, softplus)')
-cmd:option('-cnn_dropout', '0 0 0 0.5',
-	   'Dropout probability for each convolutional layer')
+cmd:option('-cnn_dropout', '0 0 0 0',
+	   'Dropout probability to the input of each convolutional layer')
 cmd:text()
 
 cmd:text('Recurrent layer options:')
 cmd:option('-rnn_dropout', 0.5,
-	   'Dropout probability in between the recurrent layers')
+	   'Dropout probability to the input of each recurrent layer')
 cmd:option('-rnn_layers', 3, 'Number of recurrent layers')
 cmd:option('-rnn_units', 256, 'Number of units in each recurrent layer')
 cmd:option('-rnn_type', 'blstm',
@@ -32,6 +32,8 @@ cmd:text()
 
 cmd:text('Other options:')
 cmd:option('-seed', 0x012345, 'Seed for random numbers generation')
+cmd:option('-linear_dropout', 0.5,
+	   'Dropout probability to the input of the final linear layer')
 cmd:text()
 
 cmd:text('Arguments:')
@@ -120,7 +122,10 @@ function convBlock(depth_in, depth_out,  -- Input & output channels/filters
    batch_norm = batch_norm or false
    dropout = dropout or 0
    local block = nn.Sequential()
-
+   -- Spatial dropout to the input of the convolutional block
+   if dropout > 0 then
+      block:add(nn.SpatialDropout(dropout))
+   end
    -- Spatial 2D convolution. Image is padded with zeroes so that the output
    -- has the same size as the input / stride.
    block:add(cudnn.SpatialConvolution(
@@ -151,10 +156,6 @@ function convBlock(depth_in, depth_out,  -- Input & output channels/filters
    -- Max pooling
    if pool_w > 0 and pool_h > 0 then
       block:add(nn.SpatialMaxPooling(pool_w, pool_h, pool_w, pool_h))
-   end
-   -- Spatial dropout
-   if dropout > 0 then
-      block:add(nn.SpatialDropout(dropout))
    end
    return block
 end
@@ -197,6 +198,9 @@ else
 end
 model:add(nn.Contiguous())
 model:add(nn.Reshape(-1, opt.rnn_units * 2, false))
+if opt.linear_dropout > 0 then
+   model:add(nn.Dropout(linear_dropout))
+end
 model:add(nn.Linear(opt.rnn_units * 2, opt.output_size))
 
 -- Save model to disk
