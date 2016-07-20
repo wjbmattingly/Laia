@@ -4,21 +4,24 @@ require 'src.utilities'
 local cmd = torch.CmdLine('Create a DCNN-RNN model.')
 
 cmd:text('Convolutional layer options:')
-cmd:option('-cnn_kernel_size', '3,3 3,3 3,3 3,3',
-	   'Kernel size of the convolutional layers')
-cmd:option('-cnn_num_features', '16 16 32 32',
-	   'Number of feature maps of the convolutional layers')
-cmd:option('-cnn_maxpool_size', '2,2 2,2 0 2,2',
-	   'Max pooling size after each convolutional layer (0 disables max ' ..
-	   'pooling for that layer)')
 cmd:option('-cnn_batch_norm', 'false false true false',
 	   'Perform batch normalization before the activation function in ' ..
            'each convolutional layer')
+cmd:option('-cnn_dropout', '0',
+	   'Dropout probability to the input of each convolutional layer')
+cmd:option('-cnn_maxpool_size', '2,2 2,2 0 2,2',
+	   'Max pooling size after each convolutional layer (0 disables max ' ..
+	   'pooling for that layer)')
+cmd:option('-cnn_num_features', '16 16 32 32',
+	   'Number of feature maps of the convolutional layers')
+cmd:option('-cnn_kernel_size', '3,3 3,3 3,3 3,3',
+	   'Kernel size of the convolutional layers')
+cmd:option('-cnn_spatial_dropout', 'false',
+	   'If true, use spatial dropout at the input of each convolutional ' ..
+           'layer instead of the regular dropout')
 cmd:option('-cnn_type', 'relu',
 	   'Type of the activation in each convolutional layer (values: ' ..
 	   'tanh, relu, prelu, rrelu, leakyrelu, softplus)')
-cmd:option('-cnn_dropout', '0 0 0 0',
-	   'Dropout probability to the input of each convolutional layer')
 cmd:text()
 
 cmd:text('Recurrent layer options:')
@@ -45,6 +48,7 @@ cmd:argument('output_size',
 cmd:argument('output_file', 'Output file to store the model')
 cmd:text()
 local opt = cmd:parse(arg or {})
+print('Model hyperparameters: ', opt)
 
 local cnn_num_features = string.split(opt.cnn_num_features)
 local cnn_kernel_size = string.split(opt.cnn_kernel_size)
@@ -52,6 +56,7 @@ local cnn_maxpool_size = string.split(opt.cnn_maxpool_size)
 local cnn_batch_norm = string.split(opt.cnn_batch_norm)
 local cnn_type = string.split(opt.cnn_type)
 local cnn_dropout = string.split(opt.cnn_dropout)
+local cnn_spatial_dropout = string.split(opt.cnn_spatial_dropout)
 opt.input_channels = tonumber(opt.input_channels)
 opt.input_height = tonumber(opt.input_height)
 opt.output_size = tonumber(opt.output_size)
@@ -65,24 +70,26 @@ opt.seed = tonumber(opt.seed)
 local cnn_layers = #cnn_num_features
 
 -- Check that the specified parameters make sense
-assert(cnn_layers > 0, 'You must use at least one convolutional layer')
-assert(#cnn_kernel_size > 0, 'You must specify at least one kernel size')
-assert(#cnn_type > 0,
+assert(cnn_layers == 0 or #cnn_kernel_size > 0,
+       'You must specify at least one kernel size')
+assert(cnn_layers == 0 or #cnn_type > 0,
        'You must specify at least one activation function for the ' ..
        'convolutional layers')
 if #cnn_maxpool_size == 0 then cnn_maxpool_size = { '0' } end
 if #cnn_batch_norm == 0 then cnn_batch_norm = { 'false' } end
 if #cnn_dropout == 0 then cnn_dropout = { '0' } end
-assert(#cnn_kernel_size <= cnn_layers,
+assert(cnn_layers == 0 or #cnn_kernel_size <= cnn_layers,
        'You specified more kernel sizes than convolutional layers!')
-assert(#cnn_maxpool_size <= cnn_layers,
+assert(cnn_layers == 0 or #cnn_maxpool_size <= cnn_layers,
        'You specified more max pooling sizes than convolutional layers!')
-assert(#cnn_batch_norm <= cnn_layers,
+assert(cnn_layers == 0 or #cnn_batch_norm <= cnn_layers,
        'You specified more batch norm layers than convolutional layers!')
-assert(#cnn_type <= cnn_layers,
+assert(cnn_layers == 0 or #cnn_type <= cnn_layers,
        'You specified more activation types than convolutional layers!')
-assert(#cnn_dropout <= cnn_layers,
+assert(cnn_layers == 0 or #cnn_dropout <= cnn_layers,
        'You specified more dropout values than convolutional layers!')
+assert(cnn_layers == 0 or #cnn_spatial_dropout <= cnn_layers,
+       'You specified more spatial dropout values than convolutional layers!')
 -- Ensure that all options for the convolutional layers have the same
 -- size (equal to the number of specified layers). The last option in a list
 -- is copied to extend the list until a size of cnn_layers is achieved.
@@ -91,6 +98,7 @@ table.extend_with_last_element(cnn_maxpool_size, cnn_layers)
 table.extend_with_last_element(cnn_batch_norm, cnn_layers)
 table.extend_with_last_element(cnn_type, cnn_layers)
 table.extend_with_last_element(cnn_dropout, cnn_layers)
+table.extend_with_last_element(cnn_spatial_dropout, cnn_layers)
 -- Convert lists of strings to appropiate types and sizes
 cnn_dropout = table.map(cnn_dropout, tonumber)
 cnn_num_features = table.map(cnn_num_features, tonumber)
@@ -106,7 +114,10 @@ cnn_maxpool_size = table.map(cnn_maxpool_size, function(x)
     table.extend_with_last_element(t, 2)
     return t
 end)
-cnn_batch_norm = table.map(cnn_batch_norm, function(x) return x == 'true'end)
+cnn_batch_norm = table.map(cnn_batch_norm,
+			   function(x) return x == 'true'end)
+cnn_spatial_dropout = table.map(cnn_spatial_dropout,
+				function(x) return x == 'true'end)
 
 -- Initialize random seeds
 math.randomseed(opt.seed)
@@ -117,14 +128,19 @@ cutorch.manualSeed(opt.seed)
 function convBlock(depth_in, depth_out,  -- Input & output channels/filters
 		   kernel_w, kernel_h,   -- Size of the convolution kernels
 		   pool_w, pool_h,       -- Size of the pooling windows
-		   activation, batch_norm, dropout)
+		   activation, batch_norm, dropout, spatial_dropout)
    activation = activation or 'relu'
    batch_norm = batch_norm or false
    dropout = dropout or 0
+   spatial_dropout = spatial_dropout or false
    local block = nn.Sequential()
    -- Spatial dropout to the input of the convolutional block
    if dropout > 0 then
-      block:add(nn.SpatialDropout(dropout))
+      if spatial_dropout then
+	 block:add(nn.SpatialDropout(dropout))
+      else
+	 block:add(nn.Dropout(dropout))
+      end
    end
    -- Spatial 2D convolution. Image is padded with zeroes so that the output
    -- has the same size as the input / stride.
@@ -169,23 +185,21 @@ function computeSizeAfterPooling(input_size, pool_size)
 end
 
 local model = nn.Sequential()
--- First convolutional layer
-model:add(convBlock(opt.input_channels, cnn_num_features[1],
-		    cnn_kernel_size[1][1], cnn_kernel_size[1][2],
-		    cnn_maxpool_size[1][1], cnn_maxpool_size[1][2],
-		    cnn_type[1], cnn_batch_norm[1], cnn_dropout[1]))
--- Used to compute the height of the images after all the convolutions
-local curr_h = computeSizeAfterPooling(opt.input_height, cnn_maxpool_size[1][2])
--- Append remaining convolutional layer blocks
-for i=2,cnn_layers do
-   model:add(convBlock(cnn_num_features[i-1], cnn_num_features[i],
+-- Used to compute the height and depth of the images after all the convolutions
+local curr_h = opt.input_height
+local curr_c = opt.input_channels
+-- Append convolutional layer blocks
+for i=1,cnn_layers do
+   model:add(convBlock(curr_c, cnn_num_features[i],
 		       cnn_kernel_size[i][1], cnn_kernel_size[i][2],
 		       cnn_maxpool_size[i][1], cnn_maxpool_size[i][2],
-		       cnn_type[i], cnn_batch_norm[i], cnn_dropout[i]))
+		       cnn_type[i], cnn_batch_norm[i], cnn_dropout[i],
+		       cnn_spatial_dropout[i]))
    curr_h = computeSizeAfterPooling(curr_h, cnn_maxpool_size[i][2])
+   curr_c = cnn_num_features[i]
 end
 -- Append recurrent layers
-local rnn_input_dim = cnn_num_features[cnn_layers - 1] * curr_h
+local rnn_input_dim = curr_c * curr_h
 model:add(nn.Transpose({2,4},{1,2}))
 model:add(nn.Contiguous())
 model:add(nn.Reshape(-1, rnn_input_dim, true))
