@@ -53,9 +53,9 @@ function CachedBatcher:_global2cacheIndex(idx)
   else
     -- The cache is circular: [i, i + 1, ..., i + N, 0, ..., M - N - 1]
     if idx >= self._cache_idx or idx < cacheEnd then
-   return 1 + (idx - self._cache_idx) % self._num_samples
+     return 1 + (idx - self._cache_idx) % self._num_samples
     else
-   return -1
+     return -1
     end
   end
 end
@@ -148,8 +148,8 @@ function CachedBatcher:next(batch_size)
     local dy = 0
     local dx = 0
     if self._centered_patch then
-   dy = math.floor((max_sizes[{1,1}] - img:size()[2]) / 2)
-   dx = math.floor((max_sizes[{1,2}] - img:size()[3]) / 2)
+       dy = math.floor((max_sizes[{1,1}] - img:size()[2]) / 2)
+       dx = math.floor((max_sizes[{1,2}] - img:size()[3]) / 2)
     end
     batch_img[i+1]:sub(1, n_channels,
        dy + 1, dy + img:size()[2],

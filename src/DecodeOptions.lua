@@ -8,9 +8,10 @@ function M.parse(arg)
   cmd:text()
 
   cmd:text('Options:')
-  cmd:option('-symbols_table', '', 'Symbols table (original_symbols.txt)')
   cmd:option('-batch_size', 40, 'Batch size')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
+  cmd:option('-seed', 0x12345, 'Random number generator seed to use')
+  cmd:option('-symbols_table', '', 'Symbols table (original_symbols.txt)')
   cmd:text()
 
   cmd:text('Arguments:')
@@ -18,6 +19,7 @@ function M.parse(arg)
   cmd:argument('data', 'Path to the dataset HDF5 file')
   cmd:text()
   local opt = cmd:parse(arg or {})
+  assert(opt.batch_size > 0, 'Batch size must be greater than 0')
   return opt
 end
 

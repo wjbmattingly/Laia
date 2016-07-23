@@ -15,10 +15,13 @@ require 'src.RandomBatcher'
 local opts = require 'src.DecodeOptions'
 local opt = opts.parse(arg)
 
+math.randomseed(opt.seed)
+torch.manualSeed(opt.seed)
 if opt.gpu >= 0 then
   require 'cutorch'
   require 'cunn'
   require 'cudnn'
+  cutorch.manualSeed(opt.seed)
 end
 
 local model = torch.load(opt.model).model

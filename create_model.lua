@@ -218,4 +218,8 @@ end
 model:add(nn.Linear(opt.rnn_units * 2, opt.output_size))
 
 -- Save model to disk
-torch.save(opt.output_file, model)
+local checkpoint = {
+   model = model,
+   model_opt = opt
+}
+torch.save(opt.output_file, checkpoint)

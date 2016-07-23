@@ -254,3 +254,21 @@ table.extend_with_last_element = function(t, n)
       table.insert(t, t[#t])
    end
 end
+
+function save_gradInput_heatmap(m, desc)
+   require 'image'
+   desc = desc or ''
+   assert(torch.isTypeOf(m, 'nn.Module'), 'Input must be a nn.Model')
+   if torch.isTypeOf(m, 'nn.Container') then
+      --for l=1,m:size() do
+	 save_gradInput_heatmap(m:get(1), string.format('%s%d.', desc, 1))
+      --end
+   else
+      local x = m.gradInput:clone()
+      --print(string.format('%s %s', desc, torch.type(m)), x:size())
+      for i=1,x:size()[1] do
+	 local xi = x:sub(i, i):squeeze(1)
+	 image.save(string.format('%s%d.jpg', desc, i), xi)
+      end
+   end
+end

@@ -10,7 +10,6 @@ require 'torch'
 require 'warp_ctc'
 require 'optim'
 require 'xlua'
-local cjson = require 'cjson'
 
 -- TODO: Curriculum batcher does not work properly
 -- require 'src.CurriculumBatcher'
@@ -18,6 +17,9 @@ require 'src.RandomBatcher'
 
 require 'src.utilities'
 local opts = require 'src.TrainOptions'
+
+local term = require 'term'
+local isatty = term.isatty(io.stdout)
 
 ------------------------------------
 -- Initializations
@@ -32,23 +34,6 @@ local rmsprop_opts = {
    alpha = opt.alpha,
 }
 
-task_id = os.date("%d.%m.%H.%M")
-
--- start log file
-local file = io.open(opt.output_path .. '/' .. task_id .. '.csv', 'w')
-local output_log_line = string.format('EPOCH BEST LOSS_TRAIN LOSS_VALID CER_TRAIN CER_VALID\n')
-file:write(output_log_line)
-file:close()
-
--- serialize a json file that has all the opts
-cjson.encode_number_precision(4) -- number of sig digits to use in encoding
-cjson.encode_sparse_array(true, 2, 10)
-local json_opt = cjson.encode(opt)
-local file = io.open(opt.output_path .. '/' .. task_id .. '.json', 'w')
-file:write(json_opt)
-file:close()
-
-
 math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 if opt.gpu >= 0 then
@@ -56,18 +41,12 @@ if opt.gpu >= 0 then
   require 'cutorch'
   require 'cunn'
   require 'cudnn'
-
   cutorch.manualSeed(opt.seed)
   cutorch.setDevice(opt.gpu + 1) -- +1 because lua is 1-indexed
 end
 
--- initialize data loaders
--- local dt = CurriculumBatcher(opt.training, true)
-local dt = RandomBatcher(opt.training, true)
-local dv = RandomBatcher(opt.validation, true)
 
-
-local initial_checkpoint = torch.load(opt.initial_checkpoint)
+local initial_checkpoint = torch.load(opt.model)
 local model = nil
 local epoch = 0
 if torch.isTypeOf(initial_checkpoint, 'nn.Module') then
@@ -78,12 +57,12 @@ else
    -- This currently won't work, since we are not reading the options,
    -- like learningRate, from the checkpoint file.
    model = initial_checkpoint.model
-   epoch = initial_checkpoint.epoch
+   epoch = initial_checkpoint.epoch or 0
 end
 assert(model ~= nil)
 assert(epoch ~= nil)
 
--- TODO: Allow model on CPU, or not using cudnn
+-- TODO(jpuigcerver): Allow model on CPU, or not using cudnn
 model:cuda()
 cudnn.convert(model, cudnn)
 
@@ -147,56 +126,85 @@ local fb_pass = function(batch_img, batch_gt, do_backprop)
 end
 -- END fb_pass
 
+-- Determine the filename of the output model
+local output_model_filename = opt.model
+if opt.output_model ~= '' then
+   output_model_filename = opt.output_model
+end
+
+local output_progress_file = nil
+local progress_header = '# EPOCH   BEST?   TRAIN_LOSS   VALID_LOSS   TRAIN_CER   VALID_CER   TRAIN_TIME   VALID_TIME\n'
+if opt.output_progress ~= '' then
+   output_progress_file = io.open(opt.output_progress, 'w')
+   output_progress_file:write(progress_header)
+end
+
+local dt = RandomBatcher(opt.training, true)
+local dv = RandomBatcher(opt.validation, true)
+
+-- Keep track of the performance on the training data
+local train_loss_epoch = 0.0
+local train_cer_epoch = 0.0
+local train_num_edit_ops = 0
+local train_ref_length = 0
+local train_num_samples = nil
+if opt.num_samples_epoch < 1 then
+   train_num_samples =
+      opt.batch_size * math.ceil(dt:numSamples() / opt.batch_size)
+else
+   train_num_samples =
+      opt.batch_size * math.ceil(opt.num_samples_epoch / opt.batch_size)
+end
+-- Keep track of the performance on the validation data
+local valid_loss_epoch = 0.0
+local valid_cer_epoch = 0.0
+local valid_num_edit_ops = 0
+local valid_ref_length = 0
+local valid_num_samples =
+   opt.batch_size * math.ceil(dv:numSamples() / opt.batch_size)
+
+local best_criterion_value = nil
+local best_criterion_epoch = nil
+local last_signif_improv_epoch = nil
+local current_criterion_value = {
+   train_loss = function() return train_loss_epoch end,
+   train_cer = function() return train_cer_epoch end,
+   valid_loss = function() return valid_loss_epoch end,
+   valid_cer = function() return valid_cer_epoch end
+}
+assert(current_criterion_value[opt.early_stop_criterion] ~= nil,
+       string.format('Early stop criterion %q is not supported!',
+		     opt.early_stop_criterion))
 
 ------------------------------------
 -- Main loop
 ------------------------------------
 
-local best_valid_cer = nil
-local best_valid_epoch = nil
-
 while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   -- Epoch starts at 0, when the model is created
   epoch = epoch + 1
-
-  --------------------------
-  --    TRAINING EPOCH    --
-  --------------------------
 
   -- Apply learning rate decay
   if epoch > opt.learning_rate_decay_after then
     rmsprop_opts.learningRate =
       rmsprop_opts.learningRate * opt.learning_rate_decay
   end
+
+  --------------------------------
+  --    TRAINING EPOCH START    --
+  --------------------------------
+  local train_time_start = os.time()
   dt:shuffle()
-  -- Curriculum learning
-  --if epoch <= opt.curriculum_learning_epochs then
-  --  dt:sample(opt.curriculum_learning_init *
-  --            (1.0 - (epoch - 1) / opt.curriculum_learning_epochs), 5)
-  --else
-  --  dt:sample(0, 5)     -- Uniform sampling
-  --end
-
-  local train_loss_epoch = 0.0
-  local train_num_edit_ops = 0
-  local train_ref_length = 0
-  local train_num_samples = nil
-  if opt.max_epoch_samples < 1 then
-     train_num_samples =
-	opt.batch_size * math.ceil(dt:numSamples() / opt.batch_size)
-  else
-     local max_num_samples = math.min(dt:numSamples(), opt.max_epoch_samples)
-     train_num_samples =
-	opt.batch_size * math.ceil(max_num_samples / opt.batch_size)
-  end
-
+  train_loss_epoch = 0
+  train_num_edit_ops = 0
+  train_ref_length = 0
   for batch=1,train_num_samples,opt.batch_size do
     local batch_img, batch_gt, batch_sizes = dt:next(opt.batch_size)
     if opt.gpu >= 0 then
      batch_img = batch_img:cuda()
     end
 
-    local feval = function(x)
+    local train_batch = function(x)
       assert (x == parameters)
       --collectgarbage()
 
@@ -233,95 +241,102 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
         gradParameters:clamp(-opt.grad_clip, opt.grad_clip)
       end
 
+      -- Compute EPOCH (not batch) errors
       train_loss_epoch = train_loss_epoch + opt.batch_size * batch_loss
       train_num_edit_ops = train_num_edit_ops + batch_num_edit_ops
       train_ref_length = train_ref_length + batch_ref_length
 
       return batch_loss, gradParameters
     end
-
-    optim.rmsprop(feval, parameters, rmsprop_opts)
-    xlua.progress(batch + opt.batch_size - 1, train_num_samples)
+    -- RMSprop on the batch
+    optim.rmsprop(train_batch, parameters, rmsprop_opts)
+    -- Show progress bar only if running on a tty
+    if isatty then
+       xlua.progress(batch + opt.batch_size - 1, train_num_samples)
+    end
   end
-
   train_loss_epoch = train_loss_epoch / train_num_samples
   train_cer_epoch = train_num_edit_ops / train_ref_length
+  local train_time_end = os.time()
+  ------------------------------
+  --    TRAINING EPOCH END    --
+  ------------------------------
 
 
-
-  ----------------------------
-  --    VALIDATION EPOCH    --
-  ----------------------------
-
+  ----------------------------------
+  --    VALIDATION EPOCH START    --
+  ----------------------------------
+  local valid_time_start = os.time()
   dv:shuffle()
-  local valid_loss_epoch = 0.0
-  local valid_num_edit_ops = 0
-  local valid_ref_length = 0
-  local valid_num_samples = opt.batch_size * math.ceil(dv:numSamples() / opt.batch_size)
-
+  valid_loss_epoch = 0
+  valid_num_edit_ops = 0
+  valid_ref_length = 0
   for batch=1,valid_num_samples,opt.batch_size do
     local batch_img, batch_gt, batch_sizes = dv:next(opt.batch_size)
     if opt.gpu >= 0 then
-      batch_img = batch_img:cuda()
+       batch_img = batch_img:cuda()
     end
-
-    batch_loss, batch_num_edit_ops, batch_ref_length =
-      fb_pass(batch_img, batch_gt, false)
-
-    -- Make loss function (and output gradients) independent of batch size
-    -- and sequence length.
+    -- Forward pass
+    local batch_loss, batch_num_edit_ops, batch_ref_length =
+       fb_pass(batch_img, batch_gt, false)
+    -- Compute EPOCH (not batch) errors
     valid_loss_epoch = valid_loss_epoch + opt.batch_size * batch_loss
     valid_num_edit_ops = valid_num_edit_ops + batch_num_edit_ops
     valid_ref_length = valid_ref_length + batch_ref_length
-    xlua.progress(batch + opt.batch_size - 1, valid_num_samples)
+    -- Show progress bar only if running on a tty
+    if isatty then
+       xlua.progress(batch + opt.batch_size - 1, valid_num_samples)
+    end
   end
-
   valid_loss_epoch = valid_loss_epoch / valid_num_samples
   valid_cer_epoch = valid_num_edit_ops / valid_ref_length
+  local valid_time_end = os.time()
+  --------------------------------
+  --    VALIDATION EPOCH END    --
+  --------------------------------
 
-
-
-  ------------------------------------
-  -- Logging code
-  ------------------------------------
-
-  best_model = false
-  -- Calculate if this is the best checkpoint so far
-  if best_valid_cer == nil or valid_cer_epoch < best_valid_cer then
-    best_valid_cer = valid_cer_epoch
-    best_valid_epoch = epoch
-    best_model = true
-
-    local checkpoint = {}
-    checkpoint.opt  = opt
-    checkpoint.epoch = epoch
-    checkpoint.model = model
-
-    model:clearState()
-
-    -- Only save t7 checkpoint if there is an improvement in CER
-    torch.save(string.format(opt.output_path .. '/' .. task_id .. '.t7'),
-	       checkpoint)
+  local best_model = false
+  local curr_crit_value = current_criterion_value[opt.early_stop_criterion]()
+  if best_criterion_value == nil or curr_crit_value < best_criterion_value then
+     best_model = true
+     if best_criterion_value == nil or
+        ((best_criterion_value - curr_crit_value) / best_criterion_value) >= opt.min_relative_improv then
+	last_signif_improv_epoch = epoch
+     end
   end
 
-  -- Write the results in the file
-  local file = io.open(opt.output_path .. '/' .. task_id .. '.csv', 'a')
   if best_model then
-    output_log_line = string.format('%-5d   *  %10.6f %10.6f %9.2f %9.2f\n',
-            epoch,
-	    train_loss_epoch, valid_loss_epoch,
-	    train_cer_epoch * 100, valid_cer_epoch * 100)
-  else
-    output_log_line = string.format('%-5d      %10.6f %10.6f %9.2f %9.2f\n',
-            epoch,
-	    train_loss_epoch, valid_loss_epoch,
-	    train_cer_epoch * 100, valid_cer_epoch * 100)
+     best_criterion_value = curr_crit_value
+     best_criterion_epoch = epoch
+     local checkpoint = {}
+     checkpoint.train_opt = opt       -- Original training options
+     checkpoint.epoch     = epoch
+     checkpoint.model     = model
+     model:clearState()
+     -- Only save t7 checkpoint if there is an improvement in CER
+     torch.save(output_model_filename, checkpoint)
   end
-  file:write(output_log_line)
-  file:close()
+
+  -- Print progress of the loss function, CER and running times
+  local progress_line = string.format(
+     '%-7d   %s   %10.6f   %10.6f   %9.2f   %9.2f   %10.2f   %10.2f\n',
+     epoch, (best_model and '  *  ') or '     ',
+     train_loss_epoch, valid_loss_epoch,
+     train_cer_epoch * 100, valid_cer_epoch * 100,
+     os.difftime(train_time_end, train_time_start) / 60.0,
+     os.difftime(valid_time_end, valid_time_start) / 60.0)
+  if output_progress_file ~= nil then
+     output_progress_file:write(progress_line)
+     output_progress_file:flush()
+  else
+     io.stdout:write(progress_header)
+     io.stdout:write(progress_line)
+  end
 
   -- Collect garbage every so often
   if epoch % 10 == 0 then collectgarbage() end
   if opt.max_no_improv_epochs > 0 and
-  epoch - best_valid_epoch >= opt.max_no_improv_epochs then break end
+  epoch - last_signif_improv_epoch >= opt.max_no_improv_epochs then break end
 end
+
+if output_progress_file ~= nil then output_progress_file:close() end

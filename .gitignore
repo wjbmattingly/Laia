@@ -46,5 +46,4 @@ luac.out
 *.pyc
 
 # Ignore automatically generated directories
-data/iam
-lang
+data
