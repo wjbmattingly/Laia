@@ -24,7 +24,7 @@ Options:
 [ -d data/iam/gt -a -d data/iam/imgs -a -s data/iam/train.lst ] || \
     ( echo "The IAM database is not available in data/iam!">&2 && exit 1; );
 
-mkdir -p lang/iam/chars;
+mkdir -p data/iam/lang/chars;
 
 for p in train valid test; do
     # Place all character-level transcriptions into a single txt table file.
@@ -33,7 +33,7 @@ for p in train valid test; do
     # artificial whitespaces.
     # Token <space> is used to mark whitespaces between words.
     # Also, replace # by <stroke>.
-    [ -s lang/iam/chars/$p.txt -a $overwrite = false ] && continue;
+    [ -s data/iam/lang/chars/$p.txt -a $overwrite = false ] && continue;
     for f in $(< data/iam/$p.lst); do
         echo -n "$f "; zcat data/iam/gt/$f.txt.gz | \
 	    sed 's/ '\''\(s\|d\|ll\|ve\|t\|re\|S\|D\|LL\|VE\|T\|RE\)\([ $]\)/'\''\1\2/g' | \
@@ -45,28 +45,27 @@ for p in train valid test; do
           }
           printf("\n");
         }' | tr \` \' | sed 's/"/'\'' '\''/g' | sed 's/#/<stroke>/g';
-    done > lang/iam/chars/${p}.txt;
+    done > data/iam/lang/chars/$p.txt;
 done;
 
 # Generate symbols table from training and valid characters.
 # This table will be used to convert characters to integers by Kaldi and the
 # CNN + RNN + CTC code.
-[ -s lang/iam/chars/original_symbols.txt -a $overwrite = false ] || (
+[ -s data/iam/lang/chars/original_symbols.txt -a $overwrite = false ] || (
     for p in train valid; do
-	cut -f 2- -d\  lang/iam/chars/${p}.txt | tr \  \\n;
+	cut -f 2- -d\  data/iam/lang/chars/$p.txt | tr \  \\n;
     done | sort -u -V | \
 	awk 'BEGIN{N=1;}NF==1{ printf("%-10s %d\n", $1, N); N++; }' > \
-	lang/iam/chars/original_symbols.txt;
+	data/iam/lang/chars/original_symbols.txt;
 )
 
 # Prepare data for Torch7
-# Image colors are inverted: 0->white, 1->black, and then binarized.
+# Image colors are inverted: 0->white, 1->black.
 # Other preprocessing worth trying: normalization (mean = 0, stddev = 1), ZCA
 for p in train valid test; do
     [ -s data/iam/$p.h5 -a $overwrite = false ] || \
-	th "$SDIR/create_hdf5.lua" --invert true --binarize 0.5 \
-	--height "$height" \
-	lang/iam/chars/$p.txt lang/iam/chars/original_symbols.txt \
+	th "$SDIR/create_hdf5.lua" --invert true --height "$height" \
+	data/iam/lang/chars/$p.txt data/iam/lang/chars/original_symbols.txt \
 	data/iam/imgs data/iam/$p.h5;
 done;
 
