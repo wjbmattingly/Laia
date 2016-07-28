@@ -1,7 +1,6 @@
 require 'cutorch'
 require 'torch'
 require 'image'
-require 'utilities'
 
 local CachedBatcher = torch.class('CachedBatcher')
 
@@ -26,8 +25,6 @@ function CachedBatcher:__init(img_list, cfg)
   if self._has_gt then
     -- Load symbols list
     assert(cfg.symbols_table ~= nil, string.format('A symbols list is required when providing transcripts'))
-    --local sym2int = read_symbols_table(cfg.symbols_table)
-    --assert(#sym2int > 0, string.format('Unable to read symbols file: %q', cfg.symbols_table))
     local sym2int = {}
     local f = io.open(cfg.symbols_table, 'r')
     assert(f ~= nil, string.format('Unable to read symbols file: %q', cfg.symbols_table))
@@ -81,7 +78,7 @@ function CachedBatcher:__init(img_list, cfg)
     table.insert(self._samples, id)
     self._num_samples = self._num_samples + 1
     if not self._has_gt then
-      self._gt[id] = torch.totable(torch.IntTensor(torch.IntStorage({})))
+      self._gt[id] = nil
     end
   end
   f:close()
@@ -147,15 +144,15 @@ function CachedBatcher:_fillCache(idx)
       local j = 1 + (#self._cache_img + idx) % self._num_samples
 
       -- Add ground truth to cache
-      --if self._has_gt then
+      if self._has_gt then
         table.insert(self._cache_gt, self._gt[self._samples[j]])
-      --end
+      end
       -- Add image to cache
       local img = image.load(self._imglist[j], 1, 'float')
       -- Invert colors
-      if self._invert == 1 or ( self._invert and math.random() > self._invert ) then
+      --if self._invert == 1 or ( self._invert and math.random() > self._invert ) then
         img:apply(function(v) return 1.0 - v end)
-      end
+      --end
       -- Normalize image
       --img = (img - args.mean) / args.stddev
       table.insert(self._cache_img, img)
@@ -166,8 +163,12 @@ function CachedBatcher:_fillCache(idx)
       end
       -- Increase size of the cache (in MB)
       self._cache_size = self._cache_size +
-        self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576 +
-        #(self._cache_gt[#self._cache_gt]) * 8 / 1048576
+        self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576
+        -- + #(self._cache_gt[#self._cache_gt]) * 8 / 1048576
+      if self._has_gt then
+        self._cache_size = self._cache_size +
+          #(self._cache_gt[#self._cache_gt]) * 8 / 1048576
+      end
     end
     -- Restore value of the current GPU device
     if old_gpu >= 0 then
