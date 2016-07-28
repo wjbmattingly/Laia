@@ -9,6 +9,7 @@ function M.parse(arg)
 
   cmd:text('Batcher options:')
   cmd:option('-batch_size', 40, 'Batch size')
+  cmd:option('-min_width', 0, 'Minimum image width for batches')
   cmd:option('-num_samples_epoch', -1,
 	     'Number of training samples to process in each epoch; ' ..
              '-1 sets this value to the number of samples in the training ' ..
@@ -70,10 +71,11 @@ function M.parse(arg)
 
   cmd:text('Arguments:')
   cmd:argument('model', 'Path to the input model or checkpoint for training')
-  cmd:argument('training',
-      'HDF5 file containing the training set (from prepare_XXXX.sh)')
-  cmd:argument('validation',
-      'HDF5 file containing the validation set (from prepare_XXXX.sh)')
+  cmd:argument('symbols_table', 'list of training symbols')
+  cmd:argument('training', 'list of images for training')
+  cmd:argument('training_gt', 'training transcripts')
+  cmd:argument('validation', 'list of images for validation')
+  cmd:argument('validation_gt', 'validation transcripts')
   cmd:text()
 
   local opt = cmd:parse(arg or {})

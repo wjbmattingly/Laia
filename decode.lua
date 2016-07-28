@@ -2,7 +2,7 @@ require 'torch'
 require 'cudnn'
 
 require 'src.utilities'
-require 'src.RandomBatcher'
+require 'src.RandomBatcher'; local Batcher = RandomBatcher
 
 -- local str2bool_table = {
 --    ['true'] = true, ['false'] = false,
@@ -42,7 +42,7 @@ end
 
 model:evaluate()
 
-local dv = RandomBatcher(opt.data, true)
+local dv = Batcher(opt.data, opt); dv:epochReset()
 local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
   -- Prepare batch

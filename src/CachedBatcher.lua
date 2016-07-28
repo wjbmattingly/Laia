@@ -1,18 +1,19 @@
 require 'cutorch'
-require 'hdf5'
 require 'torch'
+require 'image'
+require 'utilities'
 
 local CachedBatcher = torch.class('CachedBatcher')
 
-function CachedBatcher:__init(hdf5_path, centered_patch, cache_max_size,
-          cache_gpu)
-  self._hdf5_path = hdf5_path
-  self._centered_patch = centered_patch or false
-  self._cache_max_size = cache_max_size or 512
-  self._cache_gpu = cache_gpu or -1
-  self._hf = hdf5.open(self._hdf5_path, 'r')
-  assert(self._hf ~= nil,
-    string.format('Dataset %q cannot be read!', self._hdf5_path))
+function CachedBatcher:__init(img_list, cfg)
+  self._centered_patch = cfg.centered_patch or true
+  self._cache_max_size = cfg.cache_max_size or 512
+  self._cache_gpu = cfg.cache_gpu or -1
+  self._invert = cfg.invert or 1
+  self._min_width = cfg.min_width or 0
+  self._imglist = {}
+  self._has_gt = cfg.gt_file and true or false
+  self._gt = {}
   self._samples = {}
   self._num_samples = 0
   self._idx = 0
@@ -20,11 +21,70 @@ function CachedBatcher:__init(hdf5_path, centered_patch, cache_max_size,
   self._cache_gt = {}
   self._cache_idx = 0
   self._cache_size = 0
-  -- Load sample IDs. By default, they are ordered as read from the HDF5 file.
-  for k, _ in next,self._hf:read('/')._children do
-    table.insert(self._samples, k)
-    self._num_samples = self._num_samples + 1
+
+  -- Load sample transcripts
+  if self._has_gt then
+    -- Load symbols list
+    assert(cfg.symbols_table ~= nil, string.format('A symbols list is required when providing transcripts'))
+    --local sym2int = read_symbols_table(cfg.symbols_table)
+    --assert(#sym2int > 0, string.format('Unable to read symbols file: %q', cfg.symbols_table))
+    local sym2int = {}
+    local f = io.open(cfg.symbols_table, 'r')
+    assert(f ~= nil, string.format('Unable to read symbols file: %q', cfg.symbols_table))
+    local ln = 0
+    while true do
+      local line = f:read('*line')
+      if line == nil then break end
+      ln = ln + 1
+      local sym, id = string.match(line, '^(%S+)%s+(%d+)$')
+      assert(sym ~= nil and id ~= nil, string.format('Expected a string and an integer separated by a space at line %d in file %q', ln, cfg.symbols_table))
+      sym2int[sym] = tonumber(id)
+    end
+    f:close()
+
+    -- Load sample transcripts
+    local f = io.open(cfg.gt_file, 'r')
+    assert(f ~= nil, string.format('Unable to read transcripts file: %q', cfg.gt_file))
+    local ln = 0
+    while true do
+      local line = f:read('*line')
+      if line == nil then break end
+      ln = ln + 1
+      local id, txt = string.match(line, '^(%S+)%s+(%S.*)$')
+      assert(id ~= nil and txt ~= nil, string.format('Wrong transcript format at line %d in file %q',
+      ln, cfg.gt_file))
+      txt2int = {}
+      for sym in txt:gmatch('%S+') do
+        assert(sym2int[sym] ~= nil, string.format('Symbol %q is not in the symbols table', sym))
+        table.insert(txt2int, sym2int[sym])
+      end
+      self._gt[id] = torch.totable(torch.IntTensor(torch.IntStorage(txt2int)))
+    end
+    f:close()
   end
+
+  -- Load image list and sample IDs. By default, they are ordered as read from the list.
+  -- The IDs are the basenames of the files, i.e., removing directory and extension
+  local f = io.open(img_list, 'r')
+  assert(f ~= nil, string.format('Unable to read image list file: %q', img_file))
+  local ln = 0
+  while true do
+    local line = f:read('*line')
+    if line == nil then break end
+    ln = ln + 1
+    local id = string.match( string.gsub(line, ".*/", ""), '^(.+)[.][^./]+$' );
+    assert(id ~= nil, string.format('Unable to determine sample ID at line %d in file %q', ln, img_list))
+    if self._has_gt then
+      assert(self._gt[id] ~= nil, string.format('No transcript found for sample %q', id))
+    end
+    table.insert(self._imglist, line)
+    table.insert(self._samples, id)
+    self._num_samples = self._num_samples + 1
+    if not self._has_gt then
+      self._gt[id] = torch.totable(torch.IntTensor(torch.IntStorage({})))
+    end
+  end
+  f:close()
 end
 
 function CachedBatcher:numSamples()
@@ -79,31 +139,39 @@ function CachedBatcher:_fillCache(idx)
     -- is saved and restored later.
     local old_gpu = -1
     if self._cache_gpu >= 0 then
-   old_gpu = cutorch.getDevice()
-   cutorch.setDevice(self._cache_gpu)
+      old_gpu = cutorch.getDevice()
+      cutorch.setDevice(self._cache_gpu)
     end
     while self._cache_size < self._cache_max_size and
-    #self._cache_img < self._num_samples do
-   local j = 1 + (#self._cache_img + idx) % self._num_samples
-   -- Add image and ground truth to the cache
-   table.insert(self._cache_img, self._hf:read(
-      string.format('/%s/img', self._samples[j])):all():float())
-   table.insert(self._cache_gt, torch.totable(
-      self._hf:read(string.format('/%s/gt', self._samples[j])):all()))
+          #self._cache_img < self._num_samples do
+      local j = 1 + (#self._cache_img + idx) % self._num_samples
 
-   -- Store data in the GPU, if requested.
-   if self._cache_gpu >= 0 then
-     self._cache_img[#self._cache_img] =
-       self._cache_img[#self._cache_img]:cuda()
-   end
-   -- Increase size of the cache (in MB)
-   self._cache_size = self._cache_size +
-     self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576 +
-     #(self._cache_gt[#self._cache_gt]) * 8 / 1048576
+      -- Add ground truth to cache
+      --if self._has_gt then
+        table.insert(self._cache_gt, self._gt[self._samples[j]])
+      --end
+      -- Add image to cache
+      local img = image.load(self._imglist[j], 1, 'float')
+      -- Invert colors
+      if self._invert == 1 or ( self._invert and math.random() > self._invert ) then
+        img:apply(function(v) return 1.0 - v end)
+      end
+      -- Normalize image
+      --img = (img - args.mean) / args.stddev
+      table.insert(self._cache_img, img)
+
+      -- Store data in the GPU, if requested.
+      if self._cache_gpu >= 0 then
+        self._cache_img[#self._cache_img] = self._cache_img[#self._cache_img]:cuda()
+      end
+      -- Increase size of the cache (in MB)
+      self._cache_size = self._cache_size +
+        self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576 +
+        #(self._cache_gt[#self._cache_gt]) * 8 / 1048576
     end
     -- Restore value of the current GPU device
     if old_gpu >= 0 then
-   cutorch.setDevice(old_gpu)
+      cutorch.setDevice(old_gpu)
     end
   end
 end
@@ -130,6 +198,9 @@ function CachedBatcher:next(batch_size)
   end
   -- Copy data into single batch tensors
   local max_sizes = torch.max(batch_sizes, 1)
+  if max_sizes[{1,2}] < self._min_width then
+    max_sizes[{1,2}] = self._min_width
+  end
   local batch_img = torch.Tensor(batch_size, n_channels, max_sizes[{1,1}],
           max_sizes[{1,2}]):zero()
   local batch_gt  = {}
@@ -165,3 +236,8 @@ function CachedBatcher:next(batch_size)
   collectgarbage()
   return batch_img, batch_gt, batch_sizes, batch_ids
 end
+
+function CachedBatcher:epochReset(img_list, cfg)
+end
+
+return CachedBatcher
