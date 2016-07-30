@@ -11,7 +11,7 @@ function ImageDistorter:__init(...)
    if arg.scale_prob ~= nil then self.scale_prob = arg.scale_prob end
    self.scale_mean = 1.0
    if arg.scale_mean ~= nil then self.scale_mean = arg.scale_mean end
-   self.scale_stdv = 0.15
+   self.scale_stdv = 0.1
    if arg.scale_stdv ~= nil then self.scale_stdv = arg.scale_stdv end
 
    -- Horizontal shear parameters.
@@ -19,21 +19,16 @@ function ImageDistorter:__init(...)
    if arg.shear_prob ~= nil then self.shear_prob = arg.shear_prob end
    self.shear_mean = 0.0
    if arg.shear_mean ~= nil then self.shear_mean = arg.shear_mean end
-   self.shear_stdv = 0.15
+   self.shear_stdv = 0.3
    if arg.shear_stdv ~= nil then self.shear_stdv = arg.shear_stdv end
 
-   -- Rotate parameters. Standard deviation is relative to the smallest aspect
-   -- ratio with exponential decay dependent on the parameter rotate_decay:
-   --   angle = N(rotate_mean, rotate_stdv * R^rotate_decay)
-   -- Rotation is applied at the center of the image.
+   -- Rotate parameters. Rotation is applied at the center of the image.
+   -- The standard deviation depends on the size of the image, so that the
+   -- farest points from the center are not moved too much.
    self.rotate_prob = 0.5
    if arg.rotate_prob ~= nil then self.rotate_prob = arg.rotate_prob end
-   self.rotate_mean = 0.0
-   if arg.rotate_mean ~= nil then self.rotate_mean = arg.rotate_mean end
-   self.rotate_stdv = math.rad(2.0)
-   if arg.rotate_stdv ~= nil then self.rotate_stdv = arg.rotate_stdv end
-   self.rotate_decay = 0.5
-   if arg.rotate_decay ~= nil then self.rotate_decay = arg.rotate_decay end
+   self.rotate_factor = 0.3
+   if arg.rotate_factor ~= nil then self.rotate_factor = arg.rotate_factor end
 
    -- Translate parameters. Standard deviation is relative to the size of
    -- each dimension.
@@ -41,7 +36,7 @@ function ImageDistorter:__init(...)
    if arg.translate_prob ~= nil then self.translate_prob=arg.translate_prob end
    self.translate_mean = 0.0
    if arg.translate_mean ~= nil then self.translate_mean=arg.translate_mean end
-   self.translate_stdv = 0.02
+   self.translate_stdv = 0.01
    if arg.translate_stdv ~= nil then self.translate_stdv=arg.translate_stdv end
 
    -- Dilate parameters.
@@ -68,6 +63,19 @@ function ImageDistorter:__sample_affine_matrixes(N, H, W)
    local C, Cm = torch.eye(3), torch.eye(3)
    C[{1, 3}] = W / 2    Cm[{1, 3}] = - W / 2
    C[{2, 3}] = H / 2    Cm[{2, 3}] = - H / 2
+
+   local max_rotate_h = H * self.rotate_factor / math.sqrt(H * H + W * W)
+   local max_rotate_w = W * self.rotate_factor / math.sqrt(H * H + W * W) - 1.0
+   local rotate_stdv = math.pi
+   if math.abs(max_rotate_h) <= 1.0 and math.abs(max_rotate_w) <= 1.0 then
+      rotate_stdv = math.min(math.asin(max_rotate_w) + math.pi / 2.0,
+			     math.asin(max_rotate_h))
+   elseif math.abs(max_rotate_h) <= 1.0 then
+      rotate_stdv = math.asin(max_rotate_h)
+   elseif math.abs(max_rotate_w) <= 1.0 then
+      rotate_stdv = math.asin(max_rotate_w) + math.pi / 2.0
+   end
+
    for i=1,N do
       local Ti = T[{i}]
       Ti:eye(3)
@@ -83,8 +91,7 @@ function ImageDistorter:__sample_affine_matrixes(N, H, W)
       end
       if torch.uniform() < self.rotate_prob then
 	 local D = torch.eye(3)
-	 local a = torch.randn(1)[1] * self.rotate_stdv * \
-	           math.pow(R, self.rotate_decay) + self.rotate_mean
+	 local a = torch.randn(1)[1] * rotate_stdv
 	 D[{1, 1}] =  math.cos(a)
 	 D[{1, 2}] = -math.sin(a)
 	 D[{2, 1}] =  math.sin(a)
@@ -123,7 +130,6 @@ function ImageDistorter:__sample_structuring_element(N, p, srate, rrate)
    local Sz = table.reduce(Sp, operator.add, 0.0)
    local Mh = Sv[table.weighted_choice(Sp, Sz)]        -- Kernel height
    local Mw = Sv[table.weighted_choice(Sp, Sz)]        -- Kernel width
-   print (table.map(Sp, function(x) return x / Sz end))
    -- Compute radius likelihoods
    local M = torch.ByteTensor(N, Mh, Mw):zero()
    for n=1,N do
@@ -152,7 +158,6 @@ function ImageDistorter:distort(x)
    -- Affine distortion
    local N, H, W = x:size()[1], x:size()[3], x:size()[4]
    local M = self:__sample_affine_matrixes(N, H, W)
-   print(M)
    affine_NCHW(x, y, M)
    -- Morphology distortion
    if self.dilate_prob > 0 then
