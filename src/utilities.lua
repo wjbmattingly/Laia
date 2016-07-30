@@ -255,6 +255,25 @@ table.extend_with_last_element = function(t, n)
    end
 end
 
+--[[
+   Helper function used to sample a key from a table containing the likelihoods
+   of each key element. This assumes that the scores in the likelihoods table
+   are non-negative.
+--]]
+table.weighted_choice = function(l, z)
+   z = z or table.reduce(l, operator.add, 0.0)
+   local cut_likelihood = math.random() * z
+   local cum_likelihood = 0
+   for k, w in pairs(l) do
+      if cum_likelihood + w >= cut_likelihood then
+	 return k
+      end
+      cum_likelihood = cum_likelihood + w
+   end
+   error('This point should not be reached. Make sure your that all your ' ..
+	 'likelihoods are non-negative')
+end
+
 function save_gradInput_heatmap(m, desc)
    require 'image'
    desc = desc or ''
