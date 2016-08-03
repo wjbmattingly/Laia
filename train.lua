@@ -144,10 +144,16 @@ else
   io.stdout:flush()
 end
 
+opt.channels = initial_checkpoint.model_opt.input_channels
 opt.gt_file = opt.training_gt
 local dt = Batcher(opt.training, opt)
 opt.gt_file = opt.validation_gt
 local dv = Batcher(opt.validation, opt)
+
+-- Check number of symbols and model output
+assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
+       string.format('Expected model output to have #symbols+1 dimensions! #symbols=%d vs. model=%d',
+                     dt:numSymbols(),model:get(#model):parameters()[2]:size()[1]))
 
 -- Keep track of the performance on the training data
 local train_loss_epoch = 0.0

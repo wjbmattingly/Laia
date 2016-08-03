@@ -42,6 +42,7 @@ end
 
 model:evaluate()
 
+opt.channels = model:get(1):get(1).nInputPlane
 local dv = Batcher(opt.data, opt); dv:epochReset()
 local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do

@@ -8,6 +8,7 @@ function CachedBatcher:__init(img_list, cfg)
   self._centered_patch = cfg.centered_patch or true
   self._cache_max_size = cfg.cache_max_size or 512
   self._cache_gpu = cfg.cache_gpu or -1
+  self._channels = cfg.channels or 1
   self._invert = cfg.invert or 1
   self._min_width = cfg.min_width or 0
   self._imglist = {}
@@ -15,6 +16,7 @@ function CachedBatcher:__init(img_list, cfg)
   self._gt = {}
   self._samples = {}
   self._num_samples = 0
+  self._num_symbols = 0
   self._idx = 0
   self._cache_img = {}
   self._cache_gt = {}
@@ -36,6 +38,7 @@ function CachedBatcher:__init(img_list, cfg)
       local sym, id = string.match(line, '^(%S+)%s+(%d+)$')
       assert(sym ~= nil and id ~= nil, string.format('Expected a string and an integer separated by a space at line %d in file %q', ln, cfg.symbols_table))
       sym2int[sym] = tonumber(id)
+      self._num_symbols = tonumber(id) > self._num_symbols and tonumber(id) or self._num_symbols
     end
     f:close()
 
@@ -84,6 +87,10 @@ function CachedBatcher:__init(img_list, cfg)
   f:close()
 end
 
+function CachedBatcher:numSymbols()
+  return self._num_symbols
+end
+
 function CachedBatcher:numSamples()
   return self._num_samples
 end
@@ -103,16 +110,16 @@ function CachedBatcher:_global2cacheIndex(idx)
   if self._cache_idx < cacheEnd then
     -- Cache is contiguous: [i, i+1, ..., i + M]
     if idx >= self._cache_idx and idx < cacheEnd then
-   return 1 + idx - self._cache_idx
+      return 1 + idx - self._cache_idx
     else
-   return -1
+      return -1
     end
   else
     -- The cache is circular: [i, i + 1, ..., i + N, 0, ..., M - N - 1]
     if idx >= self._cache_idx or idx < cacheEnd then
-     return 1 + (idx - self._cache_idx) % self._num_samples
+      return 1 + (idx - self._cache_idx) % self._num_samples
     else
-     return -1
+      return -1
     end
   end
 end
@@ -148,7 +155,10 @@ function CachedBatcher:_fillCache(idx)
         table.insert(self._cache_gt, self._gt[self._samples[j]])
       end
       -- Add image to cache
-      local img = image.load(self._imglist[j], 1, 'float')
+      local img = image.load(self._imglist[j], self._channels, 'float')
+      if img:dim() == 2 then
+        img = img:view(self._channels,img:size(1),img:size(2))
+      end
       -- Invert colors
       --if self._invert == 1 or ( self._invert and math.random() > self._invert ) then
         img:apply(function(v) return 1.0 - v end)
@@ -182,7 +192,6 @@ function CachedBatcher:next(batch_size)
   assert(batch_size > 0, string.format('Batch size must be greater than 0'))
   assert(self._num_samples > 0, string.format('The dataset is empty!'))
   -- Get sizes of each sample in the batch
-  local n_channels = nil
   local batch_sizes = torch.LongTensor(batch_size, 2)
   for i=0,(batch_size-1) do
     local j = 1 + (i + self._idx) % self._num_samples
@@ -190,10 +199,9 @@ function CachedBatcher:next(batch_size)
     local cacheIdx = self:_global2cacheIndex(j)
     local img = self._cache_img[cacheIdx]
     -- Check the number of channels is correct
-    n_channels = (n_channels or img:size()[1])
-    assert(n_channels == img:size()[1], string.format(
-    'Wrong number of channels in sample %q (got %d, expected %d)',
-    k, img:size()[1], n_channels))
+    --assert(self._channels == img:size()[1], string.format(
+    --'Wrong number of channels in sample %q (got %d, expected %d)',
+    --k, img:size()[1], self._channels))
     batch_sizes[{i+1,1}] = img:size()[2]     -- Image height
     batch_sizes[{i+1,2}] = img:size()[3]     -- Image width
   end
@@ -202,7 +210,7 @@ function CachedBatcher:next(batch_size)
   if max_sizes[{1,2}] < self._min_width then
     max_sizes[{1,2}] = self._min_width
   end
-  local batch_img = torch.Tensor(batch_size, n_channels, max_sizes[{1,1}],
+  local batch_img = torch.Tensor(batch_size, self._channels, max_sizes[{1,1}],
           max_sizes[{1,2}]):zero()
   local batch_gt  = {}
   local batch_ids = {}
@@ -223,7 +231,7 @@ function CachedBatcher:next(batch_size)
        dy = math.floor((max_sizes[{1,1}] - img:size()[2]) / 2)
        dx = math.floor((max_sizes[{1,2}] - img:size()[3]) / 2)
     end
-    batch_img[i+1]:sub(1, n_channels,
+    batch_img[i+1]:sub(1, self._channels,
        dy + 1, dy + img:size()[2],
        dx + 1, dx + img:size()[3]):copy(img)
     table.insert(batch_gt, gt)
