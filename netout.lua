@@ -75,6 +75,7 @@ end
 
 model:evaluate()
 
+opt.channels = model:get(1):get(1).nInputPlane
 local dv = Batcher(opt.data, opt); dv:epochReset()
 
 local nSamples = torch.IntStorage(1);
