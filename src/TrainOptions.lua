@@ -1,3 +1,5 @@
+require 'src.ImageDistorter'
+
 local M = { }
 
 function M.parse(arg)
@@ -53,6 +55,10 @@ function M.parse(arg)
   cmd:option('-learning_rate_decay', 0.97, 'Learning rate decay to use')
   cmd:option('-learning_rate_decay_after', 10,
              'Start learning rate decay after this epoch')
+  cmd:text()
+
+  cmd:text('Image distorter options:')
+  ImageDistorter.addCmdOptions(cmd)
   cmd:text()
 
   cmd:text('Other options:')
