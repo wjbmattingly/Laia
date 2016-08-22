@@ -21,8 +21,10 @@ function opts_parse(arg)
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
   --cmd:option('-symbols_table', '', 'Symbols table (original_symbols.txt)')
   cmd:option('-htk', false, 'Output in KTK format')
+  -- @todo HTK format write time similar to ASCII, normal? can it be faster?
   cmd:option('-softmax', false, 'Whether to softmax output')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
+  cmd:option('-outpads', false, 'Whether to output image horizontal paddings')
   cmd:text()
 
   cmd:text('Arguments:')
@@ -75,7 +77,10 @@ end
 
 model:evaluate()
 
+-- Read input channels from the model
 opt.channels = model:get(1):get(1).nInputPlane
+-- Factor for batch widths
+opt.width_factor = 8 -- @todo Add option for this and compute the value from the model
 local dv = Batcher(opt.data, opt); dv:epochReset()
 
 local nSamples = torch.IntStorage(1);
@@ -87,10 +92,17 @@ local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
   -- Prepare batch
   local batch_size = n+opt.batch_size > dv:numSamples() and dv:numSamples()-n or opt.batch_size
-  local batch_img, _, _, batch_ids = dv:next(opt.batch_size)
+  local batch_img, _, _, batch_ids, batch_hpad = dv:next(opt.batch_size)
   if opt.gpu >= 0 then
     batch_img = batch_img:cuda()
   end
+
+  if opt.outpads then
+    for i = 1, batch_size do
+      io.write(batch_ids[i]..' '..batch_hpad[i][1]..' '..batch_hpad[i][2]..' '..batch_hpad[i][3]..'\n')
+    end
+  end
+
   -- Forward through network
   local output = model:forward(batch_img)
 

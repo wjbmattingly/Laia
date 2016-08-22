@@ -42,7 +42,10 @@ end
 
 model:evaluate()
 
+-- Read input channels from the model
 opt.channels = model:get(1):get(1).nInputPlane
+-- Factor for batch widths
+opt.width_factor = 8 -- @todo Add option for this and compute the value from the model
 local dv = Batcher(opt.data, opt); dv:epochReset()
 local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
