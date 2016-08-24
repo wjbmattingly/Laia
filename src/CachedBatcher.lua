@@ -169,9 +169,11 @@ function CachedBatcher:_fillCache(idx)
       table.insert(self._cache_img, img)
 
       -- Store data in the GPU, if requested.
-      if self._cache_gpu >= 0 then
-        self._cache_img[#self._cache_img] = self._cache_img[#self._cache_img]:cuda()
-      end
+      --if self._cache_gpu >= 0 then
+        -- It seems as if the images are twice in GPU: cache_img and batch_img (ahector)
+        -- Is this needed? Still works commenting it out, but there seems to be no GPU mem usage reduction
+      --  self._cache_img[#self._cache_img] = self._cache_img[#self._cache_img]:cuda()
+      --end
       -- Increase size of the cache (in MB)
       self._cache_size = self._cache_size +
         self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576

@@ -1,3 +1,5 @@
+#!/usr/bin/env th
+
 require 'torch'
 require 'cudnn'
 

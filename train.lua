@@ -1,3 +1,5 @@
+#!/usr/bin/env th
+
 --[[
 Main entry point for training
 ]]--
