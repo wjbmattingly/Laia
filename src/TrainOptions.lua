@@ -10,6 +10,7 @@ function M.parse(arg)
   cmd:text('Batcher options:')
   cmd:option('-batch_size', 40, 'Batch size')
   cmd:option('-min_width', 0, 'Minimum image width for batches')
+  cmd:option('-width_factor', true, 'Make width a factor of the max pooling reduction')
   cmd:option('-num_samples_epoch', -1,
 	     'Number of training samples to process in each epoch; ' ..
              '-1 sets this value to the number of samples in the training ' ..

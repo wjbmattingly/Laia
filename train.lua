@@ -148,8 +148,16 @@ end
 
 -- Read input channels from the model
 opt.channels = initial_checkpoint.model_opt.input_channels
--- Factor for batch widths
-opt.width_factor = 8 -- @todo Add option for this and compute the value from the model
+-- Compute width factor from model
+if opt.width_factor then
+  opt.width_factor = 1
+  local maxpool = model:findModules('cudnn.SpatialMaxPooling')
+  for n=1,#maxpool do
+    opt.width_factor = opt.width_factor * maxpool[n].kW
+  end
+else
+  opt.width_factor = 0
+end
 opt.gt_file = opt.training_gt
 local dt = Batcher(opt.training, opt)
 opt.gt_file = opt.validation_gt

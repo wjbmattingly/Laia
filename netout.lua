@@ -19,13 +19,16 @@ function opts_parse(arg)
   cmd:text('Options:')
   cmd:option('-batch_size', 40, 'Batch size')
   cmd:option('-min_width', 0, 'Minimum image width for batches')
+  cmd:option('-width_factor', true, 'Make width a factor of the max pooling reduction')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
   cmd:option('-htk', false, 'Output in KTK format')
   cmd:option('-softmax', false, 'Whether to add softmax layer at end of network')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
   cmd:option('-outpads', '', 'File to output image horizontal paddings')
-  cmd:option('-loglike', '', 'Compute log-likelihoods using provided priors')
+  -- @todo Finish implementation of prior computation
+  cmd:option('-priorcomp', '', 'Compute priors using given ground truth')
+  cmd:option('-loglkh', '', 'Compute log-likelihoods using provided priors')
   cmd:option('-alpha', 0.3, 'p(x|s) = P(s|x) / P(s)^LOGLKH_ALPHA_FACTOR')
 
   cmd:text()
@@ -49,6 +52,46 @@ cutorch.manualSeed(opt.seed)
 
 local model = torch.load(opt.model).model
 
+-- Prior computation mode
+if opt.priorcomp ~= '' then
+  opt.gt_file = opt.priorcomp
+  opt.priorcomp = true
+  opt.softmax = true
+  opt.convout = false
+  opt.loglkh = ''
+else
+  opt.priorcomp = false
+end
+
+-- Log-likelihood computation mode
+local loglkh = false
+local logprior = {}
+local zeroprior = {}
+if opt.loglkh ~= '' then
+  local f = io.open(opt.loglkh, 'r')
+  assert(f ~= nil, string.format('Unable to read priors file: %q', opt.loglkh))
+  local ln = 0
+  while true do
+    local line = f:read('*line')
+    if line == nil then break end
+    ln = ln+1
+    line = line:match('^%s*(.-)%s*$'):gsub('.*%s','')
+    local prior = tonumber(line)
+    zeroprior[ln] = prior == 0 and true or false
+    logprior[ln] = torch.log(prior)*opt.alpha
+  end
+  f:close()
+  loglkh = true
+  opt.softmax = true
+end
+
+-- Output image paddings
+local outpads = false
+if opt.outpads ~= '' then
+  outpads = io.open(opt.outpads, 'w')
+end
+
+-- Output from convolutional layers
 if opt.convout then
   local blstm = model:findModules('cudnn.BLSTM')
   assert(#blstm > 0, 'For convout expected to find a BLSTM module')
@@ -60,32 +103,12 @@ if opt.convout then
   model:remove()
 end
 
-local loglike = false
-local logprior = {}
-local zeroprior = {}
-if opt.loglike ~= '' then
-  local f = io.open(opt.loglike, 'r')
-  assert(f ~= nil, string.format('Unable to read priors file: %q', opt.loglike))
-  local ln = 0
-  while true do
-    local line = f:read('*line')
-    if line == nil then break end
-    ln = ln+1
-    local prior = tonumber(line)
-    zeroprior[ln] = prior == 0 and true or false
-    logprior[ln] = torch.log(prior)*opt.alpha
-  end
-  f:close()
-  loglike = true
-  if not opt.softmax then
-    opt.softmax = true
-  end
-end
-
+-- Add softmax layer
 if opt.softmax then
   model:add(nn.SoftMax())
 end
 
+-- 
 if opt.gpu >= 0 then
   cutorch.setDevice(opt.gpu + 1) -- +1 because lua is 1-indexed
   model = model:cuda()
@@ -95,17 +118,20 @@ else
   model:float()
 end
 
-local outpads = false
-if opt.outpads ~= '' then
-  outpads = io.open(opt.outpads, 'w')
-end
-
 model:evaluate()
 
 -- Read input channels from the model
 opt.channels = model:get(1):get(1).nInputPlane
--- Factor for batch widths
-opt.width_factor = 8 -- @todo Add option for this and compute the value from the model
+-- Compute width factor from model
+if opt.width_factor then
+  opt.width_factor = 1
+  local maxpool = model:findModules('cudnn.SpatialMaxPooling')
+  for n=1,#maxpool do
+    opt.width_factor = opt.width_factor * maxpool[n].kW
+  end
+else
+  opt.width_factor = 0
+end
 local dv = Batcher(opt.data, opt); dv:epochReset()
 
 local nSamples = torch.IntStorage(1);
@@ -117,7 +143,7 @@ local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
   -- Prepare batch
   local batch_size = n+opt.batch_size > dv:numSamples() and dv:numSamples()-n or opt.batch_size
-  local batch_img, _, _, batch_ids, batch_hpad = dv:next(opt.batch_size)
+  local batch_img, batch_gt, _, batch_ids, batch_hpad = dv:next(opt.batch_size)
   if opt.gpu >= 0 then
     batch_img = batch_img:cuda()
   end
@@ -132,8 +158,34 @@ for batch=1,dv:numSamples(),opt.batch_size do
   -- Forward through network
   local output = model:forward(batch_img)
 
+  -- Compute priors
+  if opt.priorcomp then
+    if not prior_count then
+      local prior_total = 0
+      local prior_count = torch.IntTensor(output:size(2)):zero()
+    end
+
+    local nframes = output:size(1) / opt.batch_size
+    local sample = torch.FloatTensor(nframes,output:size(2))
+
+    -- Loop through batch samples
+    for i = 1, batch_size do
+
+      -- Copy sample for speed
+      local j = 1
+      for f=i,output:size(1),opt.batch_size do
+        sample[{j,{}}]:copy(output[{f,{}}])
+        j = j+1
+      end
+
+      -- @todo Do forced alignment of sample w.r.t. batch_gt[i]
+
+      prior_total = prior_total + nframes
+      -- @todo Increment prior_count
+    end
+
   -- Ouput from convolutional layers
-  if opt.convout then
+  elseif opt.convout then
 
     -- Loop through batch samples
     for i = 1, batch_size do
@@ -179,7 +231,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
     --  output:cdiv( output:sum(2):repeatTensor(1,output:size(2)) ); 
     --end
 
-    if loglike then
+    if loglkh then
       for k = 1, sample:size(2) do
         if zeroprior[k] then
           output[{{},k}]:fill(-743.747)
@@ -230,6 +282,12 @@ for batch=1,dv:numSamples(),opt.batch_size do
   end
 
   n = n + batch_size
+end
+
+if opt.priorcomp then
+  for n=1,#prior_count do
+    io.write( string.format('%d\t%d\t%d\t%.10e\n',n-1,prior_count[n],prior_total,prior_count[n]/prior_total) )
+  end
 end
 
 if outpads then

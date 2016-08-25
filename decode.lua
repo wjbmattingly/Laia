@@ -46,8 +46,16 @@ model:evaluate()
 
 -- Read input channels from the model
 opt.channels = model:get(1):get(1).nInputPlane
--- Factor for batch widths
-opt.width_factor = 8 -- @todo Add option for this and compute the value from the model
+-- Compute width factor from model
+if opt.width_factor then
+  opt.width_factor = 1
+  local maxpool = model:findModules('cudnn.SpatialMaxPooling')
+  for n=1,#maxpool do
+    opt.width_factor = opt.width_factor * maxpool[n].kW
+  end
+else
+  opt.width_factor = 0
+end
 local dv = Batcher(opt.data, opt); dv:epochReset()
 local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
