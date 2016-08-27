@@ -179,9 +179,15 @@ for batch=1,dv:numSamples(),opt.batch_size do
       end
 
       -- @todo Do forced alignment of sample w.r.t. batch_gt[i]
+      sample:log()
+      local tbFA = forceAlignment(sample,batch_gt[i])
 
       prior_total = prior_total + nframes
       -- @todo Increment prior_count
+      for _,v in pairs(tbFA) do
+	 prior_count[v] = prior_count[v] + 1
+      end
+      
     end
 
   -- Ouput from convolutional layers
