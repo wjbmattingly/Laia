@@ -337,6 +337,7 @@ function forceAlignment(teCM, tbGT)
       table.insert(tbAuxGT, blkCharID)
       -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
       -- add 1 to every tbGT[i] (symb ID)
+      assert(tbGT[i]+1 <= nSymbols, istrinf.format("One char-ID is greater than %d",nSymbols))
       table.insert(tbAuxGT, tbGT[i] + 1)
    end
    table.insert(tbAuxGT, blkCharID)
