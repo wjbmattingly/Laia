@@ -317,7 +317,6 @@ function loadTableFromFile(fname)
    return tb
 end
 --]]
-
 -- This function return a table conataining symbol ID sequence
 -- corresponding to the force-alignment of the given ground-truth.
 -- INPUT: Confidence Matrix Tensor containing the posterior
@@ -331,13 +330,13 @@ function forceAlignment(teCM, tbGT)
    -- BLANK symbol ID
    local blkCharID = 1
 
-   local nSymbols, nframes = #tbGT, teCM:size()[1]
+   local nSymbols, nframes, nTotSymbols = #tbGT, teCM:size()[1], teCM:size()[2]
    local tbAuxGT = {}
    for i = 1, nSymbols do
+      assert(tbGT[i]+1 <= nTotSymbols, string.format('One char-ID is greater than the total number of chars: %q',nTotSymbols))
       table.insert(tbAuxGT, blkCharID)
       -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
       -- add 1 to every tbGT[i] (symb ID)
-      assert(tbGT[i]+1 <= nSymbols, istrinf.format("One char-ID is greater than the total number of chars: %d",nSymbols))
       table.insert(tbAuxGT, tbGT[i] + 1)
    end
    table.insert(tbAuxGT, blkCharID)
