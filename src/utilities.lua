@@ -317,12 +317,12 @@ function loadTableFromFile(fname)
    return tb
 end
 --]]
--- This function return a table conataining symbol ID sequence
+-- This function returns a table conataining symbol ID sequence
 -- corresponding to the force-alignment of the given ground-truth.
 -- INPUT: Confidence Matrix Tensor containing the posterior
--- probabilities per character and frame, and Grount-Truth Vector
+-- probabilities per character and frame, and Ground-Truth Vector
 -- containing the char-ID sequence of the given sample.
--- OUTPUT: char-ID sequence alignment (includes BLANK-CHAR)
+-- OUTPUT: char-ID sequence alignment (it includes BLANK-CHAR)
 function forceAlignment(teCM, tbGT)
 
    assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
