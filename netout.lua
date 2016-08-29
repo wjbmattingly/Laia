@@ -25,18 +25,24 @@ function opts_parse(arg)
   cmd:option('-htk', false, 'Output in KTK format')
   cmd:option('-softmax', false, 'Whether to add softmax layer at end of network')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
-  cmd:option('-outpads', '', 'File to output image horizontal paddings')
-  -- @todo Finish implementation of prior computation
-  cmd:option('-priorcomp', '', 'Compute priors using given ground truth')
+
   cmd:option('-loglkh', '', 'Compute log-likelihoods using provided priors')
   cmd:option('-alpha', 0.3, 'p(x|s) = P(s|x) / P(s)^LOGLKH_ALPHA_FACTOR')
+
+  cmd:option('-maxseq', false, 'Whether to output the sequence of maximums')
+  cmd:option('-forcealign', false, 'Do forced alignment using given ground truth')
+  cmd:option('-priorcomp', false, 'Compute priors using given ground truth')
+  cmd:option('-symbols_table', '', 'List of symbols (for forced alingment or prior computation)')
+  cmd:option('-gt_file', '', 'Data ground truth (for forced alingment or prior computation)')
+
+  cmd:option('-outpads', '', 'File to output image horizontal paddings')
 
   cmd:text()
 
   cmd:text('Arguments:')
   cmd:argument('model', 'Path to the neural network model file')
   cmd:argument('data', 'Path to the list of images')
-  cmd:argument('outdir', 'Directory to write character posterior matrices')
+  cmd:argument('output', 'Directory to write matrices or file for maxseq/forcealign/priorcomp ("-" is stdout)')
   cmd:text()
 
   local opt = cmd:parse(arg or {})
@@ -52,15 +58,19 @@ cutorch.manualSeed(opt.seed)
 
 local model = torch.load(opt.model).model
 
--- Prior computation mode
-if opt.priorcomp ~= '' then
-  opt.gt_file = opt.priorcomp
-  opt.priorcomp = true
-  opt.softmax = true
+-- Output file modes (maxseq, forcealign and priorcomp)
+if opt.maxseq or opt.forcealign or opt.priorcomp then
+  local outfile = opt.output == '-' and io.stdout or io.open(opt.output, 'w')
+  assert(outfile ~= nil, string.format('Unable open file for writing: %q', opt.output))
   opt.convout = false
   opt.loglkh = ''
-else
-  opt.priorcomp = false
+end
+
+-- Forced aling and prior computation modes
+if opt.forcealign or opt.priorcomp then
+  assert(opt.gt_file ~= '', string.format('For %s the data ground truth is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
+  assert(opt.symbols_table ~= '', string.format('For %s the symbols table is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
+  opt.softmax = true
 end
 
 -- Log-likelihood computation mode
@@ -108,7 +118,7 @@ if opt.softmax then
   model:add(nn.SoftMax())
 end
 
--- 
+-- Prepare for CUDA or CPU
 if opt.gpu >= 0 then
   cutorch.setDevice(opt.gpu + 1) -- +1 because lua is 1-indexed
   model = model:cuda()
@@ -158,9 +168,23 @@ for batch=1,dv:numSamples(),opt.batch_size do
   -- Forward through network
   local output = model:forward(batch_img)
 
-  -- Compute priors
-  if opt.priorcomp then
-    if not prior_count then
+  -- Output sequence of maximums
+  if opt.maxseq then
+    local _, maxidx = torch.max(output,2)
+    maxidx = maxidx:squeeze():csub(1);
+
+    -- Loop through batch samples
+    for i = 1, batch_size do
+      outfile:write(batch_ids[i])
+      for f=i,output:size(1),opt.batch_size do
+        outfile:write(' '..maxidx[f])
+      end
+      outfile:write('\n')
+    end
+
+  -- Compute forced alignment and priors
+  elseif opt.forcealign or opt.priorcomp then
+    if opt.priorcomp and not prior_count then
       local prior_total = 0
       local prior_count = torch.IntTensor(output:size(2)):zero()
     end
@@ -180,8 +204,20 @@ for batch=1,dv:numSamples(),opt.batch_size do
 
       -- @todo Do forced alignment of sample w.r.t. batch_gt[i]
 
-      prior_total = prior_total + nframes
-      -- @todo Increment prior_count
+      if opt.forcealign then
+        outfile:write(batch_ids[i])
+        -- @todo Print alignment
+        --for f=1,nframes do
+        --  outfile:write(' '..???[f])
+        --end
+        outfile:write('\n')
+      else
+        prior_total = prior_total + nframes
+        -- @todo Increment prior_count
+        --for f=1,nframes do
+        --  prior_count[???[f]] = prior_count[???[f]]+1
+        --end
+      end
     end
 
   -- Ouput from convolutional layers
@@ -191,7 +227,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
     for i = 1, batch_size do
       -- Output in HTK format
       if opt.htk then
-        local fd = torch.DiskFile( opt.outdir..'/'..batch_ids[i]..'.fea', 'w' ):binary():bigEndianEncoding()
+        local fd = torch.DiskFile( opt.output..'/'..batch_ids[i]..'.fea', 'w' ):binary():bigEndianEncoding()
         nSamples[1] = output:size(1)
         sampSize[1] = 4*output:size(3)
         fd:writeInt( nSamples[1] )
@@ -206,7 +242,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
         fd:close()
       -- Output in ASCII format
       else
-        local fd = io.open( opt.outdir..'/'..batch_ids[i]..'.fea', 'wb' )
+        local fd = io.open( opt.output..'/'..batch_ids[i]..'.fea', 'wb' )
         for f=1, output:size(1) do
           fd:write( string.format('%g',output[f][i][1]) )
           for c = 2, output:size(3) do
@@ -253,7 +289,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
 
       -- Output in HTK format
       if opt.htk then
-        local fd = torch.DiskFile( opt.outdir..'/'..batch_ids[i]..'.fea', 'w' ):binary():bigEndianEncoding()
+        local fd = torch.DiskFile( opt.output..'/'..batch_ids[i]..'.fea', 'w' ):binary():bigEndianEncoding()
         nSamples[1] = output:size(1)/opt.batch_size
         sampSize[1] = 4*output:size(2)
         fd:writeInt( nSamples[1] )
@@ -267,7 +303,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
         fd:close()
       -- Output in ASCII format
       else
-        local fd = io.open( opt.outdir..'/'..batch_ids[i]..'.fea', 'wb' )
+        local fd = io.open( opt.output..'/'..batch_ids[i]..'.fea', 'wb' )
         for j=1,sample:size(1) do
           fd:write( string.format('%g',sample[{j,1}]) )
           for k = 2, sample:size(2) do
@@ -284,12 +320,15 @@ for batch=1,dv:numSamples(),opt.batch_size do
   n = n + batch_size
 end
 
-if opt.priorcomp then
-  for n=1,#prior_count do
-    io.write( string.format('%d\t%d\t%d\t%.10e\n',n-1,prior_count[n],prior_total,prior_count[n]/prior_total) )
-  end
-end
-
 if outpads then
   outpads:close()
+end
+
+if opt.priorcomp then
+  for n=1,#prior_count do
+    outfile:write( string.format('%d\t%d\t%d\t%.10e\n',n-1,prior_count[n],prior_total,prior_count[n]/prior_total) )
+  end
+end
+if opt.maxseq or opt.forcealign or opt.priorcomp then
+  outfile:close()
 end
