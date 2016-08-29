@@ -59,18 +59,22 @@ cutorch.manualSeed(opt.seed)
 local model = torch.load(opt.model).model
 
 -- Output file modes (maxseq, forcealign and priorcomp)
+local outfile
 if opt.maxseq or opt.forcealign or opt.priorcomp then
-  local outfile = opt.output == '-' and io.stdout or io.open(opt.output, 'w')
+  outfile = opt.output == '-' and io.stdout or io.open(opt.output, 'w')
   assert(outfile ~= nil, string.format('Unable open file for writing: %q', opt.output))
   opt.convout = false
   opt.loglkh = ''
 end
 
 -- Forced aling and prior computation modes
+local prior_count
 if opt.forcealign or opt.priorcomp then
   assert(opt.gt_file ~= '', string.format('For %s the data ground truth is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
   assert(opt.symbols_table ~= '', string.format('For %s the symbols table is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
   opt.softmax = true
+else
+  opt.gt_file = nil
 end
 
 -- Log-likelihood computation mode
@@ -185,8 +189,8 @@ for batch=1,dv:numSamples(),opt.batch_size do
   -- Compute forced alignment and priors
   elseif opt.forcealign or opt.priorcomp then
     if opt.priorcomp and not prior_count then
-      local prior_total = 0
-      local prior_count = torch.IntTensor(output:size(2)):zero()
+      assert(dv:numSymbols()+1 == output:size(2), 'Number of symbols should match the network output')
+      prior_count = torch.IntTensor(output:size(2)):zero()
     end
 
     local nframes = output:size(1) / opt.batch_size
@@ -210,15 +214,14 @@ for batch=1,dv:numSamples(),opt.batch_size do
         outfile:write(batch_ids[i])
         -- Print alignment
         for f=1,nframes do
-	   outfile:write(' '..(tbFA[f]-1))
+          outfile:write(' '..(tbFA[f]-1))
         end
         outfile:write('\n')
       else
-	 prior_total = prior_total + nframes
-	 -- Increment prior_count
-	 for _,v in pairs(tbFA) do
-	    prior_count[v] = prior_count[v] + 1
-	 end
+        -- Increment prior_count
+        for _,v in pairs(tbFA) do
+          prior_count[v] = prior_count[v] + 1
+        end
       end
     end
 
@@ -327,7 +330,8 @@ if outpads then
 end
 
 if opt.priorcomp then
-  for n=1,#prior_count do
+  local prior_total = prior_count:sum()
+  for n=1, prior_count:size(1) do
     outfile:write( string.format('%d\t%d\t%d\t%.10e\n',n-1,prior_count[n],prior_total,prior_count[n]/prior_total) )
   end
 end

@@ -238,11 +238,11 @@ function read_symbols_table(file)
   -- check if exists or is not empty
   if lines == nil then return {} end
   --
-  symbols_table = {}
+  local symbols_table = {}
   for i=1, #lines do
     local sline = lines[i]:split()
-    symbol = sline[1]
-    id = tonumber(sline[2])
+    local symbol = sline[1]
+    local id = tonumber(sline[2])
     symbols_table[id] = symbol
   end
   return symbols_table

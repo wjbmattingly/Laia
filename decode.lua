@@ -38,8 +38,9 @@ else
 end
 
 -- Load symbols
+local symbols_table
 if opt.symbols_table then
-  local symbols_table = read_symbols_table(opt.symbols_table)
+  symbols_table = read_symbols_table(opt.symbols_table)
 end
 
 model:evaluate()
