@@ -238,11 +238,11 @@ function read_symbols_table(file)
   -- check if exists or is not empty
   if lines == nil then return {} end
   --
-  symbols_table = {}
+  local symbols_table = {}
   for i=1, #lines do
     local sline = lines[i]:split()
-    symbol = sline[1]
-    id = tonumber(sline[2])
+    local symbol = sline[1]
+    local id = tonumber(sline[2])
     symbols_table[id] = symbol
   end
   return symbols_table
@@ -290,4 +290,106 @@ function save_gradInput_heatmap(m, desc)
 	 image.save(string.format('%s%d.jpg', desc, i), xi)
       end
    end
+end
+
+--[[
+-- Read a text file containing a matrix and load it into a Tensor
+function loadTensorFromFile(fname)
+   local fd = io.open(fname, 'r')
+   assert(fd ~= nil, string.format('Unable to read file: %q', fname))
+   local tb = {}
+   while true do
+      local line = fd:read('*line')
+      if line == nil then break end
+      table.insert(tb, string.split(line))
+   end
+   fd:close()
+   return torch.Tensor(tb)
+end
+-- Read a text file containing a vector IDs and load it into a Table
+function loadTableFromFile(fname)
+   local fd = io.open(fname, 'r')
+   assert(fd ~= nil, string.format('Unable to read file: %q', fname))
+   local line = fd:read('*line')
+   local tb = string.split(line)
+   tb = torch.totable(torch.IntTensor(torch.IntStorage(tb)))
+   fd:close()
+   return tb
+end
+--]]
+-- This function returns a table conataining symbol ID sequence
+-- corresponding to the force-alignment of the given ground-truth.
+-- INPUT: Confidence Matrix Tensor containing the posterior
+-- probabilities per character and frame, and Ground-Truth Vector
+-- containing the char-ID sequence of the given sample.
+-- OUTPUT: char-ID sequence alignment (it includes BLANK-CHAR)
+function forceAlignment(teCM, tbGT)
+
+   assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
+   
+   -- BLANK symbol ID
+   local blkCharID = 1
+
+   local nSymbols, nframes, nTotSymbols = #tbGT, teCM:size()[1], teCM:size()[2]
+   local tbAuxGT = {}
+   for i = 1, nSymbols do
+      assert(tbGT[i]+1 <= nTotSymbols, string.format('One char-ID is greater than the total number of chars: %q',nTotSymbols))
+      table.insert(tbAuxGT, blkCharID)
+      -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
+      -- add 1 to every tbGT[i] (symb ID)
+      table.insert(tbAuxGT, tbGT[i] + 1)
+   end
+   table.insert(tbAuxGT, blkCharID)
+   nSymbols = #tbAuxGT
+
+   -- teTRL: trellis tensor, tbTBK: trace back table
+   local teTRL = torch.Tensor(nSymbols,nframes):fill(-1000)
+   local tbTBK = {}
+   tbTBK[1] = {}; tbTBK[2] = {}; 
+   teTRL[{1,1}] = teCM[{1,tbAuxGT[1]}];
+   tbTBK[1][1] = {0, 0, tbAuxGT[1]}
+   teTRL[{2,1}] = teCM[{1,tbAuxGT[2]}];
+   tbTBK[2][1] = {0, 0, tbAuxGT[2]}
+   for s=3, nSymbols do
+      tbTBK[s] = {}; tbTBK[s][1] = {0, 0, tbAuxGT[s]}
+   end
+
+   for f = 2, nframes do
+      teTRL[{1,f}] = teTRL[{1,f-1}] + teCM[{f,tbAuxGT[1]}];
+      tbTBK[1][f] = {1, f-1, tbAuxGT[1]}
+      for s = 2, nSymbols do       
+	 if teTRL[{s-1,f-1}] > teTRL[{s,f-1}] then
+	    teTRL[{s,f}] = teTRL[{s-1,f-1}]
+	    tbTBK[s][f] = {s-1, f-1, tbAuxGT[s]}	    
+	 else
+	    teTRL[{s,f}] = teTRL[{s,f-1}]
+	    tbTBK[s][f] = {s, f-1, tbAuxGT[s]}
+	 end
+	 if (s%2 == 0 and s>3) and (teTRL[{s-2,f-1}] > teTRL[{s,f}]) and (tbAuxGT[s-2] ~= tbAuxGT[s]) then
+	    teTRL[{s,f}] = teTRL[{s-2,f-1}]
+	    tbTBK[s][f] = {s-2, f-1, tbAuxGT[s]}
+	 end
+	 teTRL[{s,f}] = teTRL[{s,f}] + teCM[{f,tbAuxGT[s]}]
+      end
+   end
+  
+   local t = {}
+   local traceBackPath
+   traceBackPath = function (nS, nF, t)
+      local aux = tbTBK[nS][nF]
+      if aux[1]==0 and aux[2]==0 then
+	 table.insert(t,aux[3])
+      else
+	 traceBackPath(aux[1],aux[2],t);
+	 table.insert(t,aux[3])
+      end
+   end
+           
+   if nSymbols > 1 and teTRL[{nSymbols-1,nframes}] > teTRL[{nSymbols,nframes}] then
+      traceBackPath(nSymbols-1,nframes,t)
+   else
+      traceBackPath(nSymbols,nframes,t)
+   end
+   
+   return t
 end

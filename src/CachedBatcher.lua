@@ -11,6 +11,7 @@ function CachedBatcher:__init(img_list, cfg)
   self._channels = cfg.channels or 1
   self._invert = cfg.invert or 1
   self._min_width = cfg.min_width or 0
+  self._width_factor = cfg.width_factor or 0
   self._imglist = {}
   self._has_gt = cfg.gt_file and true or false
   self._gt = {}
@@ -168,9 +169,11 @@ function CachedBatcher:_fillCache(idx)
       table.insert(self._cache_img, img)
 
       -- Store data in the GPU, if requested.
-      if self._cache_gpu >= 0 then
-        self._cache_img[#self._cache_img] = self._cache_img[#self._cache_img]:cuda()
-      end
+      --if self._cache_gpu >= 0 then
+        -- It seems as if the images are twice in GPU: cache_img and batch_img (ahector)
+        -- Is this needed? Still works commenting it out, but there seems to be no GPU mem usage reduction
+      --  self._cache_img[#self._cache_img] = self._cache_img[#self._cache_img]:cuda()
+      --end
       -- Increase size of the cache (in MB)
       self._cache_size = self._cache_size +
         self._cache_img[#self._cache_img]:storage():size() * 4 / 1048576
@@ -210,10 +213,14 @@ function CachedBatcher:next(batch_size)
   if max_sizes[{1,2}] < self._min_width then
     max_sizes[{1,2}] = self._min_width
   end
+  if self._width_factor > 0 then
+    max_sizes[{1,2}] = self._width_factor * math.ceil(max_sizes[{1,2}]/self._width_factor)
+  end
   local batch_img = torch.Tensor(batch_size, self._channels, max_sizes[{1,1}],
           max_sizes[{1,2}]):zero()
   local batch_gt  = {}
   local batch_ids = {}
+  local batch_hpad = {}
   local old_gpu = -1
   if self._cache_gpu >= 0 then
     old_gpu = cutorch.getDevice()
@@ -236,6 +243,7 @@ function CachedBatcher:next(batch_size)
        dx + 1, dx + img:size()[3]):copy(img)
     table.insert(batch_gt, gt)
     table.insert(batch_ids, self._samples[j])
+    table.insert(batch_hpad, {dx,img:size()[3],max_sizes[{1,2}]-dx-img:size()[3]})
   end
   if old_gpu >= 0 then
     cutorch.setDevice(old_gpu)
@@ -243,7 +251,7 @@ function CachedBatcher:next(batch_size)
   -- Increase index for next batch
   self._idx = (self._idx + batch_size) % self._num_samples
   collectgarbage()
-  return batch_img, batch_gt, batch_sizes, batch_ids
+  return batch_img, batch_gt, batch_sizes, batch_ids, batch_hpad
 end
 
 function CachedBatcher:epochReset(img_list, cfg)
