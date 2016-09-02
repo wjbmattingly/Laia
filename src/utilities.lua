@@ -63,7 +63,7 @@ end
 
 torch.sumarizeMagnitudes = function(x, mass, nbins, bmin, bmax, log_scale)
    mass = mass or 0.75
-   log_scale = log_scale or true
+   log_scale = log_scale or false
    local hist, bins
    if log_scale then
       hist, bins = torch.loghistc(x, nbins, bmin, bmax)
