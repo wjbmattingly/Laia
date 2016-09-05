@@ -38,7 +38,6 @@ end
 
 local opt = opts_parse(arg)
 
-math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 cutorch.manualSeed(opt.seed)
 
@@ -134,7 +133,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
     -- Softmax output
     --if opt.softmax then
     --  output:exp()
-    --  output:cdiv( output:sum(2):repeatTensor(1,output:size(2)) ); 
+    --  output:cdiv( output:sum(2):repeatTensor(1,output:size(2)) );
     --end
     local _, maxidx = torch.max(output,2)
     maxidx = maxidx:squeeze();

@@ -15,6 +15,7 @@ require 'xlua'
 -- require 'src.CurriculumBatcher'; local Batcher = CurriculumBatcher
 -- TODO: The type of batcher could be selected as an arg when calling train.lua
 require 'src.RandomBatcher'; local Batcher = RandomBatcher
+require 'src.ImageDistorter'
 
 require 'src.utilities'
 local opts = require 'src.TrainOptions'
@@ -35,7 +36,6 @@ local rmsprop_opts = {
    alpha = opt.alpha,
 }
 
-math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 if opt.gpu >= 0 then
   -- cuda related includes and settings
@@ -155,6 +155,10 @@ assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
        string.format('Expected model output to have #symbols+1 dimensions! #symbols=%d vs. model=%d',
                      dt:numSymbols(),model:get(#model):parameters()[2]:size()[1]))
 
+-- TODO(jpuigcerver): Pass options to the image distorter
+-- TODO(jpuigcerver): Image distorter only works for GPU!
+local distorter = ImageDistorter()
+
 -- Keep track of the performance on the training data
 local train_loss_epoch = 0.0
 local train_cer_epoch = 0.0
@@ -212,10 +216,11 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   train_num_edit_ops = 0
   train_ref_length = 0
   for batch=1,train_num_samples,opt.batch_size do
-    local batch_img, batch_gt, batch_sizes = dt:next(opt.batch_size)
+    local batch_img, batch_gt, batch_sizes, batch_ids = dt:next(opt.batch_size)
     if opt.gpu >= 0 then
      batch_img = batch_img:cuda()
     end
+     batch_img = distorter:distort(batch_img)
 
     local train_batch = function(x)
       assert (x == parameters)

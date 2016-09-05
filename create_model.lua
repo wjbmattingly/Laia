@@ -120,7 +120,6 @@ cnn_spatial_dropout = table.map(cnn_spatial_dropout,
 				function(x) return x == 'true'end)
 
 -- Initialize random seeds
-math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 cutorch.manualSeed(opt.seed)
 

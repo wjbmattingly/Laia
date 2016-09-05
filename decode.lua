@@ -15,7 +15,6 @@ require 'src.RandomBatcher'; local Batcher = RandomBatcher
 local opts = require 'src.DecodeOptions'
 local opt = opts.parse(arg)
 
-math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 if opt.gpu >= 0 then
   require 'cutorch'
