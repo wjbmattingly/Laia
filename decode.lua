@@ -1,3 +1,5 @@
+#!/usr/bin/env th
+
 require 'torch'
 require 'cudnn'
 
@@ -35,13 +37,25 @@ else
 end
 
 -- Load symbols
+local symbols_table
 if opt.symbols_table then
-  local symbols_table = read_symbols_table(opt.symbols_table)
+  symbols_table = read_symbols_table(opt.symbols_table)
 end
 
 model:evaluate()
 
+-- Read input channels from the model
 opt.channels = model:get(1):get(1).nInputPlane
+-- Compute width factor from model
+if opt.width_factor then
+  opt.width_factor = 1
+  local maxpool = model:findModules('cudnn.SpatialMaxPooling')
+  for n=1,#maxpool do
+    opt.width_factor = opt.width_factor * maxpool[n].kW
+  end
+else
+  opt.width_factor = 0
+end
 local dv = Batcher(opt.data, opt); dv:epochReset()
 local n = 0
 for batch=1,dv:numSamples(),opt.batch_size do
