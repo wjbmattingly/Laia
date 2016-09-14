@@ -11,7 +11,7 @@ function ImageDistorter:__init(...)
    if arg.scale_prob ~= nil then self.scale_prob = arg.scale_prob end
    self.scale_mean = 1.0
    if arg.scale_mean ~= nil then self.scale_mean = arg.scale_mean end
-   self.scale_stdv = 0.1
+   self.scale_stdv = 0.12
    if arg.scale_stdv ~= nil then self.scale_stdv = arg.scale_stdv end
 
    -- Horizontal shear parameters.
@@ -19,7 +19,7 @@ function ImageDistorter:__init(...)
    if arg.shear_prob ~= nil then self.shear_prob = arg.shear_prob end
    self.shear_mean = 0.0
    if arg.shear_mean ~= nil then self.shear_mean = arg.shear_mean end
-   self.shear_stdv = 0.3
+   self.shear_stdv = 0.5
    if arg.shear_stdv ~= nil then self.shear_stdv = arg.shear_stdv end
 
    -- Rotate parameters. Rotation is applied at the center of the image.
@@ -27,7 +27,7 @@ function ImageDistorter:__init(...)
    -- farest points from the center are not moved too much.
    self.rotate_prob = 0.5
    if arg.rotate_prob ~= nil then self.rotate_prob = arg.rotate_prob end
-   self.rotate_factor = 0.3
+   self.rotate_factor = 0.4
    if arg.rotate_factor ~= nil then self.rotate_factor = arg.rotate_factor end
 
    -- Translate parameters. Standard deviation is relative to the size of
@@ -36,7 +36,7 @@ function ImageDistorter:__init(...)
    if arg.translate_prob ~= nil then self.translate_prob=arg.translate_prob end
    self.translate_mean = 0.0
    if arg.translate_mean ~= nil then self.translate_mean=arg.translate_mean end
-   self.translate_stdv = 0.01
+   self.translate_stdv = 0.02
    if arg.translate_stdv ~= nil then self.translate_stdv=arg.translate_stdv end
 
    -- Dilate parameters.
@@ -44,7 +44,7 @@ function ImageDistorter:__init(...)
    if arg.dilate_prob ~= nil then self.dilate_prob = arg.dilate_prob end
    self.dilate_srate = 0.5
    if arg.dilate_srate ~= nil then self.dilate_srate = arg.dilate_srate end
-   self.dilate_rrate = 1.0
+   self.dilate_rrate = 0.8
    if arg.dilate_rrate ~= nil then self.dilate_rrate = arg.dilate_rrate end
 
    -- Erode parameters.
@@ -52,7 +52,7 @@ function ImageDistorter:__init(...)
    if arg.erode_prob ~= nil then self.erode_prob = arg.erode_prob end
    self.erode_srate = 0.5
    if arg.erode_srate ~= nil then self.erode_srate = arg.erode_srate end
-   self.erode_rrate = 1.0
+   self.erode_rrate = 0.8
    if arg.erode_rrate ~= nil then self.erode_rrate = arg.erode_rrate end
 end
 
@@ -133,14 +133,14 @@ function ImageDistorter:__sample_structuring_element(N, p, srate, rrate)
    -- Compute radius likelihoods
    local M = torch.ByteTensor(N, Mh, Mw):zero()
    for n=1,N do
-      if math.random() < p then
+      if torch.uniform() < p then
 	 for y=0,(Mh-1) do
 	    for x=0,(Mw-1) do
 	       local dy = y - math.floor(Mh / 2)
 	       local dx = x - math.floor(Mw / 2)
 	       local r  = math.sqrt(dx * dx + dy * dy)
 	       M[{n, y + 1, x + 1}] =
-		  (math.random() < math.exp(-rrate * r) and 1) or 0
+		  (torch.uniform() < math.exp(-rrate * r) and 1) or 0
 	    end
 	 end
       else
