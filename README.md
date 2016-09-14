@@ -20,8 +20,9 @@ th decode.lua $MODEL $DATA_H5
 
 ## Requirements
 
-- CUDA 7.5 + cuDNN
-- Torch7
-- cuTorch
-- Torch cuDNN [Install it from https://github.com/soumith/cudnn.torch]
-- Warp CTC [https://github.com/baidu-research/warp-ctc]
+- [CUDA >=7.5](https://developer.nvidia.com/cuda-downloads)
+- [cuDNN >= 5.1](https://developer.nvidia.com/cudnn)
+- [Torch7](http://torch.ch)
+- [cuDNN.torch](https://github.com/soumith/cudnn.torch)
+- [Baidu's CTC](https://github.com/baidu-research/warp-ctc)
+- [imgdistort](https://github.com/jpuigcerver/imgdistort)
