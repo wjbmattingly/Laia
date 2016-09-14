@@ -22,12 +22,12 @@ function opts_parse(arg)
   cmd:option('-width_factor', true, 'Make width a factor of the max pooling reduction')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
-  cmd:option('-htk', false, 'Output in KTK format')
+  cmd:option('-htk', false, 'Output in HTK format')
   cmd:option('-softmax', false, 'Whether to add softmax layer at end of network')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
 
   cmd:option('-loglkh', '', 'Compute log-likelihoods using provided priors')
-  cmd:option('-alpha', 0.3, 'p(x|s) = P(s|x) / P(s)^LOGLKH_ALPHA_FACTOR')
+  cmd:option('-alpha', 0.3, 'p(x|s) = P(s|x) / P(s)^LOGLKH_ALPHA')
 
   cmd:option('-maxseq', false, 'Whether to output the sequence of maximums')
   cmd:option('-forcealign', false, 'Do forced alignment using given ground truth')
@@ -174,14 +174,15 @@ for batch=1,dv:numSamples(),opt.batch_size do
 
   -- Output sequence of maximums
   if opt.maxseq then
-    local _, maxidx = torch.max(output,2)
+    local maxval, maxidx = torch.max(output,2)
+    maxval = maxval:squeeze();
     maxidx = maxidx:squeeze():csub(1);
 
     -- Loop through batch samples
     for i = 1, batch_size do
-      outfile:write(batch_ids[i])
+      outfile:write(batch_ids[i]..' -')
       for f=i,output:size(1),opt.batch_size do
-        outfile:write(' '..maxidx[f])
+        outfile:write(' '..maxidx[f]..':'..maxval[f])
       end
       outfile:write('\n')
     end

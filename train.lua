@@ -24,6 +24,13 @@ local opts = require 'src.TrainOptions'
 local term = require 'term'
 local isatty = term.isatty(io.stdout)
 
+local sig = require 'posix.signal'
+local exit_request = false
+function handle_signal()
+  exit_request = true
+end
+sig.signal(sig.SIGUSR1,handle_signal)
+
 ------------------------------------
 -- Initializations
 ------------------------------------
@@ -225,6 +232,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   train_num_edit_ops = 0
   train_ref_length = 0
   for batch=1,train_num_samples,opt.batch_size do
+    if exit_request then break end
     local batch_img, batch_gt, batch_sizes = dt:next(opt.batch_size)
     if opt.gpu >= 0 then
      batch_img = batch_img:cuda()
@@ -287,6 +295,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   ------------------------------
   --    TRAINING EPOCH END    --
   ------------------------------
+  if exit_request then break end
 
 
   ----------------------------------
