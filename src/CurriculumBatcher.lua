@@ -16,25 +16,6 @@ function CurriculumBatcher:__init(hdf5_path, centered_patch, cache_max_size,
 end
 
 --[[
-   Helper function used to sample a key from a table containing the likelihoods
-   of each key element. This assumes that the scores in the likelihoods table
-   are non-negative.
---]]
-function _weightedChoice(likelihoods)
-   local tot_likelihood = table.reduce(likelihoods,
-				       function(tot, x) return tot + x end,
-				       0.0)
-   local cut_likelihood = math.random() * tot_likelihood
-   local cum_likelihood = 0
-   for k, w in pairs(likelihoods) do
-      if cum_likelihood + w >= cut_likelihood then
-	 return k
-      end
-      cum_likelihood = cum_likelihood + w
-   end
-end
-
---[[
    Use this method to select _num_samples samples from the original dataset,
    according to a probability inversely proportional to the length their text
    transcription.
@@ -63,10 +44,12 @@ function CurriculumBatcher:sample(lambda, m)
    for k, l in pairs(self._sample_length) do
       likelihoods[k] = 1.0 / math.pow(math.max(m, l), lambda)
    end
+   local tot_likelihood = table.reduce(likelihoods, operator.add, 0.0)
    -- Select _num_samples samples according to their likelihood.
    self._samples = {}
    for n=1,self._num_samples do
-      table.insert(self._samples, _weightedChoice(likelihoods, tot_likelihood))
+      table.insert(self._samples,
+                   table.weighted_choice(likelihoods, tot_likelihood))
    end
    self._idx = 0
    self:clearCache()

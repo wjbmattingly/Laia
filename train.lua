@@ -17,12 +17,20 @@ require 'xlua'
 -- require 'src.CurriculumBatcher'; local Batcher = CurriculumBatcher
 -- TODO: The type of batcher could be selected as an arg when calling train.lua
 require 'src.RandomBatcher'; local Batcher = RandomBatcher
+require 'src.ImageDistorter'
 
 require 'src.utilities'
 local opts = require 'src.TrainOptions'
 
 local term = require 'term'
 local isatty = term.isatty(io.stdout)
+
+local sig = require 'posix.signal'
+local exit_request = false
+function handle_signal()
+  exit_request = true
+end
+sig.signal(sig.SIGUSR1,handle_signal)
 
 ------------------------------------
 -- Initializations
@@ -37,7 +45,6 @@ local rmsprop_opts = {
    alpha = opt.alpha,
 }
 
-math.randomseed(opt.seed)
 torch.manualSeed(opt.seed)
 if opt.gpu >= 0 then
   -- cuda related includes and settings
@@ -53,14 +60,14 @@ local initial_checkpoint = torch.load(opt.model)
 local model = nil
 local epoch = 0
 if torch.isTypeOf(initial_checkpoint, 'nn.Module') then
-   -- Load a torch nn.Module object
-   model = initial_checkpoint
+  -- Load a torch nn.Module object
+  model = initial_checkpoint
 else
-   -- TODO: Load a checkpoint, so we can continue training.
-   -- This currently won't work, since we are not reading the options,
-   -- like learningRate, from the checkpoint file.
-   model = initial_checkpoint.model
-   epoch = initial_checkpoint.epoch or 0
+  -- TODO: Load a checkpoint, so we can continue training.
+  -- This currently won't work, since we are not reading the options,
+  -- like learningRate, from the checkpoint file.
+  model = initial_checkpoint.model
+  epoch = initial_checkpoint.epoch or 0
 end
 assert(model ~= nil)
 assert(epoch ~= nil)
@@ -168,6 +175,10 @@ assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
        string.format('Expected model output to have #symbols+1 dimensions! #symbols=%d vs. model=%d',
                      dt:numSymbols(),model:get(#model):parameters()[2]:size()[1]))
 
+-- TODO(jpuigcerver): Pass options to the image distorter
+-- TODO(jpuigcerver): Image distorter only works for GPU!
+local distorter = ImageDistorter()
+
 -- Keep track of the performance on the training data
 local train_loss_epoch = 0.0
 local train_cer_epoch = 0.0
@@ -175,11 +186,11 @@ local train_num_edit_ops = 0
 local train_ref_length = 0
 local train_num_samples = nil
 if opt.num_samples_epoch < 1 then
-   train_num_samples =
-      opt.batch_size * math.ceil(dt:numSamples() / opt.batch_size)
+  train_num_samples =
+    opt.batch_size * math.ceil(dt:numSamples() / opt.batch_size)
 else
-   train_num_samples =
-      opt.batch_size * math.ceil(opt.num_samples_epoch / opt.batch_size)
+  train_num_samples =
+    opt.batch_size * math.ceil(opt.num_samples_epoch / opt.batch_size)
 end
 -- Keep track of the performance on the validation data
 local valid_loss_epoch = 0.0
@@ -187,16 +198,16 @@ local valid_cer_epoch = 0.0
 local valid_num_edit_ops = 0
 local valid_ref_length = 0
 local valid_num_samples =
-   opt.batch_size * math.ceil(dv:numSamples() / opt.batch_size)
+  opt.batch_size * math.ceil(dv:numSamples() / opt.batch_size)
 
 local best_criterion_value = nil
 local best_criterion_epoch = nil
 local last_signif_improv_epoch = nil
 local current_criterion_value = {
-   train_loss = function() return train_loss_epoch end,
-   train_cer = function() return train_cer_epoch end,
-   valid_loss = function() return valid_loss_epoch end,
-   valid_cer = function() return valid_cer_epoch end
+  train_loss = function() return train_loss_epoch end,
+  train_cer = function() return train_cer_epoch end,
+  valid_loss = function() return valid_loss_epoch end,
+  valid_cer = function() return valid_cer_epoch end
 }
 assert(current_criterion_value[opt.early_stop_criterion] ~= nil,
        string.format('Early stop criterion %q is not supported!',
@@ -225,10 +236,12 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   train_num_edit_ops = 0
   train_ref_length = 0
   for batch=1,train_num_samples,opt.batch_size do
-    local batch_img, batch_gt, batch_sizes = dt:next(opt.batch_size)
+    if exit_request then break end
+    local batch_img, batch_gt, batch_sizes, batch_ids = dt:next(opt.batch_size)
     if opt.gpu >= 0 then
-     batch_img = batch_img:cuda()
+      batch_img = batch_img:cuda()
     end
+    batch_img = distorter:distort(batch_img)
 
     local train_batch = function(x)
       assert (x == parameters)
@@ -287,6 +300,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   ------------------------------
   --    TRAINING EPOCH END    --
   ------------------------------
+  if exit_request then break end
 
 
   ----------------------------------
@@ -304,7 +318,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
     end
     -- Forward pass
     local batch_loss, batch_num_edit_ops, batch_ref_length =
-       fb_pass(batch_img, batch_gt, false)
+      fb_pass(batch_img, batch_gt, false)
     -- Compute EPOCH (not batch) errors
     valid_loss_epoch = valid_loss_epoch + opt.batch_size * batch_loss
     valid_num_edit_ops = valid_num_edit_ops + batch_num_edit_ops
@@ -326,7 +340,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   if best_criterion_value == nil or curr_crit_value < best_criterion_value then
     best_model = true
     if best_criterion_value == nil or
-      ((best_criterion_value - curr_crit_value) / best_criterion_value) >= opt.min_relative_improv then
+    ((best_criterion_value - curr_crit_value) / best_criterion_value) >= opt.min_relative_improv then
       last_signif_improv_epoch = epoch
     end
   end
@@ -345,12 +359,12 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
 
   -- Print progress of the loss function, CER and running times
   local progress_line = string.format(
-     '%-7d   %s   %10.6f   %10.6f   %9.2f   %9.2f   %10.2f   %10.2f\n',
-     epoch, (best_model and '  *  ') or '     ',
-     train_loss_epoch, valid_loss_epoch,
-     train_cer_epoch * 100, valid_cer_epoch * 100,
-     os.difftime(train_time_end, train_time_start) / 60.0,
-     os.difftime(valid_time_end, valid_time_start) / 60.0)
+    '%-7d   %s   %10.6f   %10.6f   %9.2f   %9.2f   %10.2f   %10.2f\n',
+    epoch, (best_model and '  *  ') or '     ',
+    train_loss_epoch, valid_loss_epoch,
+    train_cer_epoch * 100, valid_cer_epoch * 100,
+    os.difftime(train_time_end, train_time_start) / 60.0,
+    os.difftime(valid_time_end, valid_time_start) / 60.0)
   if output_progress_file ~= nil then
     output_progress_file:write(progress_line)
     output_progress_file:flush()

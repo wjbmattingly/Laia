@@ -262,7 +262,7 @@ end
 --]]
 table.weighted_choice = function(l, z)
    z = z or table.reduce(l, operator.add, 0.0)
-   local cut_likelihood = math.random() * z
+   local cut_likelihood = torch.uniform() * z
    local cum_likelihood = 0
    for k, w in pairs(l) do
       if cum_likelihood + w >= cut_likelihood then
