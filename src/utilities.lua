@@ -97,6 +97,25 @@ torch.sumarizeMagnitudes = function(x, mass, nbins, bmin, bmax, log_scale)
    end
 end
 
+-- Removes removes leading, trailing and repetitions of given symbol
+function symbol_trim(seq, symb)
+  local trimed = {}
+  local N = #seq
+  local n = 1
+  while N > 0 and seq[N] == symb do
+    N = N-1
+  end
+  while n <= N and seq[n] == symb do
+    n = n+1
+  end
+  for m=n,N do
+    if seq[m] ~= symb or seq[m] ~= seq[m-1] then
+      table.insert(trimed,seq[m])
+    end
+  end
+  return trimed
+end
+
 function levenshtein(u, v)
   -- create two tables of distances
   local prev = {}

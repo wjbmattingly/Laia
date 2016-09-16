@@ -117,9 +117,17 @@ local fb_pass = function(batch_img, batch_gt, do_backprop)
   local batch_num_edit_ops = 0
   local batch_ref_length = 0
   for i=1,opt.batch_size do
-    local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
+    local dc_i = batch_decode[i]
+    local gt_i = batch_gt[i] 
+    if opt.cer_trim > 0 then
+      dc_i = symbol_trim(dc_i, opt.cer_trim)
+      gt_i = symbol_trim(gt_i, opt.cer_trim)
+    end
+    --local num_edit_ops, _ = levenshtein(batch_decode[i], batch_gt[i])
+    local num_edit_ops, _ = levenshtein(dc_i, gt_i)
     batch_num_edit_ops = batch_num_edit_ops + num_edit_ops
-    batch_ref_length = batch_ref_length + #batch_gt[i]
+    --batch_ref_length = batch_ref_length + #batch_gt[i]
+    batch_ref_length = batch_ref_length + #gt_i
   end
 
   -- Make loss function (and output gradients) independent of batch size

@@ -68,6 +68,7 @@ function M.parse(arg)
 	     'Save the input and the gradient respect the input of each ' ..
 	     'module in the list as an image')
   --]]
+  cmd:option('-cer_trim', -1, 'For computing CER, removes leading, trailing and repetitions of given symbol number (i.e. space)')
   cmd:text()
 
   cmd:text('Arguments:')
