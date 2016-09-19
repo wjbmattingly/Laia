@@ -23,7 +23,8 @@ dependencies = {
   "optim",
   "xlua",
   "lua-term",
-  "luaposix"
+  "luaposix",
+  "imgdistort"
 }
 
 build = {
