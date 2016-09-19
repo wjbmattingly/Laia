@@ -23,6 +23,7 @@ function opts_parse(arg)
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
   cmd:option('-htk', false, 'Output in HTK format')
+  cmd:option('-ark', false, 'Output as Kaldi table of lattices in ASCII')
   cmd:option('-softmax', false, 'Whether to add softmax layer at end of network')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
 
@@ -42,7 +43,7 @@ function opts_parse(arg)
   cmd:text('Arguments:')
   cmd:argument('model', 'Path to the neural network model file')
   cmd:argument('data', 'Path to the list of images')
-  cmd:argument('output', 'Directory to write matrices or file for maxseq/forcealign/priorcomp ("-" is stdout)')
+  cmd:argument('output', 'Directory to write matrices or file for ark/maxseq/forcealign/priorcomp ("-" is stdout)')
   cmd:text()
 
   local opt = cmd:parse(arg or {})
@@ -57,13 +58,15 @@ cutorch.manualSeed(opt.seed)
 
 local model = torch.load(opt.model).model
 
--- Output file modes (maxseq, forcealign and priorcomp)
-local outfile
-if opt.maxseq or opt.forcealign or opt.priorcomp then
+-- Output file modes (ark, maxseq, forcealign and priorcomp)
+local outfile = false
+if opt.ark or opt.maxseq or opt.forcealign or opt.priorcomp then
   outfile = opt.output == '-' and io.stdout or io.open(opt.output, 'w')
   assert(outfile ~= nil, string.format('Unable open file for writing: %q', opt.output))
   opt.convout = false
-  opt.loglkh = ''
+  if not opt.ark then
+    opt.loglkh = ''
+  end
 end
 
 -- Forced aling and prior computation modes
@@ -206,7 +209,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
         j = j+1
       end
 
-      -- @todo Do forced alignment of sample w.r.t. batch_gt[i]
+      -- Do forced alignment of sample w.r.t. batch_gt[i]
       sample:log()
       local tbFA = forceAlignment(sample,batch_gt[i])
 
@@ -292,8 +295,21 @@ for batch=1,dv:numSamples(),opt.batch_size do
         j = j+1
       end
 
+      -- Output in ARK format
+      if opt.ark then
+        if not loglkh then
+          sample:log()
+        end
+        outfile:write( batch_ids[i]..'\n' )
+        for j=1,sample:size(1) do
+          for k = 1, sample:size(2) do
+            outfile:write( string.format('%d %d %d 0,%g,\n',j-1,j,k,-sample[{j,k}]) )
+          end
+        end
+        outfile:write( sample:size(1)..'\n\n' )
+
       -- Output in HTK format
-      if opt.htk then
+      elseif opt.htk then
         local fd = torch.DiskFile( opt.output..'/'..batch_ids[i]..'.fea', 'w' ):binary():bigEndianEncoding()
         nSamples[1] = output:size(1)/opt.batch_size
         sampSize[1] = 4*output:size(2)
@@ -335,6 +351,6 @@ if opt.priorcomp then
     outfile:write( string.format('%d\t%d\t%d\t%.10e\n',n-1,prior_count[n],prior_total,prior_count[n]/prior_total) )
   end
 end
-if opt.maxseq or opt.forcealign or opt.priorcomp then
+if outfile then
   outfile:close()
 end
