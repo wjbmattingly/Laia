@@ -58,9 +58,9 @@ function M.parse(arg)
              'Start learning rate decay after this epoch')
   cmd:text()
 
-  cmd:text('Image distorter options:')
-  ImageDistorter.addCmdOptions(cmd)
-  cmd:text()
+  --cmd:text('Image distorter options:')
+  --ImageDistorter.addCmdOptions(cmd)
+  --cmd:text()
 
   cmd:text('Other options:')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
