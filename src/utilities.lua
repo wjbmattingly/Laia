@@ -293,6 +293,10 @@ table.weighted_choice = function(l, z)
 	 'likelihoods are non-negative')
 end
 
+function isint(x)
+  return (type(x) == 'number' and x == math.floor(x))
+end
+
 function save_gradInput_heatmap(m, desc)
    require 'image'
    desc = desc or ''
@@ -345,7 +349,7 @@ end
 function forceAlignment(teCM, tbGT)
 
    assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
-   
+
    -- BLANK symbol ID
    local blkCharID = 1
 
@@ -364,7 +368,7 @@ function forceAlignment(teCM, tbGT)
    -- teTRL: trellis tensor, tbTBK: trace back table
    local teTRL = torch.Tensor(nSymbols,nframes):fill(-1000)
    local tbTBK = {}
-   tbTBK[1] = {}; tbTBK[2] = {}; 
+   tbTBK[1] = {}; tbTBK[2] = {};
    teTRL[{1,1}] = teCM[{1,tbAuxGT[1]}];
    tbTBK[1][1] = {0, 0, tbAuxGT[1]}
    teTRL[{2,1}] = teCM[{1,tbAuxGT[2]}];
@@ -376,10 +380,10 @@ function forceAlignment(teCM, tbGT)
    for f = 2, nframes do
       teTRL[{1,f}] = teTRL[{1,f-1}] + teCM[{f,tbAuxGT[1]}];
       tbTBK[1][f] = {1, f-1, tbAuxGT[1]}
-      for s = 2, nSymbols do       
+      for s = 2, nSymbols do
 	 if teTRL[{s-1,f-1}] > teTRL[{s,f-1}] then
 	    teTRL[{s,f}] = teTRL[{s-1,f-1}]
-	    tbTBK[s][f] = {s-1, f-1, tbAuxGT[s]}	    
+	    tbTBK[s][f] = {s-1, f-1, tbAuxGT[s]}
 	 else
 	    teTRL[{s,f}] = teTRL[{s,f-1}]
 	    tbTBK[s][f] = {s, f-1, tbAuxGT[s]}
@@ -391,7 +395,7 @@ function forceAlignment(teCM, tbGT)
 	 teTRL[{s,f}] = teTRL[{s,f}] + teCM[{f,tbAuxGT[s]}]
       end
    end
-  
+
    local t = {}
    local traceBackPath
    traceBackPath = function (nS, nF, t)
@@ -403,12 +407,12 @@ function forceAlignment(teCM, tbGT)
 	 table.insert(t,aux[3])
       end
    end
-           
+
    if nSymbols > 1 and teTRL[{nSymbols-1,nframes}] > teTRL[{nSymbols,nframes}] then
       traceBackPath(nSymbols-1,nframes,t)
    else
       traceBackPath(nSymbols,nframes,t)
    end
-   
+
    return t
 end

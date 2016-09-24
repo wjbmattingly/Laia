@@ -9,7 +9,7 @@ function CachedBatcher:__init(img_list, cfg)
   self._cache_max_size = cfg.cache_max_size or 512
   self._cache_gpu = cfg.cache_gpu or -1
   self._channels = cfg.channels or 1
-  self._invert = cfg.invert or 1
+  self._invert = cfg.invert or true
   self._min_width = cfg.min_width or 0
   self._width_factor = cfg.width_factor or 0
   self._imglist = {}
@@ -23,6 +23,7 @@ function CachedBatcher:__init(img_list, cfg)
   self._cache_gt = {}
   self._cache_idx = 0
   self._cache_size = 0
+  self:checkOptions()
 
   -- Load sample transcripts
   if self._has_gt then
@@ -253,6 +254,56 @@ function CachedBatcher:next(batch_size)
 end
 
 function CachedBatcher:epochReset(img_list, cfg)
+end
+
+function CachedBatcher:registerOptions(cmd)
+  -- This is intended to be used with the new src.argparse
+  cmd:option('--batcher_center_patch',
+	     'If true, place all the image patches at the center of the ' ..
+             'batch. Otherwise, the images are aligned at the (0,0) corner. ' ..
+             'The rest of the batch image is zero-padded', true)
+  cmd:option('--batcher_cache_max_size',
+	     'Use a cache of this size (MB) to preload the images. If you ' ..
+	     'have enough memory, try to load the whole dataset once', 512)
+  cmd:option('--batcher_cache_gpu',
+	     'Use this gpu (-1 for cpu) to cache the images. Unless you ' ..
+	     'have GPU with an humongous amount of memory, you want to ' ..
+	     'leave this to -1 (cpu)', -1)
+  cmd:option('--batcher_min_width', 'Minimum image width. Images with ' ..
+             'a width lower than this value will be zero-padded', 0)
+  -- TODO(mauvilsa): The current implementation assumes that the pixel values
+  -- must be inverted.
+  -- cmd:option('-batcher_invert', true, 'Invert the image pixel values')
+end
+
+function CachedBatcher:loadOptions(opt)
+  if opt.batcher_center_patch ~= nil then
+    self._centered_patch = opt.batcher_center_patch
+  end
+  if opt.batcher_cache_max_size ~= nil then
+    self._cache_max_size = opt.batcher_cache_max_size
+  end
+  if opt.batcher_cache_gpu ~= nil then
+    self._cache_gpu = opt.batcher_cache_gpu
+  end
+  if opt.batcher_invert ~= nil then
+    self._invert = opt.batcher_invert
+  end
+  if opt.batcher_min_width ~= nil then
+    self._min_width = opt.batcher_min_width
+  end
+  self:checkOptions()
+end
+
+function CachedBatcher:checkOptions()
+  assert(isint(self._cache_max_size) and self._cache_max_size > 0)
+  assert(isint(self._cache_gpu))
+  assert(isint(self._min_width) and self._min_width >= 0)
+  assert(isint(self._width_factor))
+  assert(isint(self._channels) and self._channels > 0)
+  -- TODO(mauvilsa): The current implementation assumes that the pixel values
+  -- must be inverted.
+  assert(self._invert == true)
 end
 
 return CachedBatcher
