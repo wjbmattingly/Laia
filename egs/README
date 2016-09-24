@@ -1,0 +1,15 @@
+This directory contains all the scripts necessary to reproduce some of the
+experiments that we made.
+
+Each experiment is located on a different folder and it should contain the
+scripts (bash, lua, python, ...) necessary to reproduce the experiments
+with a simple run.sh script.
+
+The data MUST NOT be stored in the directory, but a README should explain
+how to configure the run.sh to point to the place where the data is located.
+
+Also, NO EXTERNAL SOFTWARE must be added to the repo. If external software
+is needed (e.g. Kaldi, imgtxtenh, etc) it should be stated in the README.
+
+See https://github.com/kaldi-asr/kaldi/tree/master/egs to have a clear idea
+of how this directory should be used.
