@@ -37,13 +37,14 @@ for p in te tr va; do
     cat data/$p.txt | \
     sed 's/ '\''\(s\|d\|ll\|ve\|t\|re\|S\|D\|LL\|VE\|T\|RE\)\([ $]\)/'\''\1\2/g' | \
     awk '{
+      printf("%s", $1);
       for(i=2;i<=NF;++i) {
         for(j=1;j<=length($i);++j)
           printf(" %s", substr($i, j, 1));
-          if (i < NF) printf(" <space>");
-        }
-        printf("\n");
-      }' | \
+        if (i < NF) printf(" <space>");
+      }
+      printf("\n");
+    }' | \
     tr \` \' | \
     sed 's/"/'\'' '\''/g;s/#/<stroke>/g' \
     > data/lang/chars/$p.txt;
