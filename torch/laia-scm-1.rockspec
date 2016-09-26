@@ -10,7 +10,7 @@ description = {
   detailed = [[
   ]],
   homepage = "https://github.com/jpuigcerver/Laia",
-  license = "TBD"
+  license = "MIT"
 }
 
 dependencies = {
@@ -35,10 +35,8 @@ build = {
     ["src.DecodeOptions"] = "src/DecodeOptions.lua",
     ["src.ImageDistorter"] = "src/ImageDistorter.lua",
     ["src.MDRNN"] = "src/MDRNN.lua",
-    ["src.Model-VGG_A"] = "src/Model-VGG_A.lua",
     ["src.RandomBatcher"] = "src/RandomBatcher.lua",
     ["src.TrainOptions"] = "src/TrainOptions.lua",
-    ["src.WidthBatcher"] = "src/WidthBatcher.lua",
     ["src.utilities"] = "src/utilities.lua"
   },
   install = {
