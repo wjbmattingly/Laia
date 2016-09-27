@@ -416,3 +416,19 @@ function forceAlignment(teCM, tbGT)
 
    return t
 end
+
+
+-- from shell.lua, by Peter Odding
+function shell_escape(...)
+ local command = type(...) == 'table' and ... or { ... }
+ for i, s in ipairs(command) do
+  s = (tostring(s) or ''):gsub('"', '\\"')
+  if s:find '[^A-Za-z0-9_."/-]' then
+   s = '"' .. s .. '"'
+  elseif s == '' then
+   s = '""'
+  end
+  command[i] = s
+ end
+ return table.concat(command, ' ')
+end

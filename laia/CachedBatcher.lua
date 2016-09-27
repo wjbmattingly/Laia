@@ -257,7 +257,7 @@ function CachedBatcher:epochReset(img_list, cfg)
 end
 
 function CachedBatcher:registerOptions(cmd)
-  -- This is intended to be used with the new src.argparse
+  -- This is intended to be used with the new laia.argparse
   cmd:option('--batcher_center_patch',
 	     'If true, place all the image patches at the center of the ' ..
              'batch. Otherwise, the images are aligned at the (0,0) corner. ' ..

@@ -1,4 +1,4 @@
-require 'src.CachedBatcher'
+require 'laia.CachedBatcher'
 
 local RandomBatcher, Parent = torch.class('RandomBatcher', 'CachedBatcher')
 

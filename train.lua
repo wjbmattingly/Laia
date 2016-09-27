@@ -14,13 +14,13 @@ require 'optim'
 require 'xlua'
 
 -- TODO: Curriculum batcher does not work properly
--- require 'src.CurriculumBatcher'; local Batcher = CurriculumBatcher
+-- require 'laia.CurriculumBatcher'; local Batcher = CurriculumBatcher
 -- TODO: The type of batcher could be selected as an arg when calling train.lua
-require 'src.RandomBatcher'; local Batcher = RandomBatcher
-require 'src.ImageDistorter'
+require 'laia.RandomBatcher'; local Batcher = RandomBatcher
+require 'laia.ImageDistorter'
 
-require 'src.utilities'
-local opts = require 'src.TrainOptions'
+require 'laia.utilities'
+local opts = require 'laia.TrainOptions'
 
 local term = require 'term'
 local isatty = term.isatty(io.stdout)
@@ -32,12 +32,19 @@ function handle_signal()
 end
 sig.signal(sig.SIGUSR1,handle_signal)
 
+require 'laia.Monitor'
+
 ------------------------------------
 -- Initializations
 ------------------------------------
 
 local opt = opts.parse(arg)
 print('Training hyperparameters: ', opt)
+
+local monitor = nil
+if opt.monitor_dir ~= '' then
+  monitor = laia.Monitor(opt.monitor_dir)
+end
 
 -- RMSprop options
 local rmsprop_opts = {
@@ -118,7 +125,7 @@ local fb_pass = function(batch_img, batch_gt, do_backprop)
   local batch_ref_length = 0
   for i=1,opt.batch_size do
     local dc_i = batch_decode[i]
-    local gt_i = batch_gt[i] 
+    local gt_i = batch_gt[i]
     if opt.cer_trim > 0 then
       dc_i = symbol_trim(dc_i, opt.cer_trim)
       gt_i = symbol_trim(gt_i, opt.cer_trim)
@@ -140,7 +147,7 @@ local fb_pass = function(batch_img, batch_gt, do_backprop)
     model:backward(batch_img, grad_output)
   end
 
-  return loss, batch_num_edit_ops, batch_ref_length
+  return loss, batch_num_edit_ops, batch_ref_length, batch_decode
 end
 -- END fb_pass
 
@@ -256,8 +263,14 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
       --collectgarbage()
 
       -- Regular backpropagation pass
-      local batch_loss, batch_num_edit_ops, batch_ref_length =
+      local batch_loss, batch_num_edit_ops, batch_ref_length, batch_decode =
         fb_pass(batch_img, batch_gt, true)
+
+      -- Update monitor snapshot
+      if monitor ~= nil and
+	(batch + opt.batch_size - 1) % opt.monitor_update_freq == 0 then
+	  monitor:updateSnapshot(batch_img, model, batch_decode, batch_gt)
+      end
 
       -- Adversarial training
       if opt.adversarial_weight > 0.0 then
@@ -270,8 +283,8 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
         local orig_gradParameters = torch.mul(gradParameters,
                                               1.0 - opt.adversarial_weight)
         -- Backprop pass to get the gradients respect the adv images
-        local adv_loss, adv_edit_ops, adv_ref_len = fb_pass(adv_img, batch_gt,
-                                                            true)
+        local adv_loss, adv_edit_ops, adv_ref_len, _ =
+	  fb_pass(adv_img, batch_gt, true)
         -- dJ_final = (1 - w) * dJ_orig + w * dJ_adv
         gradParameters:add(orig_gradParameters,
                            opt.adversarial_weight, gradParameters)
@@ -325,7 +338,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
       batch_img = batch_img:cuda()
     end
     -- Forward pass
-    local batch_loss, batch_num_edit_ops, batch_ref_length =
+    local batch_loss, batch_num_edit_ops, batch_ref_length, _ =
       fb_pass(batch_img, batch_gt, false)
     -- Compute EPOCH (not batch) errors
     valid_loss_epoch = valid_loss_epoch + opt.batch_size * batch_loss

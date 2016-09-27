@@ -6,8 +6,8 @@ require 'cunn'
 require 'cudnn'
 require 'nn'
 
-require 'src.utilities'
-require 'src.RandomBatcher'; local Batcher = RandomBatcher
+require 'laia.utilities'
+require 'laia.RandomBatcher'; local Batcher = RandomBatcher
 
 function opts_parse(arg)
   cmd = torch.CmdLine()
