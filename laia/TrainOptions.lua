@@ -1,4 +1,4 @@
-require 'src.ImageDistorter'
+require 'laia.ImageDistorter'
 
 local M = { }
 
@@ -65,6 +65,10 @@ function M.parse(arg)
   cmd:text('Other options:')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   --cmd:option('-output_path', '.', 'Directory to store ouput')
+  cmd:option('-monitor_directory', '',
+	     'Output the monitor data to this directory')
+  cmd:option('-monitor_update_freq', 1,
+	     'Update monitor every N train batches')
   cmd:option('-output_model', '', 'Write output model to this file instead ' ..
 	     'of overwritting the input model')
   cmd:option('-output_progress', '', 'Write the progress of training ' ..

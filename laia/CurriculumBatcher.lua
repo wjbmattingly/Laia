@@ -1,5 +1,5 @@
-require 'src.CachedBatcher'
-require 'src.utilities'
+require 'laia.CachedBatcher'
+require 'laia.utilities'
 
 local CurriculumBatcher, Parent = torch.class('CurriculumBatcher',
 					      'CachedBatcher')

@@ -3,8 +3,8 @@
 require 'torch'
 require 'cudnn'
 
-require 'src.utilities'
-require 'src.RandomBatcher'; local Batcher = RandomBatcher
+require 'laia.utilities'
+require 'laia.RandomBatcher'; local Batcher = RandomBatcher
 
 -- local str2bool_table = {
 --    ['true'] = true, ['false'] = false,
@@ -14,7 +14,7 @@ require 'src.RandomBatcher'; local Batcher = RandomBatcher
 --    ['TRUE'] = true, ['FALSE'] = false
 -- }
 
-local opts = require 'src.DecodeOptions'
+local opts = require 'laia.DecodeOptions'
 local opt = opts.parse(arg)
 
 torch.manualSeed(opt.seed)
