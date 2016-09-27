@@ -13,7 +13,7 @@ function opts_parse(arg)
   cmd = torch.CmdLine()
 
   cmd:text()
-  cmd:text('Generate raw outputs of a DCNN-LSTM-CTC model.')
+  cmd:text('Generate diverse outputs from a DCNN-LSTM-CTC model and image list.')
   cmd:text()
 
   cmd:text('Options:')
@@ -23,18 +23,18 @@ function opts_parse(arg)
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
   cmd:option('-htk', false, 'Output in HTK format')
-  cmd:option('-ark', false, 'Output as Kaldi table of lattices in ASCII')
+  cmd:option('-ark', false, 'Output as Kaldi table of lattices')
   cmd:option('-softmax', false, 'Whether to add softmax layer at end of network')
   cmd:option('-convout', false, 'Whether to provide output of convolutional layers')
 
-  cmd:option('-loglkh', '', 'Compute log-likelihoods using provided priors')
+  cmd:option('-loglkh', '', 'Compute log-likelihoods using provided priors and alpha')
   cmd:option('-alpha', 0.3, 'p(x|s) = P(s|x) / P(s)^LOGLKH_ALPHA')
 
   cmd:option('-maxseq', false, 'Whether to output the sequence of maximums')
   cmd:option('-forcealign', false, 'Do forced alignment using given ground truth')
   cmd:option('-priorcomp', false, 'Compute priors using given ground truth')
-  cmd:option('-symbols_table', '', 'List of symbols (for forced alingment or prior computation)')
-  cmd:option('-gt_file', '', 'Data ground truth (for forced alingment or prior computation)')
+  cmd:option('-symbols_table', '', 'List of symbols (for forced alignment or prior computation)')
+  cmd:option('-gt_file', '', 'Data ground truth (for forced alignment or prior computation)')
 
   cmd:option('-outpads', '', 'File to output image horizontal paddings')
 
@@ -58,34 +58,38 @@ cutorch.manualSeed(opt.seed)
 
 local model = torch.load(opt.model).model
 
--- Output file modes (ark, maxseq, forcealign and priorcomp)
+local logsoftmax = false
+local loglkh = false
+local logprior
+local zeroprior
+
+-- Output single file modes (ark, maxseq, forcealign and priorcomp)
 local outfile = false
 if opt.ark or opt.maxseq or opt.forcealign or opt.priorcomp then
   outfile = opt.output == '-' and io.stdout or io.open(opt.output, 'w')
   assert(outfile ~= nil, string.format('Unable open file for writing: %q', opt.output))
   opt.convout = false
-  if not opt.ark then
-    opt.loglkh = ''
+  if opt.ark then
+    logsoftmax = true
   end
 end
 
--- Forced aling and prior computation modes
+-- Forced align and prior computation modes
 local prior_count
 if opt.forcealign or opt.priorcomp then
   assert(opt.gt_file ~= '', string.format('For %s the data ground truth is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
   assert(opt.symbols_table ~= '', string.format('For %s the symbols table is required', opt.forcealign and 'forcealign' or 'priorcomp' ))
-  opt.softmax = true
+  logsoftmax = true
 else
   opt.gt_file = nil
 end
 
--- Log-likelihood computation mode
-local loglkh = false
-local logprior = {}
-local zeroprior = {}
-if opt.loglkh ~= '' then
-  local f = io.open(opt.loglkh, 'r')
-  assert(f ~= nil, string.format('Unable to read priors file: %q', opt.loglkh))
+function load_priors(fpriors, alpha)
+  alpha = alpha or 1
+  local logprior = {}
+  local zeroprior = {}
+  local f = io.open(fpriors, 'r')
+  assert(f ~= nil, string.format('Unable to read priors file: %q', fpriors))
   local ln = 0
   while true do
     local line = f:read('*line')
@@ -97,8 +101,14 @@ if opt.loglkh ~= '' then
     logprior[ln] = torch.log(prior)*opt.alpha
   end
   f:close()
+  return logprior, zeroprior
+end
+
+-- Log-likelihood computation mode
+if opt.loglkh ~= '' then
+  logprior, zeroprior = load_priors(opt.loglkh, opt.alpha)
   loglkh = true
-  opt.softmax = true
+  logsoftmax = true
 end
 
 -- Output image paddings
@@ -120,7 +130,9 @@ if opt.convout then
 end
 
 -- Add softmax layer
-if opt.softmax then
+if logsoftmax then
+  model:add(nn.LogSoftMax())
+elseif opt.softmax then
   model:add(nn.SoftMax())
 end
 
@@ -187,6 +199,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
         outfile:write(' '..maxidx[f]..':'..maxval[f])
       end
       outfile:write('\n')
+      outfile:flush()
     end
 
   -- Compute forced alignment and priors
@@ -210,7 +223,6 @@ for batch=1,dv:numSamples(),opt.batch_size do
       end
 
       -- Do forced alignment of sample w.r.t. batch_gt[i]
-      sample:log()
       local tbFA = forceAlignment(sample,batch_gt[i])
 
       if opt.forcealign then
@@ -220,6 +232,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
           outfile:write(' '..(tbFA[f]-1))
         end
         outfile:write('\n')
+        outfile:flush()
       else
         -- Increment prior_count
         for _,v in pairs(tbFA) do
@@ -280,7 +293,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
         if zeroprior[k] then
           output[{{},k}]:fill(-743.747)
         else
-          output[{{},k}]:log():csub(logprior[k])
+          output[{{},k}]:csub(logprior[k])
         end
       end
     end
@@ -297,9 +310,6 @@ for batch=1,dv:numSamples(),opt.batch_size do
 
       -- Output in ARK format
       if opt.ark then
-        if not loglkh then
-          sample:log()
-        end
         outfile:write( batch_ids[i]..'\n' )
         for j=1,sample:size(1) do
           for k = 1, sample:size(2) do
@@ -307,6 +317,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
           end
         end
         outfile:write( sample:size(1)..'\n\n' )
+        outfile:flush()
 
       -- Output in HTK format
       elseif opt.htk then
