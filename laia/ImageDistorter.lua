@@ -1,6 +1,7 @@
 require 'cutorch'
 require 'imgdistort'
 require 'laia.utilities'
+require 'pl'
 
 local ImageDistorter = torch.class('ImageDistorter')
 
