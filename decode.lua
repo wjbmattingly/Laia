@@ -3,8 +3,8 @@
 require 'torch'
 require 'cudnn'
 
-require 'laia.utilities'
-require 'laia.RandomBatcher'; local Batcher = RandomBatcher
+require 'laia'
+local Batcher = laia.RandomBatcher
 
 -- local str2bool_table = {
 --    ['true'] = true, ['false'] = false,

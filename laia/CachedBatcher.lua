@@ -1,8 +1,6 @@
-require 'cutorch'
-require 'torch'
 require 'image'
 
-local CachedBatcher = torch.class('CachedBatcher')
+local CachedBatcher = torch.class('laia.CachedBatcher')
 
 function CachedBatcher:__init(img_list, cfg)
   self._centered_patch = cfg.centered_patch or true

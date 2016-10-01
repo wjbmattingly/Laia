@@ -1,7 +1,7 @@
 #!/usr/bin/env th
 
 require 'cudnn'
-require 'laia.utilities'
+require 'laia'
 
 local cmd = torch.CmdLine('Create a DCNN-RNN model.')
 

@@ -1,6 +1,4 @@
-require 'cudnn'
-
-local MDRNN, parent = torch.class('cudnn.MDRNN', 'nn.Module')
+local MDRNN, parent = torch.class('laia.MDRNN', 'nn.Module')
 
 function MDRNN:__init(inputSize, hiddenSize, rnn_type, dropout)
    rnn_type = rnn_type or 'lstm'

@@ -16,10 +16,10 @@ require 'xlua'
 -- TODO: Curriculum batcher does not work properly
 -- require 'laia.CurriculumBatcher'; local Batcher = CurriculumBatcher
 -- TODO: The type of batcher could be selected as an arg when calling train.lua
-require 'laia.RandomBatcher'; local Batcher = RandomBatcher
-require 'laia.ImageDistorter'
+require 'laia'
 
-require 'laia.utilities'
+local Batcher = laia.RandomBatcher
+
 local opts = require 'laia.TrainOptions'
 
 local term = require 'term'
@@ -32,18 +32,44 @@ function handle_signal()
 end
 sig.signal(sig.SIGUSR1,handle_signal)
 
-require 'laia.Monitor'
-
 ------------------------------------
 -- Initializations
 ------------------------------------
 
 local opt = opts.parse(arg)
-print('Training hyperparameters: ', opt)
 
+-- First of all, update logging options
+laia.log.loglevel = opt.log_level
+laia.log.logfile  = opt.log_file
+laia.log.logstderrthreshold = opt.log_stderr_threshold
+
+-- Show the training options
+laia.log.info('Train options: ', opt)
+
+-- Prepare HTML monitor
 local monitor = nil
-if opt.monitor_dir ~= '' then
-  monitor = laia.Monitor(opt.monitor_dir)
+if opt.monitor_html ~= '' then
+  monitor = laia.Monitor(
+    opt.monitor_html, {
+      loss = {
+	name = 'Loss',
+	xlabel = 'Epoch',
+	ylabel = 'Loss',
+	curves = {
+	  train = {name = 'Train'},
+	  valid = {name = 'Valid'}
+	}
+      },
+      cer = {
+	name = 'CER',
+	xlabel = 'Epoch',
+	ylabel = 'CER (%)',
+	curves = {
+	  train = {name = 'Train'},
+	  valid = {name = 'Valid'}
+	}
+      }
+  })
 end
 
 -- RMSprop options
@@ -85,7 +111,7 @@ cudnn.convert(model, cudnn)
 
 -- get the parameters vector
 local parameters, gradParameters = model:getParameters()
-print('Number of parameters: ', gradParameters:nElement())
+laia.log.info('Number of parameters: ', gradParameters:nElement())
 
 -- Perform forward (and optionally, backprop) pass. This is common
 -- code used for both training and evaluation of the model.
@@ -192,7 +218,7 @@ assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
 
 -- TODO(jpuigcerver): Pass options to the image distorter
 -- TODO(jpuigcerver): Image distorter only works for GPU!
-local distorter = ImageDistorter()
+local distorter = laia.ImageDistorter()
 
 -- Keep track of the performance on the training data
 local train_loss_epoch = 0.0
@@ -232,6 +258,10 @@ assert(current_criterion_value[opt.early_stop_criterion] ~= nil,
 -- Main loop
 ------------------------------------
 
+-- This variable keeps track of the total number of times that the model
+-- was updated.
+local total_updates = 0
+
 while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   -- Epoch starts at 0, when the model is created
   epoch = epoch + 1
@@ -267,9 +297,14 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
         fb_pass(batch_img, batch_gt, true)
 
       -- Update monitor snapshot
-      if monitor ~= nil and
-	(batch + opt.batch_size - 1) % opt.monitor_update_freq == 0 then
-	  monitor:updateSnapshot(batch_img, model, batch_decode, batch_gt)
+      total_updates = total_updates + 1
+      if monitor ~= nil and opt.monitor_snapshot > 0 and
+	total_updates % opt.monitor_snapshot == 0 then
+	  laia.log.warning('Model snapshots are not fully functional yet')
+	  -- TODO(jpuigcerver): This is extremely slow, probably due to
+	  -- memory transfers between GPU and CPU. Look into this.
+	  --monitor:updateSnapshot(batch_img, model, batch_decode, batch_gt)
+	  --monitor:writeHTML()
       end
 
       -- Adversarial training
@@ -392,6 +427,17 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
   else
     io.stdout:write(progress_line)
     io.stdout:flush()
+  end
+
+  -- Update monitor with epoch progress
+  if monitor ~= nil then
+    monitor:updatePlots{
+      loss = { train = train_loss_epoch,
+	       valid = valid_loss_epoch },
+      cer  = { train = train_cer_epoch * 100,
+	       valid = valid_cer_epoch * 100 }
+    }
+    monitor:writeHTML()
   end
 
   -- Collect garbage every so often

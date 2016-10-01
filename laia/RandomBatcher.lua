@@ -1,6 +1,5 @@
-require 'laia.CachedBatcher'
-
-local RandomBatcher, Parent = torch.class('RandomBatcher', 'CachedBatcher')
+local RandomBatcher, Parent =
+  torch.class('laia.RandomBatcher', 'laia.CachedBatcher')
 
 function RandomBatcher:__init(img_list, cfg)
   Parent.__init(self, img_list, cfg)

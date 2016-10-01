@@ -1,5 +1,3 @@
-require 'laia.ImageDistorter'
-
 local M = { }
 
 function M.parse(arg)
@@ -62,13 +60,23 @@ function M.parse(arg)
   --ImageDistorter.addCmdOptions(cmd)
   --cmd:text()
 
+  cmd:text('Logging:')
+  cmd:option('-log_level', 'warn',
+	     'Log messages at or above this level, ignore the rest')
+  cmd:option('-log_file', '',
+             'Write log messages to this file instead of stderr')
+  cmd:option('-log_stderr_threshold', 'error',
+	     'Copy log messages at or above this level to stderr in ' ..
+             'addition to -log_file')
+  cmd:text()
+
   cmd:text('Other options:')
   cmd:option('-gpu', 0, 'Which gpu to use. -1 = use CPU')
   --cmd:option('-output_path', '.', 'Directory to store ouput')
-  cmd:option('-monitor_directory', '',
-	     'Output the monitor data to this directory')
-  cmd:option('-monitor_update_freq', 1,
-	     'Update monitor every N train batches')
+  cmd:option('-monitor_html', '',
+	     'Output monitor HTML to this file')
+  cmd:option('-monitor_snapshot', 0,
+	     'Snapshot the model every n train updates')
   cmd:option('-output_model', '', 'Write output model to this file instead ' ..
 	     'of overwritting the input model')
   cmd:option('-output_progress', '', 'Write the progress of training ' ..
