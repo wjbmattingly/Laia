@@ -1,0 +1,21 @@
+{
+  "name": "laia-monitor",
+  "homepage": "https://github.com/jpuigcerver/Laia",
+  "authors": [
+    "jpuigcerver <joapuipe@gmail.com>"
+  ],
+  "description": "",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.7.0",
+    "d3": "^3.5.15",
+    "iron-component-page": "^1.1.7"
+  }
+}
