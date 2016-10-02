@@ -17,11 +17,11 @@ end
    10
 --]]
 table.reduce = function(t, fn, v0)
-   local res = v0
-   for _, v in pairs(t) do
-      res = fn(res, v)
-   end
-   return res
+  local res = v0
+  for _, v in pairs(t) do
+    res = fn(res, v)
+  end
+  return res
 end
 
 --[[

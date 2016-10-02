@@ -66,6 +66,8 @@ Monitor._HTMLTemplate = etlua.compile([[
     <div id="plot-<%= pn %>"></div>
     <% end -%>
   </div>
+  <div>
+  </div>
 </body>
 </html>
 ]])
@@ -184,7 +186,16 @@ end
 function Monitor:updateSnapshot(input, mdl, hyp, ref)
   assert(torch.isTypeOf(mdl, 'nn.Module'))
   if self._output_file == nil or self._output_file == '' then return end
-  if mdl.html ~= nil then
+
+  local html = string.format([[
+  <div id="snapshot">
+    <div>
+      <h2>Input</h2>
+      <img src="data:image/jpg;base64,%s" />
+    </div>
+  ]], Monitor._Encode_Base64_JPEG(Monitor._NCHWImage(input:float())))
+
+  --[[if mdl.html ~= nil then
     self._snapshot_html = mdl:html()
   elseif Monitor._htmlModule[torch.type(mdl)] ~= nil then
     self._snapshot_html = Monitor._htmlModule[torch.type(mdl)](mdl)
@@ -192,14 +203,7 @@ function Monitor:updateSnapshot(input, mdl, hyp, ref)
     laia.log.debug(string.format('HTML for module %q is ignored!\n',
    				 torch.type(mdl)))
   end
-
-  -- local html = string.format([[
-  -- <div id="snapshot">
-  --   <div>
-  --     <h4>Input</h4>
-  --     <img src="data:image/jpg;base64,%s" />
-  --   </div>
-  -- ]], Monitor._Encode_Base64_JPEG(Monitor._NCHWImage(input:float())))
+  --]]
 
   -- if mdl['html'] ~= nil then
   --   html = html .. mdl:html()
