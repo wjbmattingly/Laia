@@ -212,9 +212,13 @@ opt.gt_file = opt.validation_gt
 local dv = Batcher(opt.validation, opt)
 
 -- Check number of symbols and model output
-assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
-       string.format('Expected model output to have #symbols+1 dimensions! #symbols=%d vs. model=%d',
-                     dt:numSymbols(),model:get(#model):parameters()[2]:size()[1]))
+-- TODO(jpuigcerver,mauvilsa): This assertion only works for the default
+-- model created from create_model.lua, but this is not a good way of checking
+-- the output size! For instance, the last layer may not have any parameters,
+-- if a non-linear activation function is set after the linear layer.
+--assert(dt:numSymbols()+1 == model:get(#model):parameters()[2]:size()[1],
+--       string.format('Expected model output to have #symbols+1 dimensions! #symbols=%d vs. model=%d',
+--                     dt:numSymbols(),model:get(#model):parameters()[2]:size()[1]))
 
 -- TODO(jpuigcerver): Pass options to the image distorter
 -- TODO(jpuigcerver): Image distorter only works for GPU!
