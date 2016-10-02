@@ -12,7 +12,7 @@ function NCHW2HND:updateOutput(input)
   return self.output
 end
 
-function NCHW2GND:updateGradInput(input, gradOutput)
+function NCHW2HND:updateGradInput(input, gradOutput)
   assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
   assert(input:nDimension() == 4)
   local N, C, H, W = input:size(1), input:size(2), input:size(3), input:size(4)

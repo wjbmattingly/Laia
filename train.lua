@@ -93,6 +93,8 @@ local initial_checkpoint = torch.load(opt.model)
 local model = nil
 local epoch = 0
 if torch.isTypeOf(initial_checkpoint, 'nn.Module') then
+  assert(false, "TODO(jpuigcerver): This doesn't work anymore, since the " ..
+         "train script assumes that the model was created with create_model")
   -- Load a torch nn.Module object
   model = initial_checkpoint
 else
@@ -377,7 +379,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
       batch_img = batch_img:cuda()
     end
     -- Forward pass
-    local batch_loss, batch_num_edit_ops, batch_ref_length, _ =
+    local batch_loss, batch_num_edit_ops, batch_ref_length, batch_decode =
       fb_pass(batch_img, batch_gt, false)
     -- Compute EPOCH (not batch) errors
     valid_loss_epoch = valid_loss_epoch + opt.batch_size * batch_loss
@@ -409,6 +411,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
     best_criterion_value = curr_crit_value
     best_criterion_epoch = epoch
     local checkpoint = {}
+    checkpoint.model_opt = initial_checkpoint.model_opt
     checkpoint.train_opt = opt       -- Original training options
     checkpoint.epoch     = epoch
     checkpoint.model     = model
