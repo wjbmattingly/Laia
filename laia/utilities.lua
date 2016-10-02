@@ -432,3 +432,35 @@ function shell_escape(...)
  end
  return table.concat(command, ' ')
 end
+
+table.int2sym = function(t, int2sym)
+  assert(torch.type(t) == 'table')
+  local t2 = {}
+  for i=1,#t do
+    local int, sym = t[i], int2sym[t[i]]
+    assert(sym ~= nil, string.format(
+	     'Integer %d does not map to any symbol in the table', int))
+    table.insert(t2, sym)
+  end
+  return t2
+end
+
+table.sym2int = function(t, sym2int)
+  assert(torch.type(t) == 'table')
+  local t2 = {}
+  for i=1,#t do
+    local sym, int = t[i], sym2int[t[i]]
+    assert(int ~= nil, string.format(
+	     'Symbol %q does not map to any integer in the table', sym))
+    table.insert(t2, int)
+  end
+  return t2
+end
+
+table.from_iterator = function(...)
+  local t = {}
+  for e in ... do
+    table.insert(t, e)
+  end
+  return t
+end

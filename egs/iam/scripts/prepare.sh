@@ -64,7 +64,9 @@ done;
 ## Enhance images with Mauricio's tool, crop image white borders and resize
 ## to a fixed height.
 mkdir -p data/imgs_proc;
-n=0; np="$(nproc)";
+TMPD="$(mktemp -d)";
+bkg_pids=();
+np="$(nproc)";
 for p in te tr va; do
     [ -f data/$p.lst ] && continue;
     for f in $(awk '{print $1}' data/$p.txt); do
@@ -72,14 +74,25 @@ for p in te tr va; do
 	[ ! -f data/imgs/$f.png ] && \
 	    echo "Image data/imgs/$f.png is not available!">&2 && exit 1;
 	(
+	    echo "File data/imgs/$f.png..." >&2;
 	    imgtxtenh -u mm -d 118.1102362205 data/imgs/$f.png data/imgs_proc/$f.jpg;
 	    convert data/imgs_proc/$f.jpg -fuzz 5% -trim +repage data/imgs_proc/$f.jpg;
 	    convert data/imgs_proc/$f.jpg -resize "x$height" -strip data/imgs_proc/$f.jpg;
-	) 2> /dev/null &
-	n=$[n+1];
-	if [ "$n" -eq "$np" ]; then wait && n=0; fi;
+	) &> "$TMPD/${#bkg_pids[@]}" &
+	bkg_pids+=("$!");
+	if [ "${#bkg_pids[@]}" -eq "$np" ]; then
+	    for n in $(seq 1 "${#bkg_pids[@]}"); do
+		wait "${bkg_pids[n-1]}" || (
+                    echo "Failed image processing step:" >&2 && \
+                    cat "$TMPD/$[n-1]" >&2 && exit 1;
+		);
+	    done;
+	    bkg_pids=();
+	fi;
     done;
-    awk '{print "data/imgs_proc/"$1".jpg" }' data/$p.txt > data/$p.lst;
+    awk '{ print "data/imgs_proc/"$1".jpg" }' data/$p.txt > data/$p.lst;
 done;
+
+rm -rf "$TMPD";
 
 exit 0;

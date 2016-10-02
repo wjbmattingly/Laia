@@ -27,7 +27,8 @@ function CachedBatcher:__init(img_list, cfg)
   if self._has_gt then
     -- Load symbols list
     assert(cfg.symbols_table ~= nil, string.format('A symbols list is required when providing transcripts'))
-    local sym2int = {}
+    self.sym2int = {}
+    self.int2sym = {}
     local f = io.open(cfg.symbols_table, 'r')
     assert(f ~= nil, string.format('Unable to read symbols file: %q', cfg.symbols_table))
     local ln = 0
@@ -37,7 +38,8 @@ function CachedBatcher:__init(img_list, cfg)
       ln = ln + 1
       local sym, id = string.match(line, '^(%S+)%s+(%d+)$')
       assert(sym ~= nil and id ~= nil, string.format('Expected a string and an integer separated by a space at line %d in file %q', ln, cfg.symbols_table))
-      sym2int[sym] = tonumber(id)
+      self.sym2int[sym] = tonumber(id)
+      table.insert(self.int2sym, tonumber(id), sym)
       self._num_symbols = tonumber(id) > self._num_symbols and tonumber(id) or self._num_symbols
     end
     f:close()
@@ -55,8 +57,8 @@ function CachedBatcher:__init(img_list, cfg)
       ln, cfg.gt_file))
       txt2int = {}
       for sym in txt:gmatch('%S+') do
-        assert(sym2int[sym] ~= nil, string.format('Symbol %q is not in the symbols table', sym))
-        table.insert(txt2int, sym2int[sym])
+        assert(self.sym2int[sym] ~= nil, string.format('Symbol %q is not in the symbols table', sym))
+        table.insert(txt2int, self.sym2int[sym])
       end
       self._gt[id] = torch.totable(torch.IntTensor(torch.IntStorage(txt2int)))
     end
