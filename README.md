@@ -29,15 +29,18 @@ Note that currently we only support GPU. You need to use NVIDIA's cuDNN library.
 
 ### Training a Laia model using CTC:
 
-Create a new "empty" model using:
+Create an "empty" model using:
 ```bash
 create_model "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7"
 ```
-where:
-- `$CHANNELS` is the number of channels of the input images.
-- `$INPUT_HEIGHT` is the height of the input images. Note: **ALL** image must have the same height.
-- `$((NUM_SYMB+1))` is the number of output symbols. Note: Include **ONE** additional element for the CTC blank symbol.
-- `$MODEL_DIR/model.t7` is the path to the out model.
+Positional arguments:
+- `$CHANNELS`: number of channels of the input images.
+- `$INPUT_HEIGHT`: height of the input images. Note: **ALL** image must have the same height.
+- `$((NUM_SYMB+1))`: number of output symbols. Note: Include **ONE** additional element for the CTC blank symbol.
+- `$MODEL_DIR/model.t7`: path to the output model.
+
+For optional arguments check `create_model.lua -h`.
+
 
 Train the model using:
 ```bash
@@ -45,7 +48,7 @@ train_ctc "$MODEL_DIR/model.t7" \
           "$SYMBOLS_TABLE" \
           "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT"
 ```
-where:
+Positional arguments:
 - `$MODEL_DIR/model.t7` is the path to the input model or checkpoint for training.
 - `$SYMBOLS_TABLE` is the list of training symbols and their id.
 - `$TRAIN_LST` is a file containing a list of images for training.
@@ -53,13 +56,18 @@ where:
 - `$VALID_LST` is a file containing a list of images for validation.
 - `$VALID_GT` is a file containing the list of validation transcripts.
 
+For optional arguments check `train.lua -h`.
+
 ### Transcribing
+
 ```bash 
 decode "$MODEL_DIR/model.t7" "$TEST_LST"
 ```
-where:
+Positional arguments:
 - `$MODEL_DIR/model.t7` is the path to the model.
 - `$TEST_LST` is a file containing a list of images for testing.
+
+For optional arguments check `decode -h`.
 
 ### Example
 
