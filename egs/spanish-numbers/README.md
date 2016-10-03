@@ -40,7 +40,7 @@ tar -xvzf Spanish_Number_DB.tgz -C data/;
 
 **Note**: We use `-num_samples_epoch 4000` to increase the number of samples per epoch. Given that the amount of asked samples (4000) is higher than the number of available training samples (298), Laia will augment the training samples by using distortions. For more information see [imgdistort library](https://github.com/jpuigcerver/imgdistort).
 
-After 30 epochs the model achieves a CER=~2% in validation.
+After 30 epochs the model achieves a CER=~1.5% in validation.
 
 ## Decoding
 

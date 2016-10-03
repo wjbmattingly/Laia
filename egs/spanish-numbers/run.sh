@@ -31,7 +31,7 @@ train.lua \
   -max_no_improv_epochs 15 \
   -num_samples_epoch 4000 \
   -adversarial_weight 0.5 \
-  -output_progress data/laia.log \
+  -output_progress laia.log \
   model.t7 data/lang/chars/symbs.txt \
   data/train.lst data/lang/chars/train.txt \
   data/test.lst data/lang/chars/test.txt;
