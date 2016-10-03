@@ -5,7 +5,7 @@ export LUA_PATH="$(pwd)/../../?/init.lua;$(pwd)/../../?.lua;$LUA_PATH";
 export PATH="$(pwd)/../../:$PATH";
 
 overwrite=false;
-batch_size=30;
+batch_size=16;
 
 # Directory where the run.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
@@ -15,9 +15,11 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 
 mkdir -p data/;
 # download dataset
-wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
+[ -f data/Spanish_Number_DB.tgz ] || \
+    wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
 # extract it
-tar -xzf data/Spanish_Number_DB.tgz -C data/;
+[ -d data/Spanish_Number_DB ] || \
+    tar -xzf data/Spanish_Number_DB.tgz -C data/;
 
 ./scripts/prepare.sh --overwrite "$overwrite";
 

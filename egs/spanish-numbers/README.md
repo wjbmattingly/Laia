@@ -1,16 +1,17 @@
 ## Step-by-step Training Guide Using Spanish Numbers Dataset
 
-Spanish Numbers Dataset is a small dataset of 485 images containing handwritten sentences of Spanish numbers (298 for training and 187 for testing).  
+Spanish Numbers Dataset is a small dataset of 485 images containing handwritten sentences of Spanish numbers (298 for training and 187 for testing).
 
-###Example: 
+###Example:
 ![Example](example.png "Example")
 
 To train a new Laia model for the Spanish Numbers dataset just follow these steps. Given that this dataset does not provide validation partition, we will use the test partition as validation.
 
 - Download the Spanish Numbers dataset:
 ```bash
-mkdir -p data/; wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
-tar -xvzf Spanish_Number_DB.tgz -C data/;
+mkdir -p data/;
+wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
+tar -xvzf data/Spanish_Number_DB.tgz -C data/;
 ```
 
 - Execute `scripts/prepare.sh`. This script assumes that Spanish Numbers dataset is inside `data` folder. This script does the following:
@@ -26,7 +27,7 @@ tar -xvzf Spanish_Number_DB.tgz -C data/;
 
 - Use the `train_ctc` script to train the model:
 ```bash
-../../train_ctc -batch_size 30 \
+../../train_ctc -batch_size 16 \
   -num_samples_epoch 4000 \
   -adversarial_weight 0.5 \
   -output_progress data/laia.log \
