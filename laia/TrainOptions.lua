@@ -82,6 +82,9 @@ function M.parse(arg)
   cmd:option('-output_progress', '', 'Write the progress of training ' ..
 	     'after each epoch to this text file')
   cmd:option('-seed', 0x12345, 'Random number generator seed to use')
+  cmd:option('-show_epoch_bar', true, 'Display a progress bar on the ' ..
+	     'terminal showing the progress on the train and validation ' ..
+	     'partitions for each epoch')
   --[[cmd:option('-save_module_input', '',
 	     'Save the input and the gradient respect the input of each ' ..
 	     'module in the list as an image')
