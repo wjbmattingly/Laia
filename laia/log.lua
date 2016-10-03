@@ -90,29 +90,35 @@ for i, x in ipairs(modes) do
 
     -- Output to console
     if log.logfile == nil or log.logfile == '' or
-       i >= levels[log.logstderrthreshold] then
-      io.stderr:write(string.format("%s[%-6s%s]%s %s: %s\n",
+    i >= levels[log.logstderrthreshold] then
+      io.stderr:write(string.format("%s[%s%6s]%s %s: %s\n",
 				    log.usecolor and x.color or "",
+				    os.date("%Y-%m-%d %H:%M:%S"),
 				    nameupper,
-				    os.date("%H:%M:%S"),
 				    log.usecolor and "\27[0m" or "",
 				    lineinfo,
 				    msg))
+      if nameupper == 'FATAL' then
+	io.stderr:write(debug.traceback() .. '\n')
+      end
       io.stderr:flush()
     end
 
     -- Output to log file
     if log.logfile and log.logfile ~= '' then
       local fp = io.open(log.logfile, "a")
-      local str = string.format("[%-6s%s] %s: %s\n",
-                                nameupper, os.date(), lineinfo, msg)
-      fp:write(str)
+      fp:write(string.format("[%s%6s] %s: %s\n",
+			     os.date("%Y-%m-%d %H:%M:%S"),
+			     nameupper,
+			     lineinfo, msg))
+      if nameupper == 'FATAL' then
+	fp:write(debug.traceback() .. '\n')
+      end
       fp:close()
     end
 
     -- If level was FATAL, terminate program and show traceback
-    assert(nameupper ~= 'FATAL')
-
+    if nameupper == 'FATAL' then os.exit(1) end
   end
 end
 
