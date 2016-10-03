@@ -59,6 +59,7 @@ Positional arguments:
 For optional arguments check `train.lua -h`.
 
 ### Transcribing
+
 ```bash 
 decode "$MODEL_DIR/model.t7" "$TEST_LST"
 ```
@@ -67,7 +68,6 @@ Positional arguments:
 - `$TEST_LST` is a file containing a list of images for testing.
 
 For optional arguments check `decode -h`.
--
 
 ### Example
 
