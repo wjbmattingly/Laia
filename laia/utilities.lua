@@ -474,14 +474,14 @@ table.from_iterator = function(...)
 end
 
 local __toboolean_table = {
-  'true' = true,
-  'TRUE' = true,
-  'T'    = true,
-  '1'    = true,
-  'false' = false,
-  'FALSE' = false,
-  'F'     = false,
-  '0'     = false
+  ['true']  = true,
+  ['TRUE']  = true,
+  ['T']     = true,
+  ['1']     = true,
+  ['false'] = false,
+  ['FALSE'] = false,
+  ['F']     = false,
+  ['0']     = false
 }
 function toboolean(val)
   return __toboolean_table[tostring(val)]
