@@ -77,15 +77,24 @@ end
 
 for i, x in ipairs(modes) do
   local nameupper = x.name:upper()
-  log[x.name] = function(...)
+  log[x.name] = function(msg, ...)
 
     -- Return early if we're below the log level
     if i < levels[log.loglevel] then
       return
     end
-
-    local msg = tostring(...)
-    local info = debug.getinfo(2, "Sl")
+    local getinfo_level, arg = nil, nil
+    if type(msg) == 'table' then
+      getinfo_level = msg.level or 2
+      arg = msg.arg
+      msg = tostring(msg.fmt)
+      if arg then msg = msg:format(unpack(arg)) end
+    else
+      getinfo_level, arg = 2, {...}
+      msg = tostring(msg)
+      if #arg > 0 then msg = string.format(msg, unpack(arg)) end
+    end
+    local info = debug.getinfo(getinfo_level, "Sl")
     local lineinfo = info.short_src .. ":" .. info.currentline
 
     -- Output to console
@@ -99,7 +108,7 @@ for i, x in ipairs(modes) do
 				    lineinfo,
 				    msg))
       if nameupper == 'FATAL' then
-	io.stderr:write(debug.traceback() .. '\n')
+	io.stderr:write(debug.traceback('', getinfo_level) .. '\n')
       end
       io.stderr:flush()
     end
@@ -112,7 +121,7 @@ for i, x in ipairs(modes) do
 			     nameupper,
 			     lineinfo, msg))
       if nameupper == 'FATAL' then
-	fp:write(debug.traceback() .. '\n')
+	fp:write(debug.traceback('', getinfo_level) .. '\n')
       end
       fp:close()
     end

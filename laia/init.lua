@@ -11,6 +11,27 @@ function wrequire(name)
   return m or nil
 end
 
+assert = function(test, msg, ...)
+  if not test then
+    local function getfileline(filename, lineno)
+      local n = 1
+      for l in io.lines(filename) do
+	if n == lineno then return l end
+	n = n + 1
+      end
+    end
+    -- Get the lua source code that caused the exception
+    local info = debug.getinfo(2, 'Sl')
+    local source = info.source
+    if string.sub(source, 1, 1) == '@' then
+      source = getfileline(string.sub(source, 2, #source),
+			   info.currentline):gsub("^%s*(.-)%s*$", "%1")
+    end
+    msg = msg or ('Assertion %q failed'):format(source)
+    laia.log.fatal{fmt = msg, arg = {...}, level = 3}
+  end
+end
+
 -- Mandatory torch packages
 torch = require('torch')
 nn = require('nn')
