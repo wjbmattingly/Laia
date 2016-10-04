@@ -13,7 +13,7 @@ function opts_parse(arg)
   cmd = torch.CmdLine()
 
   cmd:text()
-  cmd:text('Generate diverse outputs from a DCNN-LSTM-CTC model and image list.')
+  cmd:text('Generate diverse outputs from a Laia model and image list.')
   cmd:text()
 
   cmd:text('Options:')
