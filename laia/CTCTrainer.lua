@@ -1,10 +1,11 @@
 require 'warp_ctc'
-local xlua = require 'xlua'
+local xlua = wrequire 'xlua'
 
 local CTCTrainer, parent = torch.class('laia.CTCTrainer')
 
--- Usage example:
+-- Basic usage example:
 -- trainer = CTCTrainer(model, train_batcher, valid_batcher, optim.rmsprop)
+-- trainer:start()
 -- while true do
 --   train_epoch_info = trainer:trainEpoch(rmsprop_opts)
 --   valid_epoch_info = trainer:validEpoch()
@@ -16,7 +17,6 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
   self._train_batcher = train_batcher
   self._valid_batcher = valid_batcher
   self._optimizer = optimizer
-
   -- Training options
   self._opt = {
     batch_size = 16,
@@ -25,6 +25,7 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
     snapshot_interval = 0,
     display_progress_bar = true
   }
+  -- Use :start() to initialize the trainer
   self._initialized = false
 end
 
@@ -64,7 +65,6 @@ function CTCTrainer:setWeightRegularizer(regularizer)
 end
 
 function CTCTrainer:registerOptions(parser)
-  -- Register options
   parser:option('-b --batch_size', 'Batch size', 16, tonumber)
   parser:option('--use_distortions',
 		'If true, augment the training set using random distortions',
@@ -72,15 +72,17 @@ function CTCTrainer:registerOptions(parser)
   parser:option('--cer_trim',
 		'For computing CER, removes leading, trailing and ' ..
                 'repetitions of given symbol number (i.e. space)', 0, tonumber)
-
   parser:option('--snapshot_interval',
-		'If n>0, create a snapshot of the model every n updates',
+		'If n>0, create a snapshot of the model every n batches',
 		0, tonumber):argname('<n>')
-
   parser:option('--grad_clip',
 		'If c>0, clip gradients to the range [-c,+c]',
 		0, tonumber):argname('<c>')
-
+  parser:option('--display_progress_bar',
+		'Display a progress bar on the terminal showing the status ' ..
+		'of the training and validation epoch. Note: if you ' ..
+		'redirect the output to a file, the progress bar is not ' ..
+                'displayed', true, toboolean)
 end
 
 function CTCTrainer:setOptions(opts)
@@ -95,7 +97,22 @@ function CTCTrainer:checkOptions()
   assert(isint(self._opt.cer_trim),
 	 ('CER trim symbol must be an integer (value = %s)'):format(
 	   self._opt.cer_trim))
-
+  assert(isint(self._opt.snapshot_interval),
+	 ('Snapshot interval must be an integer (value = %s)'):format(
+	   self._opt.snapshot_interval))
+  assert(type(self._opt.grad_clip) == 'number',
+	 ('Gradient clip value must be a number (value = %s)'):format(
+	   self._opt.grad_clip))
+  assert(type(self._opt.display_progress_bar) == 'boolean',
+	 ('Display progress bar must be a boolean (value = %s)'):format(
+	   self._opt.display_progress_bar))
+  -- Log some warnings
+  if self._opt.display_progress_bar and not xlua then
+    laia.log.warn('Progress bar not displayed, xlua was not found')
+  end
+  if self._opt.display_progress_bar and not laia.stdout_isatty then
+    laia.log.warn('Progress bar not displayed, stdout is redirected')
+  end
 end
 
 function CTCTrainer:start()
@@ -110,9 +127,10 @@ function CTCTrainer:start()
   -- Define _gradOutput that will be used for different batches to avoid
   -- multiple data allocation/dellocation.
   self._gradOutput = torch.Tensor()
-  -- Number of times that model was updated
-  self._total_model_updates = 0
-
+  -- Total number of precessed training and validation batches, used to update
+  -- the monitor snapshot only at certain times.
+  self._num_processed_train_batches = 0
+  self._num_processed_valid_batches = 0
   -- Compute the number of training samples to process in each epoch.
   -- Note: This number may be different from the total number of training
   -- samples, or the value of --num_epoch_samples, because of the batch_size.
@@ -132,8 +150,12 @@ function CTCTrainer:start()
   self._initialized = true
 end
 
+function CTCTrainer.exitRequested()
+  return CTCTrainer._exit_request
+end
+
 function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
-  assert(self._initialized)
+  assert(self._initialized, 'CTCTrainer must be initialized with :start()')
   -- Reset batcher with the given parameters
   self._train_batcher:epochReset(batcher_reset_params)
   -- Useful information for monitoring the performance on trainining data
@@ -150,6 +172,7 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
   }
   self._resetCosts(epoch_info)
   for b=1,self._train_num_samples,self._opt.batch_size do
+    -- If exit signal was captured, terminate
     if CTCTrainer._exit_request then return nil end
     -- Load batch from batcher
     local batch_img, batch_gt, batch_sizes =
@@ -175,16 +198,18 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
 	return batch_costs.loss, self._gradParameters
       end, self._parameters, optimizer_params)
     -- Show progress bar only if running on a tty
-    if laia.stdout_isatty and self._opt.display_progress_bar then
+    if xlua and laia.stdout_isatty and self._opt.display_progress_bar then
       xlua.progress(batch + self._opt.batch_size - 1, self._train_num_samples)
     end
+    -- Update number of processed batches
+    self._num_processed_train_batches = self._num_processed_train_batches + 1
   end
   epoch_info.time_end = os.time()
   return epoch_info
 end
 
 function CTCTrainer:validEpoch(batcher_reset_params)
-  assert(self._initialized)
+  assert(self._initialized, 'CTCTrainer must be initialized with :start()')
   -- Reset batcher with the given parameters
   self._valid_batcher:epochReset(batcher_reset_params)
   -- Useful information for monitoring the performance on validation data
@@ -201,7 +226,7 @@ function CTCTrainer:validEpoch(batcher_reset_params)
   }
   self._resetCosts(epoch_info)
   for b=1,self._valid_num_samples,self._opt.batch_size do
-    -- If exit signal was capture, terminate
+    -- If exit signal was captured, terminate
     if CTCTrainer._exit_request then return nil end
     -- Load batch from batcher
     local batch_img, batch_gt, batch_sizes =
@@ -212,9 +237,11 @@ function CTCTrainer:validEpoch(batcher_reset_params)
     local batch_costs = self:_fbPass(batch_img, batch_gt, false)
     CTCTrainer._updateCosts(epoch_info, batch_costs)
     -- Show progress bar only if running on a tty
-    if laia.stdout_isatty and self._opt.display_progress_bar then
+    if xlua and laia.stdout_isatty and self._opt.display_progress_bar then
       xlua.progress(batch + self._opt.batch_size - 1, self._valid_num_samples)
     end
+    -- Update number of processed batches
+    self._num_processed_valid_batches = self._num_processed_valid_batches + 1
   end
   epoch_info.time_end = os.time()
   return epoch_info
@@ -381,6 +408,6 @@ CTCTrainer._exit_request = false
 function CTCTrainer.handle_signal()
   CTCTrainer._exit_request = true
 end
-sig.signal(sig.SIGUSR1, CTCTrainer.handle_signal)
+sig.signal(sig.SIGINT, CTCTrainer.handle_signal)
 
 return CTCTrainer
