@@ -253,7 +253,7 @@ function CachedBatcher:next(batch_size)
   return batch_img, batch_gt, batch_sizes, batch_ids, batch_hpad
 end
 
-function CachedBatcher:epochReset(img_list, cfg)
+function CachedBatcher:epochReset(...)
 end
 
 function CachedBatcher:registerOptions(cmd)

@@ -63,4 +63,18 @@ function laia.setRNGState(state)
   end
 end
 
+-- Return a flat view of a nn.Module parameters and gradients.
+-- This assumes that m:getParameters() was called before to flatten
+-- the parameters and gradients of the model.
+function laia.getFlatParameters(m)
+  assert(m ~= nil and torch.isTypeOf(m, 'nn.Module'),
+	 ('Expected a nn.Module class (type = %q)'):format(torch.type(m)))
+  local Tensor = torch.class(m:type()).new
+  p, g = m:parameters()
+  if not p or #p == 0 then return Tensor() end
+  local sp, gp = p[1]:storage(), g[1]:storage()
+  local n  = sp:size()
+  return Tensor(sp, 1, n, 1), Tensor(gp, 1, n, 1)
+end
+
 return laia

@@ -25,6 +25,22 @@ table.reduce = function(t, fn, v0)
 end
 
 --[[
+  a = {a = 1, b = 2, c = 3}
+  b = {a = -1, d = -4}
+  print(table.update_values(a, b))
+  {
+    a = -1,
+    b = 2,
+    c = 3
+  }
+--]]
+table.update_values = function(dst, src)
+  for k,_ in pairs(dst) do
+    if src[k] ~= nil then dst[k] = src[k] end
+  end
+end
+
+--[[
    Compute a histogram of the absolute values of the elements in a tensor,
    using a logarithmic scale.
    The function returs first a table containing the histogram (the number of
@@ -121,17 +137,12 @@ function levenshtein(u, v)
   local prev = {}
   local curr = {}
 
-  -- Operations: {SUB, DEL, INS}
+  -- Operations: {sub, del, ins}
   prev_ops = {}
   curr_ops = {}
   for i=0, #v, 1 do
    curr[i] = i
-
-   curr_ops[i]={}
-
-   curr_ops[i]['SUB'] = 0
-   curr_ops[i]['DEL'] = 0
-   curr_ops[i]['INS'] = i
+   curr_ops[i] = {sub = 0, del = 0, ins = i}
   end
 
   for x=1, #u, 1 do
@@ -142,10 +153,7 @@ function levenshtein(u, v)
    curr_ops = {}
 
    curr[0] = x
-   curr_ops[0] = {}
-   curr_ops[0]['SUB'] = 0
-   curr_ops[0]['DEL'] = x
-   curr_ops[0]['INS'] = 0
+   curr_ops[0] = {sub = 0, del = x, ins = 0}
 
    for i=1, #v, 1 do
     curr_ops[i]={}
@@ -160,17 +168,17 @@ function levenshtein(u, v)
     curr[y] = math.min(subcost, delcost, addcost)
 
     if curr[y] == subcost then
-      curr_ops[y]['SUB'] = prev_ops[y-1]['SUB'] + (u[x] ~= v[y] and 1 or 0)
-      curr_ops[y]['DEL'] = prev_ops[y-1]['DEL']
-      curr_ops[y]['INS'] = prev_ops[y-1]['INS']
+      curr_ops[y].sub = prev_ops[y-1].sub + (u[x] ~= v[y] and 1 or 0)
+      curr_ops[y].del = prev_ops[y-1].del
+      curr_ops[y].ins = prev_ops[y-1].ins
     elseif curr[y] == delcost then
-      curr_ops[y]['SUB'] = prev_ops[y]['SUB']
-      curr_ops[y]['DEL'] = prev_ops[y]['DEL'] + 1
-      curr_ops[y]['INS'] = prev_ops[y]['INS']
+      curr_ops[y].sub = prev_ops[y].sub
+      curr_ops[y].del = prev_ops[y].del + 1
+      curr_ops[y].ins = prev_ops[y].ins
     else
-      curr_ops[y]['SUB'] = curr_ops[y-1]['SUB']
-      curr_ops[y]['DEL'] = curr_ops[y-1]['DEL']
-      curr_ops[y]['INS'] = curr_ops[y-1]['INS'] + 1
+      curr_ops[y].sub = curr_ops[y-1].sub
+      curr_ops[y].del = curr_ops[y-1].del
+      curr_ops[y].ins = curr_ops[y-1].ins + 1
     end
    end
   end
@@ -463,4 +471,18 @@ table.from_iterator = function(...)
     table.insert(t, e)
   end
   return t
+end
+
+local __toboolean_table = {
+  'true' = true,
+  'TRUE' = true,
+  'T'    = true,
+  '1'    = true,
+  'false' = false,
+  'FALSE' = false,
+  'F'     = false,
+  '0'     = false
+}
+function toboolean(val)
+  return __toboolean_table[tostring(val)]
 end

@@ -24,7 +24,7 @@ function RandomBatcher:shuffle()
   self:clearCache()
 end
 
-function RandomBatcher:epochReset()
+function RandomBatcher:epochReset(...)
   self:shuffle()
 end
 
