@@ -296,11 +296,11 @@ function CachedBatcher:loadOptions(opt)
 end
 
 function CachedBatcher:checkOptions()
-  assert(isint(self._cache_max_size) and self._cache_max_size > 0)
-  assert(isint(self._cache_gpu))
-  assert(isint(self._min_width) and self._min_width >= 0)
-  assert(isint(self._width_factor))
-  assert(isint(self._channels) and self._channels > 0)
+  assert(laia.isint(self._cache_max_size) and self._cache_max_size > 0)
+  assert(laia.isint(self._cache_gpu))
+  assert(laia.isint(self._min_width) and self._min_width >= 0)
+  assert(laia.isint(self._width_factor))
+  assert(laia.isint(self._channels) and self._channels > 0)
   -- TODO(mauvilsa): The current implementation assumes that the pixel values
   -- must be inverted.
   assert(self._invert == true)

@@ -1,5 +1,6 @@
 require 'warp_ctc'
 local xlua = wrequire 'xlua'
+local sig = require 'posix.signal'
 
 local CTCTrainer, parent = torch.class('laia.CTCTrainer')
 
@@ -91,13 +92,13 @@ function CTCTrainer:setOptions(opts)
 end
 
 function CTCTrainer:checkOptions()
-  assert(self._opt.batch_size > 0 and isint(self._opt.batch_size),
+  assert(self._opt.batch_size > 0 and laia.isint(self._opt.batch_size),
 	 ('Batch size must be positive integer (value = %s)'):format(
 	   self._opt.batch_size))
-  assert(isint(self._opt.cer_trim),
+  assert(laia.isint(self._opt.cer_trim),
 	 ('CER trim symbol must be an integer (value = %s)'):format(
 	   self._opt.cer_trim))
-  assert(isint(self._opt.snapshot_interval),
+  assert(laia.isint(self._opt.snapshot_interval),
 	 ('Snapshot interval must be an integer (value = %s)'):format(
 	   self._opt.snapshot_interval))
   assert(type(self._opt.grad_clip) == 'number',
@@ -147,6 +148,7 @@ function CTCTrainer:start()
   self._valid_num_samples = self._opt.batch_size *
     math.ceil(self._valid_batcher:numSamples() / self._opt.batch_size)
 
+  sig.signal(sig.SIGINT, CTCTrainer.handle_signal)
   self._initialized = true
 end
 
@@ -403,11 +405,9 @@ function CTCTrainer._resetCosts(dst)
 end
 
 -- CTCTrainer is responsive to user signals to abort training in a graceful way
-local sig = require 'posix.signal'
 CTCTrainer._exit_request = false
 function CTCTrainer.handle_signal()
   CTCTrainer._exit_request = true
 end
-sig.signal(sig.SIGINT, CTCTrainer.handle_signal)
 
 return CTCTrainer

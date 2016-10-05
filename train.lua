@@ -62,6 +62,8 @@ end
 assert(model ~= nil)
 -- Place model to the correct device
 if opt.gpu >= 0 then model:cuda() else model:float() end
+-- Use cudnn implementation for all possible layers
+if cudnn ~= nil then cudnn.convert(model, cudnn) end
 
 -- Set RNG state for Laia
 if initial_checkpoint.rng_state then
