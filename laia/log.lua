@@ -25,6 +25,9 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
+local term = require('term')
+local isatty = term.isatty(io.stderr)
+
 local log = { _version = "0.1.0-laia" }
 
 -- If true, use colors when logging to stderr
@@ -33,9 +36,8 @@ log.usecolor = true
 log.logfile = nil
 -- All events with level lower than this are ignored.
 log.loglevel = "trace"
--- Copy log messages at or above this level to stderr in addition to logfiles
+-- Copy log messages at or above this level to stderr in addition to logfile
 log.logstderrthreshold = "error"
-
 
 local modes = {
   { name = "trace", color = "\27[34m", },
@@ -101,10 +103,10 @@ for i, x in ipairs(modes) do
     if log.logfile == nil or log.logfile == '' or
     i >= levels[log.logstderrthreshold] then
       io.stderr:write(string.format("%s[%s%6s]%s %s: %s\n",
-				    log.usecolor and x.color or "",
+				    isatty and log.usecolor and x.color or "",
 				    os.date("%Y-%m-%d %H:%M:%S"),
 				    nameupper,
-				    log.usecolor and "\27[0m" or "",
+				    isatty and log.usecolor and "\27[0m" or "",
 				    lineinfo,
 				    msg))
       if nameupper == 'FATAL' then

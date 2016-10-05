@@ -40,13 +40,27 @@ function AdversarialRegularizer:regularize(loss, model, input, func)
   return loss
 end
 
+-- This parameter registers the options in the given parser and when the options
+-- are parsed the internal variables are directly updated.
+-- Note: observe that the options will not be part of the parsed options, since
+-- the action does not register them in result table.
 function AdversarialRegularizer:registerOptions(parser)
-  parser:option('--adversarial_weight',
-		'Weight of the adversarial samples during training', 0.0,
-		tonumber)
-  parser:option('--adversarial_epsilon',
-		'Maximum differences in the adversarial samples', 0.007,
-		tonumber)
+  parser:option(
+    '--adversarial_weight',
+    'Weight of the adversarial samples during training', 0.0,
+    tonumber)
+    :argname('<weight>')
+    :overwrite(false)
+    :ge(0.0):le(1.0)
+    :action(function(_, _, v) self._opt.adversarial_weight = v end)
+  parser:option(
+    '--adversarial_epsilon',
+    'Maximum differences in the adversarial samples', 0.007,
+    tonumber)
+    :argname('<eps>')
+    :overwrite(false)
+    :ge(0.0)
+    :action(function(_, _, v) self._opt.adversarial_epsilon = v end)
 end
 
 function AdversarialRegularizer:checkOptions()

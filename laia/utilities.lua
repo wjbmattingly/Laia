@@ -40,6 +40,14 @@ table.update_values = function(dst, src)
   end
 end
 
+table.all = function(t, f)
+  return table.reduce(t, function(p, x) return p and f(x) end, true)
+end
+
+table.any = function(t, f)
+  return table.reduce(t, function(p, x) return p or f(x) end, true)
+end
+
 --[[
    Compute a histogram of the absolute values of the elements in a tensor,
    using a logarithmic scale.
@@ -280,6 +288,7 @@ table.extend_with_last_element = function(t, n)
    while #t < n do
       table.insert(t, t[#t])
    end
+   return t
 end
 
 --[[
@@ -299,28 +308,6 @@ table.weighted_choice = function(l, z)
    end
    error('This point should not be reached. Make sure your that all your ' ..
 	 'likelihoods are non-negative')
-end
-
-function isint(x)
-  return (type(x) == 'number' and x == math.floor(x))
-end
-
-function save_gradInput_heatmap(m, desc)
-   require 'image'
-   desc = desc or ''
-   assert(torch.isTypeOf(m, 'nn.Module'), 'Input must be a nn.Model')
-   if torch.isTypeOf(m, 'nn.Container') then
-      --for l=1,m:size() do
-	 save_gradInput_heatmap(m:get(1), string.format('%s%d.', desc, 1))
-      --end
-   else
-      local x = m.gradInput:clone()
-      --print(string.format('%s %s', desc, torch.type(m)), x:size())
-      for i=1,x:size()[1] do
-	 local xi = x:sub(i, i):squeeze(1)
-	 image.save(string.format('%s%d.jpg', desc, i), xi)
-      end
-   end
 end
 
 --[[
@@ -473,6 +460,10 @@ table.from_iterator = function(...)
   return t
 end
 
+function laia.isint(x)
+  return (type(x) == 'number' and x == math.floor(x))
+end
+
 local __toboolean_table = {
   ['true']  = true,
   ['TRUE']  = true,
@@ -483,6 +474,85 @@ local __toboolean_table = {
   ['F']     = false,
   ['0']     = false
 }
-function toboolean(val)
-  return __toboolean_table[tostring(val)]
+function laia.toboolean(x)
+  return __toboolean_table[tostring(x)], ('value %q is not a boolean'):format(x)
+end
+
+-- Convert a variable value to an integer, if the value is not a valid integer
+-- returns nil and an error message.
+function laia.toint(x)
+  local xn = tonumber(x)
+  if laia.isint(xn) then return xn
+  else return nil, ('value %q is not an integer'):format(x) end
+end
+
+-- Given a string that represents a list of NUMBERS separated by commas,
+-- returns a table with the list items.
+function laia.tolistnum(x)
+  local sx = string.split(x, '[^,]+')
+  local rx = {}
+  for _, v in ipairs(sx) do
+    local v2 = tonumber(v)
+    if v2 == nil then
+      return nil, ('value %q is not a number'):format(v)
+    end
+    table.insert(rx, v2)
+  end
+  return rx
+end
+
+-- Given a string that represents a list of INTEGERS separated by commas,
+-- returns a table with the list items.
+function laia.tolistint(x)
+  local sx = string.split(x, '[^,]+')
+  local rx = {}
+  for _, v in ipairs(sx) do
+    local v2 = laia.toint(v)
+    if v2 == nil then
+      return nil, ('value %q is not an integer'):format(v)
+    end
+    table.insert(rx, v2)
+  end
+  return rx
+end
+
+function laia.manualSeed(seed)
+  torch.manualSeed(seed)
+  if cutorch then cutorch.manualSeed(seed) end
+end
+
+function laia.getRNGState()
+  local state = {}
+  state.torch = torch.getRNGState()
+  if cutorch then state.cutorch = cutorch.getRNGState() end
+  return state
+end
+
+function laia.setRNGState(state)
+  if state.torch then
+    torch.setRNGState(state.torch)
+  else
+    laia.log.error('No torch RNG state found!')
+  end
+  if cutorch then
+    if state.cutorch then
+      cutorch.setRNGState(state.cutorch)
+    else
+      laia.log.error('No cutorch RNG state found!')
+    end
+  end
+end
+
+-- Return a flat view of a nn.Module parameters and gradients.
+-- This assumes that m:getParameters() was called before to flatten
+-- the parameters and gradients of the model.
+function laia.getFlatParameters(m)
+  assert(m ~= nil and torch.isTypeOf(m, 'nn.Module'),
+	 ('Expected a nn.Module class (type = %q)'):format(torch.type(m)))
+  local Tensor = torch.class(m:type()).new
+  p, g = m:parameters()
+  if not p or #p == 0 then return Tensor() end
+  local sp, gp = p[1]:storage(), g[1]:storage()
+  local n  = sp:size()
+  return Tensor(sp, 1, n, 1), Tensor(gp, 1, n, 1)
 end

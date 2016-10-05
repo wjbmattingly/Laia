@@ -1,4 +1,6 @@
-local MDRNN, parent = torch.class('laia.MDRNN', 'nn.Module')
+assert(cudnn ~= nil, 'laia.nn.MDRNN requires cudnn')
+
+local MDRNN, parent = torch.class('laia.nn.MDRNN', 'nn.Module')
 
 function MDRNN:__init(inputSize, hiddenSize, rnn_type, dropout)
   parent.__init(self)
@@ -13,6 +15,8 @@ function MDRNN:__init(inputSize, hiddenSize, rnn_type, dropout)
   end
   self.inputSize = inputSize
   self.hiddenSize = hiddenSize
+  self.rnn_type = rnn_type
+  self.dropout = dropout or 0
 end
 
 function MDRNN:joinOutput(N, H, W, output_c, output_r)
@@ -138,6 +142,15 @@ function MDRNN:clearState()
   self.rnn_c:clearState()
   self.rnn_r:clearState()
   return self
+end
+
+function MDRNN:__tostring__()
+  return string.format([[%s(%d -> %d) {
+  Col-wise: %s(%d, %d, %g)
+  Row-wise: %s(%d, %d, %g)
+}]], torch.type(self), self.inputSize, 4 * self.hiddenSize,
+    torch.type(self.rnn_c), self.inputSize, self.hiddenSize, self.dropout,
+    torch.type(self.rnn_r), self.inputSize, self.hiddenSize, self.dropout)
 end
 
 return MDRNN

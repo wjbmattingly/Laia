@@ -33,13 +33,25 @@ function WeightDecayRegularizer:regularize(loss, model)
   return loss
 end
 
+-- This parameter registers the options in the given parser and when the options
+-- are parsed the internal variables are directly updated.
+-- Note: observe that the options will not be part of the parsed options, since
+-- the action does not register them in result table.
 function WeightDecayRegularizer:registerOptions(parser)
   parser:option('--weight_l1_decay',
 		'L1 regularization factor, applied to ALL trainable parameters',
-		0, tonumber)
+		0.0, tonumber)
+    :argname('<weight>')
+    :overwrite(false)
+    :ge(0.0)
+    :action(function(_, _, v) self._opt.weight_l1_decay = v end)
   parser:option('--weight_l2_decay',
 		'L2 regularization factor, applied to ALL trainable parameters',
-		0, tonumber)
+		0.0, tonumber)
+    :argname('<weight>')
+    :overwrite(false)
+    :ge(0.0)
+    :action(function(_, _, v) self._opt.weight_l2_decay = v end)
 end
 
 function WeightDecayRegularizer:checkOptions()

@@ -1,10 +1,10 @@
-local NCHW2HND, parent = torch.class('laia.NCHW2HND', 'nn.Module')
+local NCHW2WND, parent = torch.class('laia.nn.NCHW2WND', 'nn.Module')
 
-function NCHW2HND:__init()
+function NCHW2WND:__init()
   parent.__init(self)
 end
 
-function NCHW2HND:updateOutput(input)
+function NCHW2WND:updateOutput(input)
   assert(input:nDimension() == 4)
   local N, C, H, W = input:size(1), input:size(2), input:size(3), input:size(4)
   self.output = input:permute(4, 1, 3, 2):contiguous()
@@ -12,7 +12,7 @@ function NCHW2HND:updateOutput(input)
   return self.output
 end
 
-function NCHW2HND:updateGradInput(input, gradOutput)
+function NCHW2WND:updateGradInput(input, gradOutput)
   assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
   assert(input:nDimension() == 4)
   local N, C, H, W = input:size(1), input:size(2), input:size(3), input:size(4)
@@ -20,4 +20,4 @@ function NCHW2HND:updateGradInput(input, gradOutput)
   return self.gradInput
 end
 
-return NCHW2HND
+return NCHW2WND

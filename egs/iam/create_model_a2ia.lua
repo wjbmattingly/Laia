@@ -1,7 +1,8 @@
 #!/usr/bin/env th
 
-require 'cudnn'
 require 'laia'
+
+assert(cudnn ~= nil, 'create_model_a2ia.lua requires cudnn')
 
 local cmd = torch.CmdLine('Create a DCNN-RNN model.')
 
@@ -178,14 +179,14 @@ function lstm_linear_block(input_depth, lstm_depth, linear_depth,
   local block = nn.Sequential()
 
   -- 4D-like LSTM layer
-  block:add(laia.MDRNN(input_depth, lstm_depth, 'lstm', lstm_dropout))
+  block:add(laia.nn.MDRNN(input_depth, lstm_depth, 'lstm', lstm_dropout))
 
   -- Process each direction with a different linear layer
   local linear_blocks = nn.ConcatTable()
   for i=0,3 do
     local lblock = nn.Sequential()
     lblock:add(nn.Narrow(2, 1 + i * lstm_depth, lstm_depth))
-    lblock:add(laia.NCHW2HND())
+    lblock:add(laia.nn.NCHW2WND())
     lblock:add(nn.Reshape(-1, lstm_depth, false))
     if linear_dropout > 0 and linear_droput < 1 then
       lblock:add(nn.SpatialDropout(linear_dropout))
