@@ -44,14 +44,14 @@ function WeightDecayRegularizer:registerOptions(parser)
     :argname('<weight>')
     :overwrite(false)
     :ge(0.0)
-    :action(function(_, _, v) self._opt.weight_l1_decay = v end)
+    :bind(self._opt, 'weight_l1_decay')
   parser:option('--weight_l2_decay',
 		'L2 regularization factor, applied to ALL trainable parameters',
 		0.0, tonumber)
     :argname('<weight>')
     :overwrite(false)
     :ge(0.0)
-    :action(function(_, _, v) self._opt.weight_l2_decay = v end)
+    :bind(self._opt, 'weight_l2_decay')
 end
 
 function WeightDecayRegularizer:checkOptions()

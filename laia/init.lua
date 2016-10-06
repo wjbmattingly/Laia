@@ -26,25 +26,25 @@ laia.log.registerOptions = function(parser)
   parser:option(
     '--loglevel',
     'All log messages bellow this level are ignored. Valid levels are ' ..
-    'trace, debug, info, warn, error, fatal.', laia.log.loglevel, loglevels)
-  :argname('<level>')
-  :overwrite(false)
-  :action(function(_, _, v) laia.log.loglevel = v end)
+      'trace, debug, info, warn, error, fatal.', laia.log.loglevel, loglevels)
+    :argname('<level>')
+    :overwrite(false)
+    :bind(laia.log, 'loglevel')
   -- logfile, binds value directly to laia.log.logfile
   parser:option(
     '--logfile',
     'Write log messages to this file instead of stderr.')
-  :argname('<file>')
-  :overwrite(false)
-  :action(function(_, _, v) laia.log.logfile = v end)
+    :argname('<file>')
+    :overwrite(false)
+    :bind(laia.log, 'logfile')
   -- logalsostderr, binds value directly to laia.log.logstderrthreshold
   parser:option(
     '--logalsostderr',
     'Copy log messages at or above this level to stderr in addition to the ' ..
-    'logfile.', laia.log.logstderrthreshold, loglevels)
-  :argname('<level>')
-  :overwrite(false)
-  :action(function(_, _, v) laia.log.logstderrthreshold = v end)
+      'logfile.', laia.log.logstderrthreshold, loglevels)
+    :argname('<level>')
+    :overwrite(false)
+    :bind(laia.log, 'logstderrthreshold')
 end
 
 -- Require with graceful warning, for optional modules

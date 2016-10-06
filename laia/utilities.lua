@@ -1,20 +1,20 @@
 --[[
-   a = {1, 2, 3, 4}
-   table.reduce(a, function(x) return 2* x; end)
-   {2, 4, 6, 8}
+  a = {1, 2, 3, 4}
+  table.reduce(a, function(x) return 2* x; end)
+  {2, 4, 6, 8}
 --]]
 table.map = function(t, fn)
-   local t2 = {}
-   for i, v in pairs(t) do
-      t2[i] = fn(v)
-   end
-   return t2
+  local t2 = {}
+  for i, v in pairs(t) do
+    t2[i] = fn(v)
+  end
+  return t2
 end
 
 --[[
-   a = {1, 2, 3, 4}
-   table.reduce(a, operator.add, 0)
-   10
+  a = {1, 2, 3, 4}
+  table.reduce(a, operator.add, 0)
+  10
 --]]
 table.reduce = function(t, fn, v0)
   local res = v0
@@ -29,9 +29,9 @@ end
   b = {a = -1, d = -4}
   print(table.update_values(a, b))
   {
-    a = -1,
-    b = 2,
-    c = 3
+  a = -1,
+  b = 2,
+  c = 3
   }
 --]]
 table.update_values = function(dst, src)
@@ -49,76 +49,76 @@ table.any = function(t, f)
 end
 
 --[[
-   Compute a histogram of the absolute values of the elements in a tensor,
-   using a logarithmic scale.
-   The function returs first a table containing the histogram (the number of
-   elements in each bin), and secondly a table containing the thresholds for
-   each bin.
+  Compute a histogram of the absolute values of the elements in a tensor,
+  using a logarithmic scale.
+  The function returs first a table containing the histogram (the number of
+  elements in each bin), and secondly a table containing the thresholds for
+  each bin.
 --]]
 torch.loghistc = function(x, nbins, bmin, bmax)
-   x = torch.abs(x)
-   nbins = nbins or 10
-   bmin = bmin or torch.min(x)
-   bmax = bmax or torch.max(x)
-   if bmin == 0.0 then bmin = 1E-16 end
-   assert(nbins > 1,
-    string.format('nbins must be greater than 1 (actual: %d)', nbins))
-   assert(bmax > bmin,
-    string.format('bmax (%g) must be greater than bmin (%g)', bmax, bmin))
-   local hist = { }
-   local bins = { }
-   local step = math.exp(math.log(bmax / bmin) / (nbins - 1))
-   table.insert(bins, bmin)
-   table.insert(hist, torch.le(x, bmin):sum())
-   for i=1,(nbins-1) do
-      local pb = bmin * math.pow(step, i - 1)
-      local cb = pb * step
-      table.insert(bins, cb)
-      table.insert(hist, torch.cmul(torch.gt(x, pb), torch.le(x, cb)):sum())
-   end
-   -- Due to numerical errors, we may miss some elements in the last bin.
-   local cumhist = table.reduce(hist, operator.add, 0)
-   local missing = x:storage():size() - cumhist
-   if missing > 0 then
-      hist[#hist] = hist[#hist] + missing
-   end
-   return hist, bins
+  x = torch.abs(x)
+  nbins = nbins or 10
+  bmin = bmin or torch.min(x)
+  bmax = bmax or torch.max(x)
+  if bmin == 0.0 then bmin = 1E-16 end
+  assert(nbins > 1,
+	 string.format('nbins must be greater than 1 (actual: %d)', nbins))
+  assert(bmax > bmin,
+	 string.format('bmax (%g) must be greater than bmin (%g)', bmax, bmin))
+  local hist = { }
+  local bins = { }
+  local step = math.exp(math.log(bmax / bmin) / (nbins - 1))
+  table.insert(bins, bmin)
+  table.insert(hist, torch.le(x, bmin):sum())
+  for i=1,(nbins-1) do
+    local pb = bmin * math.pow(step, i - 1)
+    local cb = pb * step
+    table.insert(bins, cb)
+    table.insert(hist, torch.cmul(torch.gt(x, pb), torch.le(x, cb)):sum())
+  end
+  -- Due to numerical errors, we may miss some elements in the last bin.
+  local cumhist = table.reduce(hist, operator.add, 0)
+  local missing = x:storage():size() - cumhist
+  if missing > 0 then
+    hist[#hist] = hist[#hist] + missing
+  end
+  return hist, bins
 end
 
 torch.sumarizeMagnitudes = function(x, mass, nbins, bmin, bmax, log_scale)
-   mass = mass or 0.75
-   log_scale = log_scale or false
-   local hist, bins
-   if log_scale then
-      hist, bins = torch.loghistc(x, nbins, bmin, bmax)
-   else
-      x = torch.abs(x)
-      bmin = bmin or torch.min(x)
-      bmax = bmax or torch.max(x)
-      hist = torch.totable(torch.histc(x, nbins, bmin, bmax))
-      bins = torch.totable(torch.range(bmin, bmax, (bmax - bmin) / (nbins - 1)))
-   end
-   local n = x:storage():size()
-   local aux = {}
-   for i=1,#hist do table.insert(aux, {i, hist[i]})  end
-   table.sort(aux,
-        function(a, b)
-     return a[2] > b[2] or (a[2] == b[2] and a[1] < b[1])
-              end)
-   local cum = 0
-   local mini = #aux
-   local maxi = 0
-   for i=1,#aux do
-      cum = cum + aux[i][2]
-      if mini > aux[i][1] then mini = aux[i][1] end
-      if maxi < aux[i][1] then maxi = aux[i][1] end
-      if cum >= mass * n then break end
-   end
-   if mini < 2 then
-      return torch.min(torch.abs(x)), bins[maxi], cum / n
-   else
-      return bins[mini - 1], bins[maxi], cum / n
-   end
+  mass = mass or 0.75
+  log_scale = log_scale or false
+  local hist, bins
+  if log_scale then
+    hist, bins = torch.loghistc(x, nbins, bmin, bmax)
+  else
+    x = torch.abs(x)
+    bmin = bmin or torch.min(x)
+    bmax = bmax or torch.max(x)
+    hist = torch.totable(torch.histc(x, nbins, bmin, bmax))
+    bins = torch.totable(torch.range(bmin, bmax, (bmax - bmin) / (nbins - 1)))
+  end
+  local n = x:storage():size()
+  local aux = {}
+  for i=1,#hist do table.insert(aux, {i, hist[i]})  end
+  table.sort(aux,
+	     function(a, b)
+	       return a[2] > b[2] or (a[2] == b[2] and a[1] < b[1])
+  end)
+  local cum = 0
+  local mini = #aux
+  local maxi = 0
+  for i=1,#aux do
+    cum = cum + aux[i][2]
+    if mini > aux[i][1] then mini = aux[i][1] end
+    if maxi < aux[i][1] then maxi = aux[i][1] end
+    if cum >= mass * n then break end
+  end
+  if mini < 2 then
+    return torch.min(torch.abs(x)), bins[maxi], cum / n
+  else
+    return bins[mini - 1], bins[maxi], cum / n
+  end
 end
 
 -- Removes removes leading, trailing and repetitions of given symbol
@@ -149,46 +149,46 @@ function levenshtein(u, v)
   prev_ops = {}
   curr_ops = {}
   for i=0, #v, 1 do
-   curr[i] = i
-   curr_ops[i] = {sub = 0, del = 0, ins = i}
+    curr[i] = i
+    curr_ops[i] = {sub = 0, del = 0, ins = i}
   end
 
   for x=1, #u, 1 do
-   prev = curr
-   curr = {}
+    prev = curr
+    curr = {}
 
-   prev_ops = curr_ops
-   curr_ops = {}
+    prev_ops = curr_ops
+    curr_ops = {}
 
-   curr[0] = x
-   curr_ops[0] = {sub = 0, del = x, ins = 0}
+    curr[0] = x
+    curr_ops[0] = {sub = 0, del = x, ins = 0}
 
-   for i=1, #v, 1 do
-    curr_ops[i]={}
-   end
-
-   for y=1, #v, 1 do
-    --local cost = (s[i] == t[j] and 0 or 1)
-    local delcost = prev[y] + 1
-    local addcost = curr[y-1] + 1
-    local subcost = prev[y-1] + (u[x] ~= v[y] and 1 or 0)
-
-    curr[y] = math.min(subcost, delcost, addcost)
-
-    if curr[y] == subcost then
-      curr_ops[y].sub = prev_ops[y-1].sub + (u[x] ~= v[y] and 1 or 0)
-      curr_ops[y].del = prev_ops[y-1].del
-      curr_ops[y].ins = prev_ops[y-1].ins
-    elseif curr[y] == delcost then
-      curr_ops[y].sub = prev_ops[y].sub
-      curr_ops[y].del = prev_ops[y].del + 1
-      curr_ops[y].ins = prev_ops[y].ins
-    else
-      curr_ops[y].sub = curr_ops[y-1].sub
-      curr_ops[y].del = curr_ops[y-1].del
-      curr_ops[y].ins = curr_ops[y-1].ins + 1
+    for i=1, #v, 1 do
+      curr_ops[i]={}
     end
-   end
+
+    for y=1, #v, 1 do
+      --local cost = (s[i] == t[j] and 0 or 1)
+      local delcost = prev[y] + 1
+      local addcost = curr[y-1] + 1
+      local subcost = prev[y-1] + (u[x] ~= v[y] and 1 or 0)
+
+      curr[y] = math.min(subcost, delcost, addcost)
+
+      if curr[y] == subcost then
+	curr_ops[y].sub = prev_ops[y-1].sub + (u[x] ~= v[y] and 1 or 0)
+	curr_ops[y].del = prev_ops[y-1].del
+	curr_ops[y].ins = prev_ops[y-1].ins
+      elseif curr[y] == delcost then
+	curr_ops[y].sub = prev_ops[y].sub
+	curr_ops[y].del = prev_ops[y].del + 1
+	curr_ops[y].ins = prev_ops[y].ins
+      else
+	curr_ops[y].sub = curr_ops[y-1].sub
+	curr_ops[y].del = curr_ops[y-1].del
+	curr_ops[y].ins = curr_ops[y-1].ins + 1
+      end
+    end
   end
   return curr[#v], curr_ops[#v]
 end
@@ -197,10 +197,10 @@ function printHistogram(x, nbins, bmin, bmax)
   local hist, bins = torch.loghistc(x, nbins, bmin, bmax)
   local n = x:storage():size()
   io.write(string.format('(-inf, %g] -> %.2g%%\n',
-        bins[1], 100 * hist[1] / n))
+			 bins[1], 100 * hist[1] / n))
   for i=2,#hist do
-   io.write(string.format('(%g, %g] -> %.2g%%\n',
-          bins[i-1], bins[i], 100 * hist[i] / n))
+    io.write(string.format('(%g, %g] -> %.2g%%\n',
+			   bins[i-1], bins[i], 100 * hist[i] / n))
   end
 end
 
@@ -284,56 +284,58 @@ function read_symbols_table(file)
 end
 
 table.extend_with_last_element = function(t, n)
-   n = n or (#t + 1)
-   while #t < n do
-      table.insert(t, t[#t])
-   end
-   return t
+  n = n or (#t + 1)
+  while #t < n do
+    table.insert(t, t[#t])
+  end
+  return t
 end
 
 --[[
-   Helper function used to sample a key from a table containing the likelihoods
-   of each key element. This assumes that the scores in the likelihoods table
-   are non-negative.
+  Helper function used to sample a key from a table containing the likelihoods
+  of each key element. This assumes that the scores in the likelihoods table
+  are non-negative.
 --]]
 table.weighted_choice = function(l, z)
-   z = z or table.reduce(l, operator.add, 0.0)
-   local cut_likelihood = torch.uniform() * z
-   local cum_likelihood = 0
-   for k, w in pairs(l) do
-      if cum_likelihood + w >= cut_likelihood then
-	 return k
-      end
-      cum_likelihood = cum_likelihood + w
-   end
-   error('This point should not be reached. Make sure your that all your ' ..
-	 'likelihoods are non-negative')
+  z = z or table.reduce(l, operator.add, 0.0)
+  -- If all weights are 0, sample randomly.
+  if z <= 0.0 then return torch.random(#l) end
+  local cut_likelihood = torch.uniform() * z
+  local cum_likelihood = 0
+  for k, w in pairs(l) do
+    if cum_likelihood + w >= cut_likelihood then
+      return k
+    end
+    cum_likelihood = cum_likelihood + w
+  end
+  error('This point should not be reached. Make sure your that all your ' ..
+	  'likelihoods are non-negative')
 end
 
 --[[
--- Read a text file containing a matrix and load it into a Tensor
-function loadTensorFromFile(fname)
-   local fd = io.open(fname, 'r')
-   assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-   local tb = {}
-   while true do
-      local line = fd:read('*line')
-      if line == nil then break end
-      table.insert(tb, string.split(line))
-   end
-   fd:close()
-   return torch.Tensor(tb)
-end
--- Read a text file containing a vector IDs and load it into a Table
-function loadTableFromFile(fname)
-   local fd = io.open(fname, 'r')
-   assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-   local line = fd:read('*line')
-   local tb = string.split(line)
-   tb = torch.totable(torch.IntTensor(torch.IntStorage(tb)))
-   fd:close()
-   return tb
-end
+  -- Read a text file containing a matrix and load it into a Tensor
+  function loadTensorFromFile(fname)
+  local fd = io.open(fname, 'r')
+  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
+  local tb = {}
+  while true do
+  local line = fd:read('*line')
+  if line == nil then break end
+  table.insert(tb, string.split(line))
+  end
+  fd:close()
+  return torch.Tensor(tb)
+  end
+  -- Read a text file containing a vector IDs and load it into a Table
+  function loadTableFromFile(fname)
+  local fd = io.open(fname, 'r')
+  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
+  local line = fd:read('*line')
+  local tb = string.split(line)
+  tb = torch.totable(torch.IntTensor(torch.IntStorage(tb)))
+  fd:close()
+  return tb
+  end
 --]]
 -- This function returns a table conataining symbol ID sequence
 -- corresponding to the force-alignment of the given ground-truth.
@@ -343,89 +345,89 @@ end
 -- OUTPUT: char-ID sequence alignment (it includes BLANK-CHAR)
 function forceAlignment(teCM, tbGT)
 
-   assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
+  assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
 
-   -- BLANK symbol ID
-   local blkCharID = 1
+  -- BLANK symbol ID
+  local blkCharID = 1
 
-   local nSymbols, nframes, nTotSymbols = #tbGT, teCM:size()[1], teCM:size()[2]
-   local tbAuxGT = {}
-   for i = 1, nSymbols do
-      assert(tbGT[i]+1 <= nTotSymbols, string.format('One char-ID is greater than the total number of chars: %q',nTotSymbols))
-      table.insert(tbAuxGT, blkCharID)
-      -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
-      -- add 1 to every tbGT[i] (symb ID)
-      table.insert(tbAuxGT, tbGT[i] + 1)
-   end
-   table.insert(tbAuxGT, blkCharID)
-   nSymbols = #tbAuxGT
+  local nSymbols, nframes, nTotSymbols = #tbGT, teCM:size()[1], teCM:size()[2]
+  local tbAuxGT = {}
+  for i = 1, nSymbols do
+    assert(tbGT[i]+1 <= nTotSymbols, string.format('One char-ID is greater than the total number of chars: %q',nTotSymbols))
+    table.insert(tbAuxGT, blkCharID)
+    -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
+    -- add 1 to every tbGT[i] (symb ID)
+    table.insert(tbAuxGT, tbGT[i] + 1)
+  end
+  table.insert(tbAuxGT, blkCharID)
+  nSymbols = #tbAuxGT
 
-   -- teTRL: trellis tensor, tbTBK: trace back table
-   local teTRL = torch.Tensor(nSymbols,nframes):fill(-1000)
-   local tbTBK = {}
-   tbTBK[1] = {}; tbTBK[2] = {};
-   teTRL[{1,1}] = teCM[{1,tbAuxGT[1]}];
-   tbTBK[1][1] = {0, 0, tbAuxGT[1]}
-   teTRL[{2,1}] = teCM[{1,tbAuxGT[2]}];
-   tbTBK[2][1] = {0, 0, tbAuxGT[2]}
-   for s=3, nSymbols do
-      tbTBK[s] = {}; tbTBK[s][1] = {0, 0, tbAuxGT[s]}
-   end
+  -- teTRL: trellis tensor, tbTBK: trace back table
+  local teTRL = torch.Tensor(nSymbols,nframes):fill(-1000)
+  local tbTBK = {}
+  tbTBK[1] = {}; tbTBK[2] = {};
+  teTRL[{1,1}] = teCM[{1,tbAuxGT[1]}];
+  tbTBK[1][1] = {0, 0, tbAuxGT[1]}
+  teTRL[{2,1}] = teCM[{1,tbAuxGT[2]}];
+  tbTBK[2][1] = {0, 0, tbAuxGT[2]}
+  for s=3, nSymbols do
+    tbTBK[s] = {}; tbTBK[s][1] = {0, 0, tbAuxGT[s]}
+  end
 
-   for f = 2, nframes do
-      teTRL[{1,f}] = teTRL[{1,f-1}] + teCM[{f,tbAuxGT[1]}];
-      tbTBK[1][f] = {1, f-1, tbAuxGT[1]}
-      for s = 2, nSymbols do
-	 if teTRL[{s-1,f-1}] > teTRL[{s,f-1}] then
-	    teTRL[{s,f}] = teTRL[{s-1,f-1}]
-	    tbTBK[s][f] = {s-1, f-1, tbAuxGT[s]}
-	 else
-	    teTRL[{s,f}] = teTRL[{s,f-1}]
-	    tbTBK[s][f] = {s, f-1, tbAuxGT[s]}
-	 end
-	 if (s%2 == 0 and s>3) and (teTRL[{s-2,f-1}] > teTRL[{s,f}]) and (tbAuxGT[s-2] ~= tbAuxGT[s]) then
-	    teTRL[{s,f}] = teTRL[{s-2,f-1}]
-	    tbTBK[s][f] = {s-2, f-1, tbAuxGT[s]}
-	 end
-	 teTRL[{s,f}] = teTRL[{s,f}] + teCM[{f,tbAuxGT[s]}]
-      end
-   end
-
-   local t = {}
-   local traceBackPath
-   traceBackPath = function (nS, nF, t)
-      local aux = tbTBK[nS][nF]
-      if aux[1]==0 and aux[2]==0 then
-	 table.insert(t,aux[3])
+  for f = 2, nframes do
+    teTRL[{1,f}] = teTRL[{1,f-1}] + teCM[{f,tbAuxGT[1]}];
+    tbTBK[1][f] = {1, f-1, tbAuxGT[1]}
+    for s = 2, nSymbols do
+      if teTRL[{s-1,f-1}] > teTRL[{s,f-1}] then
+	teTRL[{s,f}] = teTRL[{s-1,f-1}]
+	tbTBK[s][f] = {s-1, f-1, tbAuxGT[s]}
       else
-	 traceBackPath(aux[1],aux[2],t);
-	 table.insert(t,aux[3])
+	teTRL[{s,f}] = teTRL[{s,f-1}]
+	tbTBK[s][f] = {s, f-1, tbAuxGT[s]}
       end
-   end
+      if (s%2 == 0 and s>3) and (teTRL[{s-2,f-1}] > teTRL[{s,f}]) and (tbAuxGT[s-2] ~= tbAuxGT[s]) then
+	teTRL[{s,f}] = teTRL[{s-2,f-1}]
+	tbTBK[s][f] = {s-2, f-1, tbAuxGT[s]}
+      end
+      teTRL[{s,f}] = teTRL[{s,f}] + teCM[{f,tbAuxGT[s]}]
+    end
+  end
 
-   if nSymbols > 1 and teTRL[{nSymbols-1,nframes}] > teTRL[{nSymbols,nframes}] then
-      traceBackPath(nSymbols-1,nframes,t)
-   else
-      traceBackPath(nSymbols,nframes,t)
-   end
+  local t = {}
+  local traceBackPath
+  traceBackPath = function (nS, nF, t)
+    local aux = tbTBK[nS][nF]
+    if aux[1]==0 and aux[2]==0 then
+      table.insert(t,aux[3])
+    else
+      traceBackPath(aux[1],aux[2],t);
+      table.insert(t,aux[3])
+    end
+  end
 
-   return t
+  if nSymbols > 1 and teTRL[{nSymbols-1,nframes}] > teTRL[{nSymbols,nframes}] then
+    traceBackPath(nSymbols-1,nframes,t)
+  else
+    traceBackPath(nSymbols,nframes,t)
+  end
+
+  return t
 end
 
 
 -- from shell.lua, by Peter Odding
 function shell_escape(...)
- local command = type(...) == 'table' and ... or { ... }
- for i, s in ipairs(command) do
-  s = (tostring(s) or ''):gsub('"', '\\"')
-  if s:find '[^A-Za-z0-9_."/-]' then
-   s = '"' .. s .. '"'
-  elseif s == '' then
-   s = '""'
+  local command = type(...) == 'table' and ... or { ... }
+  for i, s in ipairs(command) do
+    s = (tostring(s) or ''):gsub('"', '\\"')
+    if s:find '[^A-Za-z0-9_."/-]' then
+      s = '"' .. s .. '"'
+    elseif s == '' then
+      s = '""'
+    end
+    command[i] = s
   end
-  command[i] = s
- end
- return table.concat(command, ' ')
+  return table.concat(command, ' ')
 end
 
 table.int2sym = function(t, int2sym)

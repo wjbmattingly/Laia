@@ -52,7 +52,7 @@ function AdversarialRegularizer:registerOptions(parser)
     :argname('<weight>')
     :overwrite(false)
     :ge(0.0):le(1.0)
-    :action(function(_, _, v) self._opt.adversarial_weight = v end)
+    :bind(self._opt, 'adversarial_weight')
   parser:option(
     '--adversarial_epsilon',
     'Maximum differences in the adversarial samples', 0.007,
@@ -60,7 +60,7 @@ function AdversarialRegularizer:registerOptions(parser)
     :argname('<eps>')
     :overwrite(false)
     :ge(0.0)
-    :action(function(_, _, v) self._opt.adversarial_epsilon = v end)
+    :bind(self._opt, 'adversarial_epsilon')
 end
 
 function AdversarialRegularizer:checkOptions()
