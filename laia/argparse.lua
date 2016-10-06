@@ -954,6 +954,7 @@ function ElementState:close()
       args = self.args
     end
 
+    if self.element._bind then self.element._bind(args) end
     self.action(self.result, self.target, args, self.overwrite)
   end
 end
@@ -1252,6 +1253,12 @@ function Parser:pparse(args)
   else
     return false, parse_error
   end
+end
+
+function Argument:bind(tab, key)
+  assert(type(tab) == 'table')
+  assert(key ~= nil and (type(key) == 'string' or type(key) == 'number'))
+  self._bind = function(val) tab[key] = val end
 end
 
 function Argument:assert(func)
