@@ -6,26 +6,35 @@ local ImageDistorter = torch.class('laia.ImageDistorter')
 function ImageDistorter:__init()
   self._opt = {
     -- Scale parameters. Scaling is applied at the center of the image.
+    -- Log-normal distribution with mean 0.
     scale_prob = 0.5,
-    scale_mean = 0.0,
     scale_stdv = 0.12,
     -- Horizontal shear parameters.
+    -- Von Mises distribution with mean 0.
     shear_prob = 0.5,
-    shear_prec = 4,
+    shear_prec = 4,       -- Precision is 1/variance
     -- Rotate parameters [relative to the maximum aspect ratio of the image].
+    -- Von Mises distribution with mean 0.
     rotate_prob = 0.5,
-    rotate_prec = 50,
+    rotate_prec = 50,     -- Precision is 1/variance
     -- Translate parameters [relative to the size of each dimension].
+    -- Normal distribution with mean 0.
     translate_prob = 0.5,
     translate_stdv = 0.02,
     -- Dilate parameters.
+    -- Geometric (kernel size) and Bernoulli (kernel values) distributions.
+    -- In the Bernoulli distribution, p depends on the distance to the center
+    -- of the kernel.
     dilate_prob = 0.5,
     dilate_srate = 0.4,
-    dilate_rrate = 0.8,
+    dilate_rrate = 1.0,
     -- Erode parameters.
+    -- Geometric (kernel size) and Bernoulli (kernel values) distributions.
+    -- In the Bernoulli distribution, p depends on the distance to the center
+    -- of the kernel.
     erode_prob = 0.5,
     erode_srate = 0.8,
-    erode_rrate = 1.0
+    erode_rrate = 1.2
   }
 end
 
@@ -35,19 +44,12 @@ function ImageDistorter:registerOptions(parser)
     '--distort_scale_prob',
     'Probability of scaling an image. Scaling is relative to the center of ' ..
       'the image and the scaling factor is sampled from a log-normal ' ..
-      'distribution (see --distort_scale_mean and --distort_scale_stdv).',
+      'distribution (see --distort_scale_stdv).',
     self._opt.scale_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'scale_prob')
-  parser:option(
-    '--distort_scale_mean', 'Mean of the log of the scaling factor.',
-    self._opt.scale_mean, tonumber)
-    :argname('<m>')
-    :overwrite(false)
-    :gt(0.0)
-    :bind(self._opt, 'scale_mean')
   parser:option(
     '--distort_scale_stdv', 'Standard deviation of the log of the scaling ' ..
       'factor.', self._opt.scale_stdv, tonumber)
@@ -60,7 +62,8 @@ function ImageDistorter:registerOptions(parser)
     '--distort_shear_prob',
     'Probability of applying horizontal shear to an image. The shear angle ' ..
       '(in radians) is sampled from a von Mises distribution (see ' ..
-      '--distort_shear_prec).', self._opt.shear_prob, tonumber)
+      '--distort_shear_prec).',
+    self._opt.shear_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
     :ge(0.0):le(1.0)
@@ -68,9 +71,9 @@ function ImageDistorter:registerOptions(parser)
   parser:option(
     '--distort_shear_prec', 'Precision of the shear angle (rad).',
     self._opt.shear_prec, tonumber)
-    :argname('<s>')
+    :argname('<k>')
     :overwrite(false)
-    :gt(0.0)
+    :ge(0.0)
     :bind(self._opt, 'shear_prec')
   -- Translate parameters. Translation is relative to the size in each
   -- dimension.
@@ -108,8 +111,8 @@ function ImageDistorter:registerOptions(parser)
   parser:option(
     '--distort_rotate_prec',
     'Precision of the rotation angle (rad), actual used precision is ' ..
-      's\' = s * max(H/W, W/H).', self._opt.rotate_prec, tonumber)
-    :argname('<s>')
+      'k\' = k * max(H/W, W/H).', self._opt.rotate_prec, tonumber)
+    :argname('<k>')
     :ge(0.0)
     :overwrite(false)
     :bind(self._opt, 'rotate_prec')
@@ -267,8 +270,7 @@ function ImageDistorter:__sample_affine_matrixes(N, H, W, sizes)
       Ti:copy(torch.mm(torch.mm(torch.mm(Ti, C), D), Cm))
     end
     if torch.uniform() < self._opt.scale_prob then
-      local f = math.exp(torch.randn(1)[1] * self._opt.scale_stdv +
-			   self._opt.scale_mean)
+      local f = math.exp(torch.randn(1)[1] * self._opt.scale_stdv)
       local D = torch.eye(3)
       D[{1, 1}] = f
       D[{2, 2}] = f

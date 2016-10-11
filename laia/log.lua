@@ -48,6 +48,41 @@ local modes = {
   { name = "fatal", color = "\27[35m", },
 }
 
+-- Utility function to register logging options, common to all tools.
+log.registerOptions = function(parser)
+  local loglevels = {
+    ['trace'] = 'trace',
+    ['debug'] = 'debug',
+    ['info']  = 'info',
+    ['warn']  = 'warn',
+    ['error'] = 'error',
+    ['fatal'] = 'fatal'
+  }
+  -- loglevel, binds value directly to log.loglevel
+  parser:option(
+    '--loglevel',
+    'All log messages bellow this level are ignored. Valid levels are ' ..
+      'trace, debug, info, warn, error, fatal.', log.loglevel, loglevels)
+    :argname('<level>')
+    :overwrite(false)
+    :bind(log, 'loglevel')
+  -- logfile, binds value directly to log.logfile
+  parser:option(
+    '--logfile',
+    'Write log messages to this file instead of stderr.')
+    :argname('<file>')
+    :overwrite(false)
+    :bind(log, 'logfile')
+  -- logalsostderr, binds value directly to log.logstderrthreshold
+  parser:option(
+    '--logalsostderr',
+    'Copy log messages at or above this level to stderr in addition to the ' ..
+      'logfile.', log.logstderrthreshold, loglevels)
+    :argname('<level>')
+    :overwrite(false)
+    :bind(log, 'logstderrthreshold')
+end
+
 
 local levels = {}
 for i, v in ipairs(modes) do

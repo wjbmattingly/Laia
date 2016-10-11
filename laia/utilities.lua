@@ -545,6 +545,22 @@ function laia.setRNGState(state)
   end
 end
 
+-- Override math.random to make sure that we use Torch random generator.
+--
+-- From the math package doc:
+-- math.random() with no arguments generates a real number between 0 and 1.
+-- math.random(upper) generates integer numbers between 1 and upper.
+-- math.random(lower, upper) generates integer numbers between lower and upper.
+math.random = function(a, b)
+  if a ~= nil and b ~= nil then
+    return torch.random(a, b)
+  elseif a ~= nil then
+    return torch.random(a)
+  else
+    return torch.uniform()
+  end
+end
+
 -- Return a flat view of a nn.Module parameters and gradients.
 -- This assumes that m:getParameters() was called before to flatten
 -- the parameters and gradients of the model.
@@ -635,4 +651,63 @@ function laia.log_bessel_I0(x)
   else
     return math.log(Poly(Q, 1.0 / ax)) + ax - 0.5 * math.log(ax)
   end
+end
+
+local ffi = wrequire 'ffi'
+local ssllib = nil
+if ffi ~= nil then
+  ssllib = ffi.load('ssl')
+  assert(ssllib ~= nil)
+  ffi.cdef[[
+typedef struct MD5state_st {
+  unsigned long A,B,C,D;
+  unsigned long Nl,Nh;
+  unsigned long data[16];
+  unsigned int num;
+} MD5_CTX;
+int MD5_Init(MD5_CTX *c);
+int MD5_Update(MD5_CTX *c, const void *data, size_t len);
+int MD5_Final(unsigned char *md, MD5_CTX *c);
+unsigned char *MD5(const unsigned char *d, size_t n, unsigned char *md);
+void MD5_Transform(MD5_CTX *c, const unsigned char *b);
+]]
+end
+
+function laia.TensorMD5(x)
+  assert(ffi ~= nil, 'FFI module was not found, you cannot use TensorMD5!')
+  local typemap = {
+    ['torch.CudaByteTensor'] = 'torch.ByteTensor',
+    ['torch.CudaCharTensor'] = 'torch.CharTensor',
+    ['torch.CudaShortTensor'] = 'torch.ShortTensor',
+    ['torch.CudaIntTensor'] = 'torch.IntTensor',
+    ['torch.CudaLongTensor'] = 'torch.LongTensor',
+    ['torch.CudaTensor'] = 'torch.FloatTensor',
+    ['torch.CudaDoubleTensor'] = 'torch.DoubleTensor',
+    -- CPU tensors do not change type
+    ['torch.ByteTensor'] = 'torch.ByteTensor',
+    ['torch.CharTensor'] = 'torch.CharTensor',
+    ['torch.ShortTensor'] = 'torch.ShortTensor',
+    ['torch.IntTensor'] = 'torch.IntTensor',
+    ['torch.LongTensor'] = 'torch.LongTensor',
+    ['torch.FloatTensor'] = 'torch.FloatTensor',
+    ['torch.DoubleTensor'] = 'torch.DoubleTensor'
+  }
+  local t = typemap[torch.type(x)]
+  assert(t ~= nil,
+	 ('Tensor type %q cannot be copied to the CPU'):format(torch.type(x)))
+  -- Copy from GPU to CPU and make data contiguous (if necessary)
+  x = x:type(t):contiguous()
+  local memsize = x:nElement() * x:storage().elementSize()
+  -- Compute MD5
+  local ctx = ffi.new('MD5_CTX')
+  local hash = ffi.new('unsigned char[16]')
+  ssllib.MD5_Init(ctx)
+  ssllib.MD5_Update(ctx, torch.data(x), memsize)
+  ssllib.MD5_Final(hash, ctx)
+  -- Return MD5 as an hex string
+  local s = ffi.string(hash, 16)
+  s = table.pack(s:byte(1, 16))
+  local o = ''
+  for i=1,#s do o = o .. ('%02x'):format(s[i]) end
+  return o
 end
