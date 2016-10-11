@@ -711,3 +711,36 @@ function laia.TensorMD5(x)
   for i=1,#s do o = o .. ('%02x'):format(s[i]) end
   return o
 end
+
+-- Function to register cudnn options to the given parser.
+laia.cudnn = {}
+function laia.cudnn.registerOptions(parser)
+  if cudnn ~= nil then
+    parser:option(
+      '--cudnn_benchmark',
+      'If true, the in-built cudnn auto-tuner is used to find the fastest ' ..
+	'convolution algorithms. If false, heuristics are used instead.',
+      false, laia.toboolean)
+      :overwrite(false)
+      :bind(cudnn, 'benchmark')
+    parser:option(
+      '--cudnn_fastest',
+      'If true, picks the fastest convolution algorithm, rather than tuning ' ..
+      'for workspace size.', true, laia.toboolean)
+      :overwrite(false)
+      :bind(cudnn, 'fastest')
+    parser:option(
+      '--cudnn_verbose',
+      'If true, prints to stdout verbose information about the cudnn ' ..
+	'benchmark algorithm.', false, laia.toboolean)
+      :overwrite(false)
+      :bind(cudnn, 'verbose')
+    parser:option(
+      '--cudnn_convert',
+      'If true, tries to use the cudnn implementation for all possible ' ..
+      'layers. WARNING: Some cudnn layers do produce non-deterministic ' ..
+	'results in the backward pass.', true, laia.toboolean)
+      :overwrite(false)
+      :bind(laia.cudnn, 'convert')
+  end
+end
