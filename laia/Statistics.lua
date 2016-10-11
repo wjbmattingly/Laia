@@ -91,6 +91,7 @@ end
 -- "the mean of the differences between the two samples is 0".
 -- Note: If there are N paired samples, then the number of degrees of freedom
 -- is N - 1.
+-- See: https://en.wikipedia.org/wiki/Student%27s_t-test#Dependent_t-test_for_paired_samples
 laia.t_statistic_paired = function(data1, data2)
   assert(type(data1) == 'table' and type(data2) == 'table' and #data1 == #data2,
 	 ('In order to perform a t-test with paired samples, the number of ' ..
