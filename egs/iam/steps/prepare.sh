@@ -3,9 +3,11 @@ set -e;
 
 # Directory where the prepare.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
-[ "$(pwd)/scripts" != "$SDIR" ] && \
-    echo "Please, run this script from the experiment top directory!" && \
+[ "$(pwd)/steps" != "$SDIR" ] && \
+    echo "Please, run this script from the experiment top directory!" >&2 && \
     exit 1;
+[ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
+    echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 overwrite=false;
 height=64;
@@ -19,7 +21,7 @@ Options:
   --overwrite  : (type = boolean, default = $overwrite)
                  Overwrite previously created files.
 ";
-source "${SDIR}/parse_options.inc.sh" || exit 1;
+source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 
 [ -d data/imgs -a -s data/te.txt -a -s data/tr.txt -a -s data/va.txt ] || \
     ( echo "The IAM database is not available!">&2 && exit 1; );

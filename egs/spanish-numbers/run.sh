@@ -21,7 +21,7 @@ mkdir -p data/;
 [ -d data/Spanish_Number_DB ] || \
     tar -xzf data/Spanish_Number_DB.tgz -C data/;
 
-./scripts/prepare.sh --overwrite "$overwrite";
+./steps/prepare.sh --overwrite "$overwrite";
 
 create_model.lua \
   -cnn_type leakyrelu \
