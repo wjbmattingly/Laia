@@ -27,6 +27,11 @@ source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
     -a -s data/corpus/test_book.lst ] || \
     ( echo "The CS database is not available!">&2 && exit 1; );
 
+for tool in imgtxtenh imageSlant convert; do
+    which "$tool" > /dev/null || \
+	(echo "Required tool $tool was not found!" >&2 && exit 1);
+done;
+
 mkdir -p data/lang/chars data/lang/words;
 
 for p in train test; do
@@ -72,37 +77,47 @@ done;
 ## Enhance images with Mauricio's tool, crop image white borders and resize
 ## to a fixed height.
 mkdir -p data/imgs_proc;
-TMPD="$(mktemp -d)";
 bkg_pids=();
+bkg_errs=();
 np="$(nproc)";
 for f in $(awk '{print $1}' data/lang/chars/train.txt data/lang/chars/test.txt); do
-    [ -f data/imgs_proc/$f.jpg -a $overwrite = false ] && continue;
-    [ ! -f data/corpus/Line-Level/$f.png ] && \
-	echo "Image data/corpus/Line-Level/$f.png is not available!">&2 && exit 1;
+    finp=data/corpus/Line-Level/$f.png;
+    fout=data/imgs_proc/$f.jpg;
+    [ -f "$fout" -a $overwrite = false ] && continue;
+    [ ! -f "$finp" ] && echo "Image $finp is not available!">&2 && exit 1;
     (
-	echo "File data/corpus/Line-Level/$f.png..." >&2;
-	imgtxtenh -u mm -d 118.1102362205 data/corpus/Line-Level/$f.png data/imgs_proc/$f.jpg;
-	slope="$(convert data/imgs_proc/$f.jpg +repage -flatten -deskew 40% \
-            -print '%[deskew:angle]\n' +repage data/imgs_proc/$f.jpg)";
-	slant="$(imageSlant -v 1 -g -i ${ff}_deslope.png -o ${ff}_deslant.png \
+	echo "File $finp..." >&2;
+	imgtxtenh -u mm -d 118.1102362205 "$finp" "$fout";
+	trim1="$(convert "$fout" +repage -fuzz 5% -trim -print '%@' \
+            +repage "$fout")";
+	blackb="$(python $SDIR/remove_black_border.py "$fout")";
+	convert "$fout" -crop "$blackb" +repage "$fout";
+	slope="$(convert "$fout" +repage -flatten -deskew 40% \
+            -print '%[deskew:angle]\n' +repage "$fout")";
+	slant="$(imageSlant -v 1 -g -i "$fout" -o "$fout" \
             2>&1 | sed -n '/Slant medio/{s|.*: ||;p;}')";
-	trim="$(convert data/imgs_proc/$f.jpg -fuzz 5% -trim \
-            -print '%@'+repage data/imgs_proc/$f.jpg)";
-	convert data/imgs_proc/$f.jpg -resize "x$height" -strip \
-	    data/imgs_proc/$f.jpg;
-    ) > "$TMPD/${#bkg_pids[@]}.out" 2> "$TMPD/${#bkg_pids[@]}.err" &
+	trim2="$(convert "$fout" +repage -fuzz 5% -trim -print '%@' \
+            +repage "$fout")";
+	convert "$fout" -resize "x$height" -strip +repage "$fout";
+	echo "Remove white borders1: $trim1";
+	echo "Remove black borders: $blackb";
+	echo "Slope: $slope";
+	echo "Slant: $slant";
+	echo "Remove white borders2: $trim2";
+    ) &> data/imgs_proc/$f.log;
     bkg_pids+=("$!");
+    bkg_errs+=("data/imgs_proc/$f.log");
     if [ "${#bkg_pids[@]}" -eq "$np" ]; then
 	for n in $(seq 1 "${#bkg_pids[@]}"); do
 	    wait "${bkg_pids[n-1]}" || (
                 echo "Failed image processing step:" >&2 && \
-                    cat "$TMPD/$[n-1].err" >&2 && exit 1;
+                    cat "${bkg_errs[n-1]}" >&2 && exit 1;
 	    );
 	done;
 	bkg_pids=();
     fi;
 done;
-rm -rf "$TMPD";
+
 
 ## Prepare test, train and valid files.
 awk '{ print "data/imgs_proc/"$1".jpg"; }' data/lang/chars/test.txt > data/test.lst;

@@ -3,7 +3,7 @@ set -e;
 export LC_NUMERIC=C;
 export LUA_PATH="$(pwd)/../../?/init.lua;$(pwd)/../../?.lua;$LUA_PATH";
 
-overwrite=true;
+overwrite=false;
 batch_size=16;
 
 # Directory where the run.sh script is placed.
@@ -23,7 +23,6 @@ mkdir -p data;
 
 ./steps/prepare.sh --height 96 --overwrite "$overwrite";
 
-exit 0;
 ../../create_model.lua \
     -cnn_type leakyrelu \
     -cnn_maxpool_size "2,2 2,2 2,2 0" \
@@ -46,7 +45,7 @@ exit 0;
     -weight_l1_decay 0 \
     -weight_l2_decay 0 \
     -alpha 0.95 \
-    -learning_rate 0.001 \
+    -learning_rate 0.002 \
     -learning_rate_decay 0.99 \
     -learning_rate_decay_after 10 \
     -gpu 0 \
