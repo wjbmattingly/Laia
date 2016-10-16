@@ -87,24 +87,24 @@ for f in $(awk '{print $1}' data/lang/chars/train.txt data/lang/chars/test.txt);
     [ ! -f "$finp" ] && echo "Image $finp is not available!">&2 && exit 1;
     (
 	echo "File $finp..." >&2;
-	imgtxtenh -u mm -d 118.1102362205 "$finp" "$fout";
-	trim1="$(convert "$fout" +repage -fuzz 5% -trim -print '%@' \
-            +repage "$fout")";
-	blackb="$(python $SDIR/remove_black_border.py "$fout")";
-	convert "$fout" -crop "$blackb" +repage "$fout";
-	slope="$(convert "$fout" +repage -flatten -deskew 40% \
-            -print '%[deskew:angle]\n' +repage "$fout")";
-	slant="$(imageSlant -v 1 -g -i "$fout" -o "$fout" \
+	imgtxtenh -u mm -d 118.1102362205 -k0.1 -S20  "$finp" "${fout}";
+	trim1="$(convert "${fout}" +repage -fuzz 5% -trim \
+            -print '%@' +repage "${fout}")";
+	blackb="$(python $SDIR/remove_black_border.py "${fout}")";
+	convert "${fout}" -crop "$blackb" +repage "${fout}";
+	slope="$(convert "${fout}" +repage -flatten -deskew 40% \
+            -print '%[deskew:angle]\n' +repage "${fout}")";
+	slant="$(imageSlant -v 1 -g -i "${fout}" -o "${fout}" \
             2>&1 | sed -n '/Slant medio/{s|.*: ||;p;}')";
-	trim2="$(convert "$fout" +repage -fuzz 5% -trim -print '%@' \
-            +repage "$fout")";
-	convert "$fout" -resize "x$height" -strip +repage "$fout";
+	trim2="$(convert "${fout}" +repage -fuzz 5% -trim -print '%@' \
+            +repage "${fout}")";
+	convert "${fout}" -resize "x$height" -strip +repage "$fout";
 	echo "Remove white borders1: $trim1";
 	echo "Remove black borders: $blackb";
 	echo "Slope: $slope";
 	echo "Slant: $slant";
 	echo "Remove white borders2: $trim2";
-    ) &> data/imgs_proc/$f.log &
+    ) &> data/imgs_proc/$f.log
     bkg_pids+=("$!");
     bkg_errs+=("data/imgs_proc/$f.log");
     if [ "${#bkg_pids[@]}" -eq "$np" ]; then
