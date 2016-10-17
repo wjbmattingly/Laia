@@ -148,8 +148,6 @@ end
 
 model:evaluate()
 
--- Read input channels from the model
-opt.channels = model:get(1):get(1).nInputPlane
 -- Compute width factor from model
 if opt.width_factor then
   opt.width_factor = 1
@@ -160,7 +158,9 @@ if opt.width_factor then
 else
   opt.width_factor = 0
 end
-local dv = Batcher(opt.data, opt); dv:epochReset()
+local dv = Batcher(opt)
+dv:load(opt.data)
+dv:epochReset()
 
 local nSamples = torch.IntStorage(1);
 local sampPeriod = torch.IntStorage(1); sampPeriod[1] = 100000; -- 10000000 = 1seg

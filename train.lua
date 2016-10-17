@@ -132,8 +132,6 @@ if opt.output_progress ~= '' then
   output_progress_file:flush()
 end
 
--- Read input channels from the model
-opt.channels = initial_checkpoint.model_opt.input_channels
 -- Compute width factor from model
 if opt.width_factor then
   opt.width_factor = 1
@@ -144,10 +142,12 @@ if opt.width_factor then
 else
   opt.width_factor = 0
 end
-opt.gt_file = opt.training_gt
-local dt = Batcher(opt.training, opt)
-opt.gt_file = opt.validation_gt
-local dv = Batcher(opt.validation, opt)
+
+local dt = Batcher(opt)
+dt:load(opt.training, opt.training_gt, opt.symbols_table)
+
+local dv = Batcher(opt)
+dv:load(opt.validation, opt.validation_gt, opt.symbols_table)
 
 -- Check number of symbols and model output
 -- TODO(jpuigcerver,mauvilsa): This assertion only works for the default

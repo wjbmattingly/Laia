@@ -53,9 +53,11 @@ cudnn = wrequire('cudnn')
 -- Laia packages
 require('laia.utilities')
 require('laia.CachedBatcher')
+require('laia.CurriculumBatcher')
 require('laia.RandomBatcher')
 require('laia.ImageDistorter')
 require('laia.Monitor')
+require('laia.Statistics')
 
 require('laia.Regularizer')
 require('laia.AdversarialRegularizer')
