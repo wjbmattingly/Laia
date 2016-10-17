@@ -206,7 +206,16 @@ end
 function ImageDistorter:distort(x, sizes, y)
   assert(x:nDimension() == 4, 'Input to ImageDistorter must be a 4-dim ' ..
 	   'tensor with NCHW layout.')
-  local x = x:clone():cuda()
+  -- All data must be in the GPU!
+  local x_type = torch.type(x)
+  if x_type ~= 'torch.CudaTensor' then
+    laia.log.warn(
+      'Distortions are only implemented on the GPU, data will be transfered ' ..
+	'to the GPU. If you badly need distortions running on the CPU, ' ..
+	'report a new issue to ' ..
+	'https://github.com/jpuigcerver/imgdistort/issues')
+  end
+  local x = x:cuda()
   y = y and y:resizeAs(x):cuda():zero() or x:clone():zero()
   -- Affine distortion
   local N, H, W = x:size()[1], x:size()[3], x:size()[4]
@@ -225,6 +234,7 @@ function ImageDistorter:distort(x, sizes, y)
     x, y = y, x
     erode_NCHW(x, y, M)
   end
+  y = y:type(x_type)
   return y
 end
 
