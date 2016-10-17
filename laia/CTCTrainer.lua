@@ -125,9 +125,11 @@ function CTCTrainer:start()
 
   -- Flatten the model parameters into a single big chunk of memory.
   self._parameters, self._gradParameters = self._model:getParameters()
-  -- Define _gradOutput that will be used for different batches to avoid
+  -- Define some buffers that will be used for different batches to avoid
   -- multiple data allocation/dellocation.
-  self._gradOutput = torch.Tensor()
+  self._gradOutput = torch.Tensor():type(self._model.type())
+  self._tr_batch_img = torch.Tensor():type(self._train_batcher:cacheType())
+  self._va_batch_img = torch.Tensor():type(self._valid_batcher:cacheType())
   -- Total number of precessed training and validation batches, used to update
   -- the monitor snapshot only at certain times.
   self._num_processed_train_batches = 0
@@ -178,19 +180,12 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
     if CTCTrainer._exit_request then return nil end
     -- Load batch from batcher
     local batch_img, batch_gt, batch_sizes =
-      self._train_batcher:next(self._opt.batch_size)
-    -- Ensure that batch is in the same device as the model
+      self._train_batcher:next(self._opt.batch_size, self._tr_batch_img)
+    -- Ensure that batch is in the same device (GPU vs CPU) as the model
     batch_img = batch_img:type(self._model.type())
     -- Apply distortions, if a distorter was given
     if self._distorter and self._opt.use_distortions then
-      if batch_img:type() == 'torch.CudaTensor' then
-	batch_img = self._distorter:distort(batch_img)
-      else
-	laia.log.error('Data distortions are only implemented on the GPU. ' ..
-                       'If you badly need distortions running on the CPU, ' ..
-                       'report a new issue to ' ..
-                       'https://github.com/jpuigcerver/imgdistort/issues')
-      end
+      batch_img = self._distorter:distort(batch_img)
     end
     -- Run optimizer on the batch
     self._optimizer(
@@ -232,7 +227,7 @@ function CTCTrainer:validEpoch(batcher_reset_params)
     if CTCTrainer._exit_request then return nil end
     -- Load batch from batcher
     local batch_img, batch_gt, batch_sizes =
-      self._train_batcher:next(self._opt.batch_size)
+      self._train_batcher:next(self._opt.batch_size, self._va_batch_img)
     -- Ensure that batch is in the same device as the model
     batch_img = batch_img:type(self._model.type())
     -- Forward pass
