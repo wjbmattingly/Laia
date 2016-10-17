@@ -83,6 +83,11 @@ function CachedBatcher:numChannels()
   return self._channels
 end
 
+function CachedBatcher:cacheType()
+  -- Note: GPU index starts at 1, <= 0 is used for the CPU
+  return self._cache_gpu > 0 and 'torch.CudaTensor' or 'torch.FloatTensor'
+end
+
 function CachedBatcher:clearCache()
   self._cache_img = {}
   self._cache_gt = {}
@@ -176,12 +181,16 @@ function CachedBatcher:load(img_list, gt_file, symbols_table)
   f:close()
 end
 
-function CachedBatcher:epochReset(...)
+function CachedBatcher:epochReset(epoch_opt)
   -- This should be override by children classes.
 end
 
-function CachedBatcher:next(batch_size)
+function CachedBatcher:next(batch_size, batch_img)
   batch_size = batch_size or 1
+  batch_img  = batch_img or torch.FloatTensor()
+  local batch_gt   = {}
+  local batch_ids  = {}
+  local batch_hpad = {}
   assert(batch_size > 0, 'Batch size must be greater than 0!')
   assert(self._num_samples > 0, 'The dataset is empty!')
   -- Get sizes of each sample in the batch
@@ -201,11 +210,8 @@ function CachedBatcher:next(batch_size)
     max_sizes[{1,2}] = self._opt.width_factor *
       math.ceil(max_sizes[{1,2}] / self._opt.width_factor)
   end
-  local batch_img = torch.Tensor(batch_size, self._channels, max_sizes[{1,1}],
-				 max_sizes[{1,2}]):zero()
-  local batch_gt  = {}
-  local batch_ids = {}
-  local batch_hpad = {}
+  batch_img:resize(batch_size, self._channels,
+		   max_sizes[{1,1}], max_sizes[{1,2}]):zero()
   local old_gpu = -1
   if self._opt.cache_gpu > 0 then
     old_gpu = cutorch.getDevice()
@@ -296,7 +302,7 @@ function CachedBatcher:_fillCache(idx)
       if self._opt.cache_gpu > 0 then
 	table.insert(self._cache_img, img:cuda())
       else
-	table.insert(self._cache_img, img)
+	table.insert(self._cache_img, img:float())
       end
       -- Increase size of the cache (in MB)
       self._cache_size = self._cache_size +
