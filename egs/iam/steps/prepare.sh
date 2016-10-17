@@ -70,9 +70,9 @@ TMPD="$(mktemp -d)";
 bkg_pids=();
 np="$(nproc)";
 for p in te tr va; do
-    [ -f data/$p.lst ] && continue;
+    [ -f data/$p.lst -a "$overwrite" = false ] && continue;
     for f in $(awk '{print $1}' data/$p.txt); do
-	[ -f data/imgs_proc/$f.jpg -a $overwrite = false ] && continue;
+	[ -f data/imgs_proc/$f.jpg -a "$overwrite" = false ] && continue;
 	[ ! -f data/imgs/$f.png ] && \
 	    echo "Image data/imgs/$f.png is not available!">&2 && exit 1;
 	(
