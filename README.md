@@ -19,11 +19,16 @@ Laia is implemented in [Torch](http://torch.ch/), and depends on the following:
 
 - [CUDA >=7.5](https://developer.nvidia.com/cuda-downloads)
 - [cuDNN >= 5.1](https://developer.nvidia.com/cudnn)
+
+Note that currently we only support GPU. You need to use NVIDIA's cuDNN library. Register first for the CUDA Developer Program (it's free) and download the library from [NVIDIA's website](https://developer.nvidia.com/cudnn); you also have to  install the [cuDNN bindings for Torch](https://github.com/soumith/cudnn.torch).
+
+Once Torch is installed the following luarocks are required:
+
 - [cuDNN.torch](https://github.com/soumith/cudnn.torch)
 - [Baidu's CTC](https://github.com/baidu-research/warp-ctc)
 - [imgdistort](https://github.com/jpuigcerver/imgdistort)
-
-Note that currently we only support GPU. You need to use NVIDIA's cuDNN library. Register first for the CUDA Developer Program (it's free) and download the library from [NVIDIA's website](https://developer.nvidia.com/cudnn); you also have to  install the [cuDNN bindings for Torch](https://github.com/soumith/cudnn.torch).
+- base64: Use `luarocks install lbase64`
+- etlua: Use `luarocks install etlua`
 
 ## Usage
 
