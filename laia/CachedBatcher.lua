@@ -90,7 +90,6 @@ end
 
 function CachedBatcher:clearCache()
   self._cache_img = {}
-  self._cache_gt = {}
   self._cache_idx = 0
   self._cache_size = 0
   collectgarbage()
@@ -222,7 +221,6 @@ function CachedBatcher:next(batch_size, batch_img)
     local j = 1 + (i + self._idx) % self._num_samples
     self:_fillCache(j)
     local img = self._cache_img[self:_global2cacheIndex(j)]
-    local gt  = self._cache_gt[self:_global2cacheIndex(j)]
     local dy = 0
     local dx = 0
     if self._centered_patch then
@@ -232,7 +230,7 @@ function CachedBatcher:next(batch_size, batch_img)
     batch_img[i+1]:sub(1, self._channels,
 		       dy + 1, dy + img:size(2),
 		       dx + 1, dx + img:size(3)):copy(img)
-    table.insert(batch_gt, gt)
+    table.insert(batch_gt, self._gt[self._samples[j]])
     table.insert(batch_ids, self._samples[j])
     table.insert(batch_hpad, {dx,img:size(3),max_sizes[{1,2}]-dx-img:size(3)})
   end
