@@ -453,7 +453,7 @@ while opt.max_epochs <= 0 or epoch < opt.max_epochs do
     output_progress_file:flush()
   else
     laia.log.info(string.format(
-		    'Epoch = %d  Loss = %10.4 / %10.4f  CER = %5.2f / %5.2f',
+		    'Epoch = %d  Loss = %10.4f / %10.4f  CER = %5.2f / %5.2f',
 		    epoch, train_loss_epoch, valid_loss_epoch,
 		    train_cer_epoch * 100, valid_cer_epoch * 100))
   end

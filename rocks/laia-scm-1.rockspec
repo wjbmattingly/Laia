@@ -24,6 +24,8 @@ dependencies = {
   "xlua",
   "lua-term",
   "luaposix",
+  "lbase64",
+  "etlua",
   "imgdistort"
 }
 
