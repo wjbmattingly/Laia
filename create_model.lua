@@ -95,25 +95,25 @@ assert(cnn_layers == 0 or #cnn_spatial_dropout <= cnn_layers,
 -- Ensure that all options for the convolutional layers have the same
 -- size (equal to the number of specified layers). The last option in a list
 -- is copied to extend the list until a size of cnn_layers is achieved.
-table.extend_with_last_element(cnn_kernel_size, cnn_layers)
-table.extend_with_last_element(cnn_maxpool_size, cnn_layers)
-table.extend_with_last_element(cnn_batch_norm, cnn_layers)
-table.extend_with_last_element(cnn_type, cnn_layers)
-table.extend_with_last_element(cnn_dropout, cnn_layers)
-table.extend_with_last_element(cnn_spatial_dropout, cnn_layers)
+table.append_last(cnn_kernel_size, cnn_layers - #cnn_kernel_size)
+table.append_last(cnn_maxpool_size, cnn_layers - #cnn_maxpool_size)
+table.append_last(cnn_batch_norm, cnn_layers - #cnn_batch_norm)
+table.append_last(cnn_type, cnn_layers - #cnn_type)
+table.append_last(cnn_dropout, cnn_layers - #cnn_dropout)
+table.append_last(cnn_spatial_dropout, cnn_layers - #cnn_spatial_dropout)
 -- Convert lists of strings to appropiate types and sizes
 cnn_dropout = table.map(cnn_dropout, tonumber)
 cnn_num_features = table.map(cnn_num_features, tonumber)
 cnn_kernel_size = table.map(cnn_kernel_size, function(x)
   -- Each element in the kernel sizes list must be a pair of integers
   local t = table.map(string.split(x, '[^,]+'), tonumber)
-  table.extend_with_last_element(t, 2)
+  table.append_last(t, 2 - #t)
   return t
 end)
 cnn_maxpool_size = table.map(cnn_maxpool_size, function(x)
   -- Each element in the maxpool sizes list must be a pair of integers
   local t = table.map(string.split(x, '[^,]+'), tonumber)
-  table.extend_with_last_element(t, 2)
+  table.append_last(t, 2 - #t)
   return t
 end)
 cnn_batch_norm = table.map(cnn_batch_norm,

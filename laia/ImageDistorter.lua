@@ -176,7 +176,7 @@ function ImageDistorter:registerOptions(parser)
 end
 
 function ImageDistorter:setOptions(opt)
-  table.update_values(self._opt, opt)
+  if opt then table.update(self._opt, opt, false) end
   self:checkOptions()
 end
 

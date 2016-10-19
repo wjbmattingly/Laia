@@ -57,7 +57,7 @@ function CachedBatcher:registerOptions(parser)
 end
 
 function CachedBatcher:setOptions(opt)
-  if opt then table.update_values(self._opt, opt) end
+  if opt then table.update(self._opt, opt, false) end
   self:checkOptions()
 end
 

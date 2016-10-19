@@ -86,8 +86,8 @@ function CTCTrainer:registerOptions(parser)
                 'displayed', true, toboolean)
 end
 
-function CTCTrainer:setOptions(opts)
-  table.update_values(self._opt, opts)
+function CTCTrainer:setOptions(opt)
+  if opt then table.update(self._opt, opt, false) end
   self:checkOptions()
 end
 
