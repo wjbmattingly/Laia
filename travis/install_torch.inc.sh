@@ -8,7 +8,7 @@ if [[ ! "$TORCH_ROOT" ]]; then git clone https://github.com/torch/distro.git "$T
 
 cd "$TORCH_ROOT";
 git pull && git submodule update && git submodule foreach git pull origin master;
-cp -rf "$TORCH_ROOT" "${TORCH_ROOT}_${TORCH_LUA_VERSION}";
+cp -a "$TORCH_ROOT" "${TORCH_ROOT}_${TORCH_LUA_VERSION}";
 cd "${TORCH_ROOT}_${TORCH_LUA_VERSION}";
 ./install_torch.sh -b -s;
 source "${TORCH_ROOT}_${TORCH_LUA_VERSION}/install/bin/torch-activate";

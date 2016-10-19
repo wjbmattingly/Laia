@@ -21,6 +21,7 @@ env:
   - TORCH_LUA_VERSION="LUA52"
 
 before_install:
+  - set -evx
   - source travis/install_torch.inc.sh
 
 script:
