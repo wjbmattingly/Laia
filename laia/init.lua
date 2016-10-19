@@ -51,6 +51,8 @@ cunn = wrequire('cunn')
 cudnn = wrequire('cudnn')
 
 -- Laia packages
+require('laia.util.table')
+require('laia.util.math')
 require('laia.utilities')
 require('laia.CachedBatcher')
 require('laia.CurriculumBatcher')

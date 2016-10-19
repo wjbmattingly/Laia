@@ -1,41 +1,57 @@
-language: python
+language: c
 
-sudo: true
+os:
+  - linux
+
+compiler:
+  - gcc
+
+cache:
+  directories:
+    - $HOME/OpenBlasInstall
+
+sudo: false
 
 branches:
   only:
     - master
-cache:
-  directories:
-  - torch
 
 env:
-  global:
-    - TORCH_SERVER=https://raw.githubusercontent.com/torch/rocks/master/
-  matrix:
-    - LUA="LUA51"
-    - LUA="LUA52"
-    - LUA="LUA53"
-    - LUA="LUAJIT20"
-    - LUA="LUAJIT21"
+  - TORCH_LUA_VERSION="LUAJIT21"
+  - TORCH_LUA_VERSION="LUA51"
+  - TORCH_LUA_VERSION="LUA52"
+  - TORCH_LUA_VERSION="LUA53"
+
+addons:
+  apt:
+    packages:
+      - cmake
+      - gfortran
+      - gcc-multilib
+      - gfortran-multilib
+      - liblapack-dev
+      - build-essential
+      - gcc
+      - g++
+      - curl
+      - cmake
+      - libreadline-dev
+      - git-core
+      - libjpeg-dev
+      - libpng-dev
+      - ncurses-dev
+      - imagemagick
+      - libzmq3-dev
+      - gfortran
+      - unzip
+      - gnuplot
+      - gnuplot-x11
 
 before_install:
-  - if [[ ! -d torch ]]; then git clone https://github.com/torch/distro.git torch --recursive ; fi
-  - cd torch
-  - git pull
-  - git submodule update
-  - git submodule foreach git pull origin master
-  - cd ..
-  - cp -rf torch torch_$LUA
-  - cd torch_$LUA
-  - TORCH_LUA_VERSION=$LUA ./install.sh -b
-  - cd ..
-
-install:
-  - source ./torch_$LUA/install/bin/torch-activate
-  - luarocks --from=$TORCH_SERVER install torch
+  - source travis/install_torch.inc.sh
 
 script:
+  - th test/util/math.lua
   - th test/util/table.lua
 
 notifications:
