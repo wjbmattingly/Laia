@@ -14,7 +14,7 @@ git pull && git submodule update && git submodule foreach git pull origin master
 # Copy torch for a clean install with a particular LUA_VERSION
 cp -a "$TORCH_ROOT" "${TORCH_ROOT}_${TORCH_LUA_VERSION}";
 cd "${TORCH_ROOT}_${TORCH_LUA_VERSION}";
-./install_torch.sh -b -s;
+./install.sh -b -s;
 # Set environment variables.
 source "${TORCH_ROOT}_${TORCH_LUA_VERSION}/install/bin/torch-activate";
 # Back to travis dir.
