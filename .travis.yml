@@ -8,9 +8,9 @@ compiler:
 
 cache:
   directories:
-    - $HOME/OpenBlasInstall
+    - $HOME/torch
 
-sudo: false
+sudo: true
 
 branches:
   only:
@@ -18,39 +18,13 @@ branches:
 
 env:
   - TORCH_LUA_VERSION="LUAJIT21"
-  - TORCH_LUA_VERSION="LUA51"
   - TORCH_LUA_VERSION="LUA52"
-  - TORCH_LUA_VERSION="LUA53"
-
-addons:
-  apt:
-    packages:
-      - cmake
-      - gfortran
-      - gcc-multilib
-      - gfortran-multilib
-      - liblapack-dev
-      - build-essential
-      - gcc
-      - g++
-      - curl
-      - cmake
-      - libreadline-dev
-      - git-core
-      - libjpeg-dev
-      - libpng-dev
-      - ncurses-dev
-      - imagemagick
-      - libzmq3-dev
-      - gfortran
-      - unzip
-      - gnuplot
-      - gnuplot-x11
 
 before_install:
   - source travis/install_torch.inc.sh
 
 script:
+  - which th luarocks || exit 1;
   - th test/util/math.lua
   - th test/util/table.lua
 
