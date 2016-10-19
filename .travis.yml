@@ -1,0 +1,44 @@
+language: python
+
+sudo: true
+
+branches:
+  only:
+    - master
+cache:
+  directories:
+  - torch
+
+env:
+  global:
+    - TORCH_SERVER=https://raw.githubusercontent.com/torch/rocks/master/
+  matrix:
+    - LUA="LUA51"
+    - LUA="LUA52"
+    - LUA="LUA53"
+    - LUA="LUAJIT20"
+    - LUA="LUAJIT21"
+
+before_install:
+  - if [[ ! -d torch ]]; then git clone https://github.com/torch/distro.git torch --recursive ; fi
+  - cd torch
+  - git pull
+  - git submodule update
+  - git submodule foreach git pull origin master
+  - cd ..
+  - cp -rf torch torch_$LUA
+  - cd torch_$LUA
+  - TORCH_LUA_VERSION=$LUA ./install.sh -b
+  - cd ..
+
+install:
+  - source ./torch_$LUA/install/bin/torch-activate
+  - luarocks --from=$TORCH_SERVER install torch
+
+script:
+  - th test/util/table.lua
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
