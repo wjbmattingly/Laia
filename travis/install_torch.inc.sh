@@ -4,7 +4,7 @@
 export ROOT_TRAVIS_DIR="$(pwd)";
 export TORCH_ROOT="$HOME/torch";
 
-if [[ ! "$TORCH_ROOT" ]]; then clone https://github.com/torch/distro.git "$TORCH_ROOT" --recursive ; fi
+if [[ ! "$TORCH_ROOT" ]]; then git clone https://github.com/torch/distro.git "$TORCH_ROOT" --recursive ; fi
 
 cd "$TORCH_ROOT";
 git pull && git submodule update && git submodule foreach git pull origin master;
