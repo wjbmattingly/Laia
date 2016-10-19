@@ -1,4 +1,4 @@
-require 'laia.utils.table'
+require 'laia.util.table'
 
 local testsuite = torch.TestSuite()
 local tester = torch.Tester()
