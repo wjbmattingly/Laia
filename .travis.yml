@@ -18,15 +18,14 @@ branches:
 
 env:
   - TORCH_LUA_VERSION="LUAJIT21"
+  - TORCH_LUA_VERSION="LUA51"
   - TORCH_LUA_VERSION="LUA52"
 
 before_install:
   - source travis/install_torch.inc.sh
 
 script:
-  - which th luarocks || exit 1;
-  - th test/util/math.lua
-  - th test/util/table.lua
+  - travis/run_tests.sh
 
 notifications:
   email:
