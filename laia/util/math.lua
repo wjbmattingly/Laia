@@ -15,3 +15,20 @@ end
 function math.isfinite(x)
   return x > -math.huge and x < math.huge
 end
+
+-- Override math.random to make sure that we use Torch random generator.
+--
+-- From the math package doc:
+-- math.random() with no arguments generates a real number between 0 and 1.
+-- math.random(upper) generates integer numbers between 1 and upper.
+-- math.random(lower, upper) generates integer numbers between lower and upper.
+local torch = require('torch')
+math.random = function(a, b)
+  if a ~= nil and b ~= nil then
+    return torch.random(a, b)
+  elseif a ~= nil then
+    return torch.random(a)
+  else
+    return torch.uniform()
+  end
+end

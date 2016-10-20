@@ -11,4 +11,6 @@ which th || exit 1;
 # ADD YOUR TESTS HERE
 th test/nn/ImageColumnSequence.lua;
 th test/util/math.lua;
+th test/util/string.lua;
 th test/util/table.lua;
+th test/util/types.lua;

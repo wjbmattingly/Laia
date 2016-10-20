@@ -70,17 +70,6 @@ function levenshtein(u, v)
   return curr[#v], curr_ops[#v]
 end
 
-function printHistogram(x, nbins, bmin, bmax)
-  local hist, bins = torch.loghistc(x, nbins, bmin, bmax)
-  local n = x:storage():size()
-  io.write(string.format('(-inf, %g] -> %.2g%%\n',
-			 bins[1], 100 * hist[1] / n))
-  for i=2,#hist do
-    io.write(string.format('(%g, %g] -> %.2g%%\n',
-			   bins[i-1], bins[i], 100 * hist[i] / n))
-  end
-end
-
 function framewise_decode(batch_size, rnn_output)
   local hyps = {}
   local seq_len = rnn_output:size(1) / batch_size
@@ -131,17 +120,7 @@ function lines_from(file)
   return lines
 end
 
--- split function for strings
-string.split = function(str, pattern)
-  pattern = pattern or "[^%s]+"
-  if pattern:len() == 0 then pattern = "[^%s]+" end
-  local parts = {__index = table.insert}
-  setmetatable(parts, parts)
-  str:gsub(pattern, parts)
-  setmetatable(parts, nil)
-  parts.__index = nil
-  return parts
-end
+
 
 -- read symbols_table file. this file contains
 -- two columns: "symbol     id"
@@ -163,31 +142,6 @@ end
 
 
 
---[[
-  -- Read a text file containing a matrix and load it into a Tensor
-  function loadTensorFromFile(fname)
-  local fd = io.open(fname, 'r')
-  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-  local tb = {}
-  while true do
-  local line = fd:read('*line')
-  if line == nil then break end
-  table.insert(tb, string.split(line))
-  end
-  fd:close()
-  return torch.Tensor(tb)
-  end
-  -- Read a text file containing a vector IDs and load it into a Table
-  function loadTableFromFile(fname)
-  local fd = io.open(fname, 'r')
-  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-  local line = fd:read('*line')
-  local tb = string.split(line)
-  tb = torch.totable(torch.IntTensor(torch.IntStorage(tb)))
-  fd:close()
-  return tb
-  end
---]]
 -- This function returns a table conataining symbol ID sequence
 -- corresponding to the force-alignment of the given ground-truth.
 -- INPUT: Confidence Matrix Tensor containing the posterior
@@ -266,79 +220,6 @@ function forceAlignment(teCM, tbGT)
 end
 
 
--- from shell.lua, by Peter Odding
-function shell_escape(...)
-  local command = type(...) == 'table' and ... or { ... }
-  for i, s in ipairs(command) do
-    s = (tostring(s) or ''):gsub('"', '\\"')
-    if s:find '[^A-Za-z0-9_."/-]' then
-      s = '"' .. s .. '"'
-    elseif s == '' then
-      s = '""'
-    end
-    command[i] = s
-  end
-  return table.concat(command, ' ')
-end
-
-
-
-function laia.isint(x)
-  return (type(x) == 'number' and x == math.floor(x))
-end
-
-local __toboolean_table = {
-  ['true']  = true,
-  ['TRUE']  = true,
-  ['T']     = true,
-  ['1']     = true,
-  ['false'] = false,
-  ['FALSE'] = false,
-  ['F']     = false,
-  ['0']     = false
-}
-function laia.toboolean(x)
-  return __toboolean_table[tostring(x)], ('value %q is not a boolean'):format(x)
-end
-
--- Convert a variable value to an integer, if the value is not a valid integer
--- returns nil and an error message.
-function laia.toint(x)
-  local xn = tonumber(x)
-  if laia.isint(xn) then return xn
-  else return nil, ('value %q is not an integer'):format(x) end
-end
-
--- Given a string that represents a list of NUMBERS separated by commas,
--- returns a table with the list items.
-function laia.tolistnum(x)
-  local sx = string.split(x, '[^,]+')
-  local rx = {}
-  for _, v in ipairs(sx) do
-    local v2 = tonumber(v)
-    if v2 == nil then
-      return nil, ('value %q is not a number'):format(v)
-    end
-    table.insert(rx, v2)
-  end
-  return rx
-end
-
--- Given a string that represents a list of INTEGERS separated by commas,
--- returns a table with the list items.
-function laia.tolistint(x)
-  local sx = string.split(x, '[^,]+')
-  local rx = {}
-  for _, v in ipairs(sx) do
-    local v2 = laia.toint(v)
-    if v2 == nil then
-      return nil, ('value %q is not an integer'):format(v)
-    end
-    table.insert(rx, v2)
-  end
-  return rx
-end
-
 function laia.manualSeed(seed)
   torch.manualSeed(seed)
   if cutorch then cutorch.manualSeed(seed) end
@@ -363,22 +244,6 @@ function laia.setRNGState(state)
     else
       laia.log.error('No cutorch RNG state found!')
     end
-  end
-end
-
--- Override math.random to make sure that we use Torch random generator.
---
--- From the math package doc:
--- math.random() with no arguments generates a real number between 0 and 1.
--- math.random(upper) generates integer numbers between 1 and upper.
--- math.random(lower, upper) generates integer numbers between lower and upper.
-math.random = function(a, b)
-  if a ~= nil and b ~= nil then
-    return torch.random(a, b)
-  elseif a ~= nil then
-    return torch.random(a)
-  else
-    return torch.uniform()
   end
 end
 

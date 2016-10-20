@@ -3,7 +3,6 @@ require 'laia.util.math'
 local testsuite = torch.TestSuite()
 local tester = torch.Tester()
 
-
 function testsuite.isnan()
   tester:eq(math.isnan(0 / 0), true)
   tester:eq(math.isnan(1 / 0), false)
