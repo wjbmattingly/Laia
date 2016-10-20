@@ -17,7 +17,7 @@ local parser = laia.argparse(){
 parser:option(
   '--cnn_batch_norm',
   'Batch normalization before the activation in each conv layer.',
-  {false}, toboolean)
+  {false, false, true, false}, toboolean)
   :argname('<bool>')  -- Placeholder
   :args('+')          -- Option with >= 1 arguments
   :overwrite(false)   -- Option cannot be passed twice
@@ -154,31 +154,31 @@ local cnn_layers = #opt.cnn_num_features
 -- Ensure that all options for the convolutional layers have the same length
 -- (equal to the number of specified layers). The last option in a list is
 -- copied to extend the list until a size of cnn_layers is achieved.
-table.extend_with_last_element(opt.cnn_kernel_size, cnn_layers)
-table.extend_with_last_element(opt.cnn_maxpool_size, cnn_layers)
-table.extend_with_last_element(opt.cnn_batch_norm, cnn_layers)
-table.extend_with_last_element(opt.cnn_type, cnn_layers)
-table.extend_with_last_element(opt.cnn_dropout, cnn_layers)
-table.extend_with_last_element(opt.cnn_spatial_dropout, cnn_layers)
+table.append_last(opt.cnn_kernel_size, cnn_layers - #opt.cnn_kernel_size)
+table.append_last(opt.cnn_maxpool_size, cnn_layers - #opt.cnn_maxpool_size)
+table.append_last(opt.cnn_batch_norm, cnn_layers - #opt.cnn_batch_norm)
+table.append_last(opt.cnn_type, cnn_layers - #opt.cnn_type)
+table.append_last(opt.cnn_dropout, cnn_layers - #opt.cnn_dropout)
+table.append_last(opt.cnn_spatial_dropout,
+		  cnn_layers - #opt.cnn_spatial_dropout)
 
 -- Kernel sizes must be pairs of integers
 opt.cnn_kernel_size = table.map(
-  opt.cnn_kernel_size,
-  function(x) return table.extend_with_last_element(x, 2) end)
+  opt.cnn_kernel_size, function(x) return table.append_last(x, 2 - #x) end)
 
 -- Maxpool sizes must be pairs of integers
 opt.cnn_maxpool_size = table.map(
-  opt.cnn_maxpool_size,
-  function(x) return table.extend_with_last_element(x, 2) end)
+  opt.cnn_maxpool_size, function(x) return table.append_last(x, 2 - #x) end)
 
 -- Initialize random seeds
 laia.manualSeed(opt.seed)
 
 -- Auxiliar function that creates convolutional block
-function convBlock(depth_in, depth_out,  -- Input & output channels/filters
-		   kernel_w, kernel_h,   -- Size of the convolution kernels
-		   pool_w, pool_h,       -- Size of the pooling windows
-		   activation, batch_norm, dropout, spatial_dropout)
+local function convBlock(
+    depth_in, depth_out,  -- Input & output channels/filters
+    kernel_w, kernel_h,   -- Size of the convolution kernels
+    pool_w, pool_h,       -- Size of the pooling windows
+    activation, batch_norm, dropout, spatial_dropout)
   activation = activation or 'relu'
   batch_norm = batch_norm or false
   dropout = dropout or 0
@@ -226,7 +226,7 @@ function convBlock(depth_in, depth_out,  -- Input & output channels/filters
   return block
 end
 
-function computeSizeAfterPooling(input_size, pool_size)
+local function computeSizeAfterPooling(input_size, pool_size)
   if pool_size < 2 then
     return input_size
   else
@@ -252,19 +252,19 @@ end
 local rnn_input_dim = curr_c * curr_h
 -- Convert images to 1D sequences by processing columns of the image as the
 -- sequence elements.
-model:add(laia.nn.NCHW2WND())
+model:add(laia.nn.ImageColumnSequence())
 -- Append recurrent layers
 if opt.rnn_type == 'blstm' then
-  model:add(cudnn.BLSTM(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers, false,
-			opt.rnn_dropout))
+  model:add(cudnn.BLSTM(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers,
+			false, opt.rnn_dropout))
 else
-  model:add(cudnn.BGRU(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers, false,
-		       opt.rnn_dropout))
+  model:add(cudnn.BGRU(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers,
+		       false, opt.rnn_dropout))
 end
 -- Linear projection of each timestep and batch sample (LxNxD -> (LN)xD)
 model:add(nn.Reshape(-1, opt.rnn_num_units * 2, false))
 if opt.linear_dropout > 0 then
-  model:add(nn.Dropout(linear_dropout))
+  model:add(nn.Dropout(opt.linear_dropout))
 end
 model:add(nn.Linear(opt.rnn_num_units * 2, opt.output_size))
 

@@ -67,10 +67,10 @@ require('laia.WeightDecayRegularizer')
 
 require('laia.CTCTrainer')
 
--- Laia layers
 laia.nn = {}
 require('laia.nn.MDRNN')
-require('laia.nn.NCHW2WND')
+require('laia.nn.ImageColumnSequence')
+
 
 -- Required to know whether stdout/stderr are terminals
 local term = require('term')

@@ -26,19 +26,19 @@ mkdir -p data;
 ./steps/prepare.sh --height "$height" --overwrite "$overwrite";
 
 ../../create_model.lua \
-    -cnn_type leakyrelu \
-    -cnn_num_features "32 64 96" \
-    -cnn_kernel_size "3 3 5" \
-    -cnn_maxpool_size "2,2 2,2 2,1" \
-    -cnn_batch_norm false \
-    -cnn_dropout 0 \
-    -rnn_type blstm \
-    -rnn_layers 2 \
-    -rnn_units 128 \
-    -rnn_dropout 0.5 \
-    -linear_dropout 0.5 \
-    -seed 74565 \
-    1 "$height" "$num_labels" model.t7;
+    --cnn_type leakyrelu \
+    --cnn_num_features 32 64 96 \
+    --cnn_kernel_size 3 3 5 \
+    --cnn_maxpool_size 2,2 2,2 2,1 \
+    --cnn_batch_norm false \
+    --cnn_dropout 0 \
+    --rnn_type blstm \
+    --rnn_num_layers 2 \
+    --rnn_num_units 128 \
+    --rnn_dropout 0.5 \
+    --linear_dropout 0.5 \
+    --seed 74565 \
+    -- 1 "$height" "$num_labels" model.t7;
 
 ../../train.lua \
     -batch_size "$batch_size" \

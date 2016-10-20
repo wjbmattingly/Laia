@@ -186,7 +186,7 @@ function lstm_linear_block(input_depth, lstm_depth, linear_depth,
   for i=0,3 do
     local lblock = nn.Sequential()
     lblock:add(nn.Narrow(2, 1 + i * lstm_depth, lstm_depth))
-    lblock:add(laia.nn.NCHW2WND())
+    lblock:add(laia.nn.ImageColumnSequence())
     lblock:add(nn.Reshape(-1, lstm_depth, false))
     if linear_dropout > 0 and linear_droput < 1 then
       lblock:add(nn.SpatialDropout(linear_dropout))
