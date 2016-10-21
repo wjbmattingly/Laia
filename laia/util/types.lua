@@ -29,7 +29,7 @@ end
 -- Convert a variable value to a boolean, if the value is not a valid boolean
 -- returns nil and an error message.
 function laia.toboolean(x)
-  return __toboolean_table[tostring(x)], ('value %q is not a boolean'):format(x)
+  return __toboolean_table[tostring(x)], ('value %q is not a boolean'):format(tostring(x))
 end
 
 -- Convert a variable value to an integer, if the value is not a valid integer
@@ -37,7 +37,7 @@ end
 function laia.toint(x)
   local xn = tonumber(x)
   if laia.isint(xn) then return xn
-  else return nil, ('value %q is not an integer'):format(x) end
+  else return nil, ('value %q is not an integer'):format(tostring(x)) end
 end
 
 -- Given a string that represents a list of NUMBERS separated by commas,
@@ -47,7 +47,7 @@ function laia.tolistnum(x)
   local rx = {}
   for _, v in ipairs(sx) do
     local v2 = tonumber(v)
-    if v2 == nil then return nil, ('value %q is not a number'):format(v) end
+    if v2 == nil then return nil, ('value %q is not a number'):format(tostring(v)) end
     table.insert(rx, v2)
   end
   return rx
@@ -60,7 +60,7 @@ function laia.tolistint(x)
   local rx = {}
   for _, v in ipairs(sx) do
     local v2 = laia.toint(v)
-    if v2 == nil then return nil, ('value %q is not an integer'):format(v) end
+    if v2 == nil then return nil, ('value %q is not an integer'):format(tostring(v)) end
     table.insert(rx, v2)
   end
   return rx
