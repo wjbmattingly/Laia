@@ -25,8 +25,8 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-local term = require('term')
-local isatty = term.isatty(io.stderr)
+local term_ok, term = pcall(require, 'term')
+local isatty = term_ok and term.isatty(io.stderr)
 
 local log = { _version = "0.1.0-laia" }
 

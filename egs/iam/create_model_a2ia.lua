@@ -76,9 +76,9 @@ assert(#cnn_dropout <= lstm_cnn_layers,
 -- Ensure that all options for the convolutional layers have the same
 -- size (equal to the number of specified layers). The last option in a list
 -- is copied to extend the list until a size of cnn_layers is achieved.
-table.extend_with_last_element(cnn_kernel_size, lstm_cnn_layers)
-table.extend_with_last_element(cnn_type, lstm_cnn_layers)
-table.extend_with_last_element(cnn_dropout, lstm_cnn_layers)
+table.append_last(cnn_kernel_size, lstm_cnn_layers - #cnn_kernel_size)
+table.append_last(cnn_type, lstm_cnn_layers - #cnn_type)
+table.append_last(cnn_dropout, lstm_cnn_layers - #cnn_dropout)
 
 -- Convert lists of strings to appropiate types and sizes
 cnn_dropout = table.map(cnn_dropout, tonumber)
@@ -86,7 +86,7 @@ cnn_num_features = table.map(cnn_num_features, tonumber)
 cnn_kernel_size = table.map(cnn_kernel_size, function(x)
   -- Each element in the kernel sizes list must be a pair of integers
   local t = table.map(string.split(x, '[^,]+'), tonumber)
-  table.extend_with_last_element(t, 2)
+  table.append_last(t, 2 - #t)
   return t
 end)
 
@@ -102,7 +102,7 @@ assert(#lstm_dropout > 0,
        'You must specify at least one dropout probability')
 assert(#lstm_dropout <= lstm_layers,
        'You specified more dropout values than lstm layers')
-table.extend_with_last_element(lstm_dropout, lstm_layers)
+table.append_last(lstm_dropout, lstm_layers - #lstm_dropout)
 lstm_dropout = table.map(lstm_dropout, tonumber)
 lstm_num_features = table.map(lstm_num_features, tonumber)
 
@@ -186,7 +186,7 @@ function lstm_linear_block(input_depth, lstm_depth, linear_depth,
   for i=0,3 do
     local lblock = nn.Sequential()
     lblock:add(nn.Narrow(2, 1 + i * lstm_depth, lstm_depth))
-    lblock:add(laia.nn.NCHW2WND())
+    lblock:add(laia.nn.ImageColumnSequence())
     lblock:add(nn.Reshape(-1, lstm_depth, false))
     if linear_dropout > 0 and linear_droput < 1 then
       lblock:add(nn.SpatialDropout(linear_dropout))

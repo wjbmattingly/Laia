@@ -83,8 +83,10 @@ function CurriculumBatcher:sample(lambda, m)
   self:clearCache()
 end
 
-function CurriculumBatcher:epochReset(lambda, m)
-  self:sample(lambda, m)
+function CurriculumBatcher:epochReset(epoch_opt)
+  epoch_opt = epoch_opt or {}
+  assert(type(epoch_opt) == 'table', 'epochReset options must be a table!')
+  self:sample(epoch_opt.lambda, epoch_opt.m)
 end
 
 return CurriculumBatcher

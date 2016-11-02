@@ -1,126 +1,3 @@
---[[
-  a = {1, 2, 3, 4}
-  table.reduce(a, function(x) return 2* x; end)
-  {2, 4, 6, 8}
---]]
-table.map = function(t, fn)
-  local t2 = {}
-  for i, v in pairs(t) do
-    t2[i] = fn(v)
-  end
-  return t2
-end
-
---[[
-  a = {1, 2, 3, 4}
-  table.reduce(a, operator.add, 0)
-  10
---]]
-table.reduce = function(t, fn, v0)
-  local res = v0
-  for _, v in pairs(t) do
-    res = fn(res, v)
-  end
-  return res
-end
-
---[[
-  a = {a = 1, b = 2, c = 3}
-  b = {a = -1, d = -4}
-  print(table.update_values(a, b))
-  {
-  a = -1,
-  b = 2,
-  c = 3
-  }
---]]
-table.update_values = function(dst, src)
-  for k,_ in pairs(dst) do
-    if src[k] ~= nil then dst[k] = src[k] end
-  end
-end
-
-table.all = function(t, f)
-  return table.reduce(t, function(p, x) return p and f(x) end, true)
-end
-
-table.any = function(t, f)
-  return table.reduce(t, function(p, x) return p or f(x) end, true)
-end
-
---[[
-  Compute a histogram of the absolute values of the elements in a tensor,
-  using a logarithmic scale.
-  The function returs first a table containing the histogram (the number of
-  elements in each bin), and secondly a table containing the thresholds for
-  each bin.
---]]
-torch.loghistc = function(x, nbins, bmin, bmax)
-  x = torch.abs(x)
-  nbins = nbins or 10
-  bmin = bmin or torch.min(x)
-  bmax = bmax or torch.max(x)
-  if bmin == 0.0 then bmin = 1E-16 end
-  assert(nbins > 1,
-	 string.format('nbins must be greater than 1 (actual: %d)', nbins))
-  assert(bmax > bmin,
-	 string.format('bmax (%g) must be greater than bmin (%g)', bmax, bmin))
-  local hist = { }
-  local bins = { }
-  local step = math.exp(math.log(bmax / bmin) / (nbins - 1))
-  table.insert(bins, bmin)
-  table.insert(hist, torch.le(x, bmin):sum())
-  for i=1,(nbins-1) do
-    local pb = bmin * math.pow(step, i - 1)
-    local cb = pb * step
-    table.insert(bins, cb)
-    table.insert(hist, torch.cmul(torch.gt(x, pb), torch.le(x, cb)):sum())
-  end
-  -- Due to numerical errors, we may miss some elements in the last bin.
-  local cumhist = table.reduce(hist, operator.add, 0)
-  local missing = x:storage():size() - cumhist
-  if missing > 0 then
-    hist[#hist] = hist[#hist] + missing
-  end
-  return hist, bins
-end
-
-torch.sumarizeMagnitudes = function(x, mass, nbins, bmin, bmax, log_scale)
-  mass = mass or 0.75
-  log_scale = log_scale or false
-  local hist, bins
-  if log_scale then
-    hist, bins = torch.loghistc(x, nbins, bmin, bmax)
-  else
-    x = torch.abs(x)
-    bmin = bmin or torch.min(x)
-    bmax = bmax or torch.max(x)
-    hist = torch.totable(torch.histc(x, nbins, bmin, bmax))
-    bins = torch.totable(torch.range(bmin, bmax, (bmax - bmin) / (nbins - 1)))
-  end
-  local n = x:storage():size()
-  local aux = {}
-  for i=1,#hist do table.insert(aux, {i, hist[i]})  end
-  table.sort(aux,
-	     function(a, b)
-	       return a[2] > b[2] or (a[2] == b[2] and a[1] < b[1])
-  end)
-  local cum = 0
-  local mini = #aux
-  local maxi = 0
-  for i=1,#aux do
-    cum = cum + aux[i][2]
-    if mini > aux[i][1] then mini = aux[i][1] end
-    if maxi < aux[i][1] then maxi = aux[i][1] end
-    if cum >= mass * n then break end
-  end
-  if mini < 2 then
-    return torch.min(torch.abs(x)), bins[maxi], cum / n
-  else
-    return bins[mini - 1], bins[maxi], cum / n
-  end
-end
-
 -- Removes removes leading, trailing and repetitions of given symbol
 function symbol_trim(seq, symb)
   local trimed = {}
@@ -193,17 +70,6 @@ function levenshtein(u, v)
   return curr[#v], curr_ops[#v]
 end
 
-function printHistogram(x, nbins, bmin, bmax)
-  local hist, bins = torch.loghistc(x, nbins, bmin, bmax)
-  local n = x:storage():size()
-  io.write(string.format('(-inf, %g] -> %.2g%%\n',
-			 bins[1], 100 * hist[1] / n))
-  for i=2,#hist do
-    io.write(string.format('(%g, %g] -> %.2g%%\n',
-			   bins[i-1], bins[i], 100 * hist[i] / n))
-  end
-end
-
 function framewise_decode(batch_size, rnn_output)
   local hyps = {}
   local seq_len = rnn_output:size(1) / batch_size
@@ -254,17 +120,7 @@ function lines_from(file)
   return lines
 end
 
--- split function for strings
-string.split = function(str, pattern)
-  pattern = pattern or "[^%s]+"
-  if pattern:len() == 0 then pattern = "[^%s]+" end
-  local parts = {__index = table.insert}
-  setmetatable(parts, parts)
-  str:gsub(pattern, parts)
-  setmetatable(parts, nil)
-  parts.__index = nil
-  return parts
-end
+
 
 -- read symbols_table file. this file contains
 -- two columns: "symbol     id"
@@ -283,60 +139,9 @@ function read_symbols_table(file)
   return symbols_table
 end
 
-table.extend_with_last_element = function(t, n)
-  n = n or (#t + 1)
-  while #t < n do
-    table.insert(t, t[#t])
-  end
-  return t
-end
 
---[[
-  Helper function used to sample a key from a table containing the likelihoods
-  of each key element. This assumes that the scores in the likelihoods table
-  are non-negative.
---]]
-table.weighted_choice = function(l, z)
-  z = z or table.reduce(l, operator.add, 0.0)
-  -- If all weights are 0, sample randomly.
-  if z <= 0.0 then return torch.random(#l) end
-  local cut_likelihood = torch.uniform() * z
-  local cum_likelihood = 0
-  for k, w in pairs(l) do
-    if cum_likelihood + w >= cut_likelihood then
-      return k
-    end
-    cum_likelihood = cum_likelihood + w
-  end
-  error('This point should not be reached. Make sure your that all your ' ..
-	  'likelihoods are non-negative')
-end
 
---[[
-  -- Read a text file containing a matrix and load it into a Tensor
-  function loadTensorFromFile(fname)
-  local fd = io.open(fname, 'r')
-  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-  local tb = {}
-  while true do
-  local line = fd:read('*line')
-  if line == nil then break end
-  table.insert(tb, string.split(line))
-  end
-  fd:close()
-  return torch.Tensor(tb)
-  end
-  -- Read a text file containing a vector IDs and load it into a Table
-  function loadTableFromFile(fname)
-  local fd = io.open(fname, 'r')
-  assert(fd ~= nil, string.format('Unable to read file: %q', fname))
-  local line = fd:read('*line')
-  local tb = string.split(line)
-  tb = torch.totable(torch.IntTensor(torch.IntStorage(tb)))
-  fd:close()
-  return tb
-  end
---]]
+
 -- This function returns a table conataining symbol ID sequence
 -- corresponding to the force-alignment of the given ground-truth.
 -- INPUT: Confidence Matrix Tensor containing the posterior
@@ -415,109 +220,6 @@ function forceAlignment(teCM, tbGT)
 end
 
 
--- from shell.lua, by Peter Odding
-function shell_escape(...)
-  local command = type(...) == 'table' and ... or { ... }
-  for i, s in ipairs(command) do
-    s = (tostring(s) or ''):gsub('"', '\\"')
-    if s:find '[^A-Za-z0-9_."/-]' then
-      s = '"' .. s .. '"'
-    elseif s == '' then
-      s = '""'
-    end
-    command[i] = s
-  end
-  return table.concat(command, ' ')
-end
-
-table.int2sym = function(t, int2sym)
-  assert(torch.type(t) == 'table')
-  local t2 = {}
-  for i=1,#t do
-    local int, sym = t[i], int2sym[t[i]]
-    assert(sym ~= nil, string.format(
-	     'Integer %d does not map to any symbol in the table', int))
-    table.insert(t2, sym)
-  end
-  return t2
-end
-
-table.sym2int = function(t, sym2int)
-  assert(torch.type(t) == 'table')
-  local t2 = {}
-  for i=1,#t do
-    local sym, int = t[i], sym2int[t[i]]
-    assert(int ~= nil, string.format(
-	     'Symbol %q does not map to any integer in the table', sym))
-    table.insert(t2, int)
-  end
-  return t2
-end
-
-table.from_iterator = function(...)
-  local t = {}
-  for e in ... do
-    table.insert(t, e)
-  end
-  return t
-end
-
-function laia.isint(x)
-  return (type(x) == 'number' and x == math.floor(x))
-end
-
-local __toboolean_table = {
-  ['true']  = true,
-  ['TRUE']  = true,
-  ['T']     = true,
-  ['1']     = true,
-  ['false'] = false,
-  ['FALSE'] = false,
-  ['F']     = false,
-  ['0']     = false
-}
-function laia.toboolean(x)
-  return __toboolean_table[tostring(x)], ('value %q is not a boolean'):format(x)
-end
-
--- Convert a variable value to an integer, if the value is not a valid integer
--- returns nil and an error message.
-function laia.toint(x)
-  local xn = tonumber(x)
-  if laia.isint(xn) then return xn
-  else return nil, ('value %q is not an integer'):format(x) end
-end
-
--- Given a string that represents a list of NUMBERS separated by commas,
--- returns a table with the list items.
-function laia.tolistnum(x)
-  local sx = string.split(x, '[^,]+')
-  local rx = {}
-  for _, v in ipairs(sx) do
-    local v2 = tonumber(v)
-    if v2 == nil then
-      return nil, ('value %q is not a number'):format(v)
-    end
-    table.insert(rx, v2)
-  end
-  return rx
-end
-
--- Given a string that represents a list of INTEGERS separated by commas,
--- returns a table with the list items.
-function laia.tolistint(x)
-  local sx = string.split(x, '[^,]+')
-  local rx = {}
-  for _, v in ipairs(sx) do
-    local v2 = laia.toint(v)
-    if v2 == nil then
-      return nil, ('value %q is not an integer'):format(v)
-    end
-    table.insert(rx, v2)
-  end
-  return rx
-end
-
 function laia.manualSeed(seed)
   torch.manualSeed(seed)
   if cutorch then cutorch.manualSeed(seed) end
@@ -542,22 +244,6 @@ function laia.setRNGState(state)
     else
       laia.log.error('No cutorch RNG state found!')
     end
-  end
-end
-
--- Override math.random to make sure that we use Torch random generator.
---
--- From the math package doc:
--- math.random() with no arguments generates a real number between 0 and 1.
--- math.random(upper) generates integer numbers between 1 and upper.
--- math.random(lower, upper) generates integer numbers between lower and upper.
-math.random = function(a, b)
-  if a ~= nil and b ~= nil then
-    return torch.random(a, b)
-  elseif a ~= nil then
-    return torch.random(a)
-  else
-    return torch.uniform()
   end
 end
 

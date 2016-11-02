@@ -1,0 +1,33 @@
+language: c
+
+os:
+  - linux
+
+compiler:
+  - gcc
+
+cache:
+  directories:
+    - $HOME/torch
+
+sudo: true
+
+branches:
+  only:
+    - master
+
+env:
+  - TORCH_LUA_VERSION="LUAJIT21"
+  - TORCH_LUA_VERSION="LUA51"
+  - TORCH_LUA_VERSION="LUA52"
+
+before_install:
+  - source travis/install_torch.inc.sh
+
+script:
+  - travis/run_tests.sh
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always

@@ -24,6 +24,8 @@ dependencies = {
   "xlua",
   "lua-term",
   "luaposix",
+  "lbase64",
+  "etlua",
   "imgdistort"
 }
 
@@ -47,7 +49,7 @@ build = {
     ["laia.TrainOptions"] = "laia/TrainOptions.lua",
     ["laia.WeightDecayRegularizer"] = "laia/WeightDecayRegularizer.lua",
     ["laia.nn.MDRNN"] = "laia/nn/MDRNN.lua",
-    ["laia.nn.NCHW2WND"] = "laia/nn/NCHW2WND.lua"
+    ["laia.nn.ImageColumnSequence"] = "laia/nn/ImageColumnSequence.lua"
   },
   install = {
     bin = {

@@ -1,135 +1,184 @@
 #!/usr/bin/env th
 
-require 'cudnn'
 require 'laia'
+assert(cudnn ~= nil, 'cuDNN is required by create_model')
 
-local cmd = torch.CmdLine('Create a DCNN-RNN model.')
+local parser = laia.argparse(){
+  name = 'create_model',
+  description = 'Create a model for HTR composed by a set of convolution ' ..
+    'blocks, followed by a set of bidirectional LSTM or GRU layers, and a ' ..
+    'final linear layer. Each convolution block is composed by a ' ..
+    '2D convolution layer, an optional batch normalization layer, ' ..
+    'a non-linear activation function and an optional 2D max-pooling layer.' ..
+    'Also, each block, rnn layer and the final linear layer may be preceded ' ..
+    'by a dropout layer.'
+}
 
-cmd:text('Convolutional layer options:')
-cmd:option('-cnn_batch_norm', 'false false true false',
-	   'Perform batch normalization before the activation function in ' ..
-           'each convolutional layer')
-cmd:option('-cnn_dropout', '0',
-	   'Dropout probability to the input of each convolutional layer')
-cmd:option('-cnn_maxpool_size', '2,2 2,2 0 2,2',
-	   'Max pooling size after each convolutional layer (0 disables max ' ..
-	   'pooling for that layer)')
-cmd:option('-cnn_num_features', '16 16 32 32',
-	   'Number of feature maps of the convolutional layers')
-cmd:option('-cnn_kernel_size', '3,3 3,3 3,3 3,3',
-	   'Kernel size of the convolutional layers')
-cmd:option('-cnn_spatial_dropout', 'false',
-	   'If true, use spatial dropout at the input of each convolutional ' ..
-           'layer instead of the regular dropout')
-cmd:option('-cnn_type', 'relu',
-	   'Type of the activation in each convolutional layer (values: ' ..
-	   'tanh, relu, prelu, rrelu, leakyrelu, softplus)')
-cmd:text()
+parser:option(
+  '--cnn_batch_norm',
+  'Batch normalization before the activation in each conv layer.',
+  {false, false, true, false}, toboolean)
+  :argname('<bool>')  -- Placeholder
+  :args('+')          -- Option with >= 1 arguments
+  :overwrite(false)   -- Option cannot be passed twice
 
-cmd:text('Recurrent layer options:')
-cmd:option('-rnn_dropout', 0.5,
-	   'Dropout probability to the input of each recurrent layer')
-cmd:option('-rnn_layers', 3, 'Number of recurrent layers')
-cmd:option('-rnn_units', 256, 'Number of units in each recurrent layer')
-cmd:option('-rnn_type', 'blstm',
-	   'Type of the recurrent layers (values: blstm, bgru)')
-cmd:text()
+parser:option(
+  '--cnn_dropout',
+  'Dropout probability at the input of each conv layer, 0 <= p < 1.',
+  {0}, tonumber)
+  :argname('<p>')
+  :args('+')
+  :overwrite(false)
+  :ge(0.0):lt(1.0)  -- Dropout must be in the range [0, 1)
 
-cmd:text('Other options:')
-cmd:option('-seed', 0x012345, 'Seed for random numbers generation')
-cmd:option('-linear_dropout', 0.5,
-	   'Dropout probability to the input of the final linear layer')
-cmd:text()
+parser:option(
+  '--cnn_spatial_dropout',
+  'Use spatial dropout at the input of each conv layer, instead of the ' ..
+  'regular dropout.',
+  {false}, toboolean)
+  :argname('<bool>')
+  :args('+')
+  :overwrite(false)
 
-cmd:text('Arguments:')
-cmd:argument('input_channels', 'Number of channels of the input images')
-cmd:argument('input_height', 'Height of the input images')
-cmd:argument('output_size',
-	     'Number of output symbols (if you are going to use the CTC ' ..
-             'loss include one additional element!)')
-cmd:argument('output_file', 'Output file to store the model')
-cmd:text()
-local opt = cmd:parse(arg or {})
-print('Model hyperparameters: ', opt)
+parser:option(
+  '--cnn_num_features', 'Number of feature maps in each conv layer, n > 0',
+  {16, 16, 32, 32}, laia.toint)
+  :argname('<n>')
+  :args('+')
+  :overwrite(false)
+  :gt(0)            -- Number of features must be > 0
 
-local cnn_num_features = string.split(opt.cnn_num_features)
-local cnn_kernel_size = string.split(opt.cnn_kernel_size)
-local cnn_maxpool_size = string.split(opt.cnn_maxpool_size)
-local cnn_batch_norm = string.split(opt.cnn_batch_norm)
-local cnn_type = string.split(opt.cnn_type)
-local cnn_dropout = string.split(opt.cnn_dropout)
-local cnn_spatial_dropout = string.split(opt.cnn_spatial_dropout)
-opt.input_channels = tonumber(opt.input_channels)
-opt.input_height = tonumber(opt.input_height)
-opt.output_size = tonumber(opt.output_size)
-opt.rnn_dropout = tonumber(opt.rnn_dropout)
-opt.rnn_layers = tonumber(opt.rnn_layers)
-opt.rnn_units = tonumber(opt.rnn_units)
-opt.seed = tonumber(opt.seed)
+parser:option(
+  '--cnn_maxpool_size', 'MaxPooling size after each conv layer. Separate ' ..
+  'each dimension with commas.',
+  {{2,2}, {2,2}, {0}, {2,2}}, laia.tolistint)
+  :argname('<size>')
+  :args('+')
+  :overwrite(false)
+  :assert(function(t) return table.all(t, function(x) return x >= 0 end) end)
+  :tostring(function(x) return table.concat(table.map(x, tostring), ',') end)
 
--- Number of conv layers determined by the number of elements in the
--- -cnn_num_features option.
-local cnn_layers = #cnn_num_features
+parser:option(
+  '--cnn_kernel_size', 'Kernel size of each conv layer. Separate each ' ..
+  'dimension with commas.',
+  {{3,3}, {3,3}, {3,3}, {3,3}}, laia.tolistint)
+  :argname('<size>')
+  :args('+')
+  :overwrite(false)
+  :assert(function(t) return table.all(t, function(x) return x > 0 end) end)
+  :tostring(function(x) return table.concat(table.map(x, tostring), ',') end)
 
--- Check that the specified parameters make sense
-assert(cnn_layers == 0 or #cnn_kernel_size > 0,
-       'You must specify at least one kernel size')
-assert(cnn_layers == 0 or #cnn_type > 0,
-       'You must specify at least one activation function for the ' ..
-       'convolutional layers')
-if #cnn_maxpool_size == 0 then cnn_maxpool_size = { '0' } end
-if #cnn_batch_norm == 0 then cnn_batch_norm = { 'false' } end
-if #cnn_dropout == 0 then cnn_dropout = { '0' } end
-assert(cnn_layers == 0 or #cnn_kernel_size <= cnn_layers,
-       'You specified more kernel sizes than convolutional layers!')
-assert(cnn_layers == 0 or #cnn_maxpool_size <= cnn_layers,
-       'You specified more max pooling sizes than convolutional layers!')
-assert(cnn_layers == 0 or #cnn_batch_norm <= cnn_layers,
-       'You specified more batch norm layers than convolutional layers!')
-assert(cnn_layers == 0 or #cnn_type <= cnn_layers,
-       'You specified more activation types than convolutional layers!')
-assert(cnn_layers == 0 or #cnn_dropout <= cnn_layers,
-       'You specified more dropout values than convolutional layers!')
-assert(cnn_layers == 0 or #cnn_spatial_dropout <= cnn_layers,
-       'You specified more spatial dropout values than convolutional layers!')
--- Ensure that all options for the convolutional layers have the same
--- size (equal to the number of specified layers). The last option in a list
--- is copied to extend the list until a size of cnn_layers is achieved.
-table.extend_with_last_element(cnn_kernel_size, cnn_layers)
-table.extend_with_last_element(cnn_maxpool_size, cnn_layers)
-table.extend_with_last_element(cnn_batch_norm, cnn_layers)
-table.extend_with_last_element(cnn_type, cnn_layers)
-table.extend_with_last_element(cnn_dropout, cnn_layers)
-table.extend_with_last_element(cnn_spatial_dropout, cnn_layers)
--- Convert lists of strings to appropiate types and sizes
-cnn_dropout = table.map(cnn_dropout, tonumber)
-cnn_num_features = table.map(cnn_num_features, tonumber)
-cnn_kernel_size = table.map(cnn_kernel_size, function(x)
-  -- Each element in the kernel sizes list must be a pair of integers
-  local t = table.map(string.split(x, '[^,]+'), tonumber)
-  table.extend_with_last_element(t, 2)
-  return t
-end)
-cnn_maxpool_size = table.map(cnn_maxpool_size, function(x)
-  -- Each element in the maxpool sizes list must be a pair of integers
-  local t = table.map(string.split(x, '[^,]+'), tonumber)
-  table.extend_with_last_element(t, 2)
-  return t
-end)
-cnn_batch_norm = table.map(cnn_batch_norm,
-			   function(x) return x == 'true'end)
-cnn_spatial_dropout = table.map(cnn_spatial_dropout,
-				function(x) return x == 'true'end)
+parser:option(
+  '--cnn_type',
+  'Type of the activation function in each conv layer, valid types are ' ..
+  'relu, tanh, prelu, rrelu, leakyrelu, softplus.',
+  {'relu'}, {relu = 'relu',
+	     tanh = 'tanh',
+	     prelu = 'prelu',
+	     rrelu = 'rrelu',
+	     leakyrelu = 'leakyrelu',
+	     softplus = 'softplus'})
+  :argname('<type>')
+  :args('+')
+  :overwrite(false)
+
+parser:option(
+  '--rnn_dropout',
+  'Dropout probability at the input of each recurrent layer, 0 <= p < 1.',
+  0.5, tonumber)
+  :argname('<p>')
+  :overwrite(false)
+  :ge(0.0):lt(1.0)
+
+parser:option(
+  '--rnn_num_layers',
+  'Number of recurrent layers, n > 0.', 3, laia.toint)
+  :argname('<n>')
+  :overwrite(false)
+  :gt(0)
+
+parser:option(
+  '--rnn_num_units',
+  'Number of units the recurrent layers, n > 0.', 256, laia.toint)
+  :argname('<n>')
+  :overwrite(false)
+  :gt(0)
+
+parser:option(
+  '--rnn_type',
+  'Type of the recurrent layers, valid types are blstm, bgru.',
+  'blstm', {blstm = 'blstm', bgru = 'bgru'})
+  :argname('<type>')
+  :overwrite(false)
+
+parser:option(
+  '--linear_dropout',
+  'Dropout probability at the input of the final linear layer, 0 <= p < 1.',
+  0.5, tonumber)
+  :argname('<p>')
+  :overwrite(false)
+  :ge(0.0):lt(1.0)
+
+parser:option(
+  '-s --seed', 'Seed for random numbers generation.',
+  0x012345, laia.toint)
+  :overwrite(false)
+
+-- Arguments
+parser:argument(
+  'input_channels', 'Number of channels of the input images.')
+  :convert(laia.toint)
+  :gt(0)
+parser:argument(
+  'input_height', 'Height of the input images.')
+  :convert(laia.toint)
+  :gt(0)
+parser:argument(
+  'output_size',
+  'Number of output symbols. If you are going to use the CTC ' ..
+  'loss include one additional element!')
+  :convert(laia.toint)
+  :gt(0)
+parser:argument(
+  'output_file', 'Output file to store the model')
+
+-- Register logging options
+laia.log.registerOptions(parser)
+
+local opt = parser:parse()
+
+-- The number of conv layers is determined by the number of elements in the
+-- --cnn_num_features option.
+local cnn_layers = #opt.cnn_num_features
+
+-- Ensure that all options for the convolutional layers have the same length
+-- (equal to the number of specified layers). The last option in a list is
+-- copied to extend the list until a size of cnn_layers is achieved.
+table.append_last(opt.cnn_kernel_size, cnn_layers - #opt.cnn_kernel_size)
+table.append_last(opt.cnn_maxpool_size, cnn_layers - #opt.cnn_maxpool_size)
+table.append_last(opt.cnn_batch_norm, cnn_layers - #opt.cnn_batch_norm)
+table.append_last(opt.cnn_type, cnn_layers - #opt.cnn_type)
+table.append_last(opt.cnn_dropout, cnn_layers - #opt.cnn_dropout)
+table.append_last(opt.cnn_spatial_dropout,
+		  cnn_layers - #opt.cnn_spatial_dropout)
+
+-- Kernel sizes must be pairs of integers
+opt.cnn_kernel_size = table.map(
+  opt.cnn_kernel_size, function(x) return table.append_last(x, 2 - #x) end)
+
+-- Maxpool sizes must be pairs of integers
+opt.cnn_maxpool_size = table.map(
+  opt.cnn_maxpool_size, function(x) return table.append_last(x, 2 - #x) end)
 
 -- Initialize random seeds
-torch.manualSeed(opt.seed)
-cutorch.manualSeed(opt.seed)
+laia.manualSeed(opt.seed)
 
 -- Auxiliar function that creates convolutional block
-function convBlock(depth_in, depth_out,  -- Input & output channels/filters
-		   kernel_w, kernel_h,   -- Size of the convolution kernels
-		   pool_w, pool_h,       -- Size of the pooling windows
-		   activation, batch_norm, dropout, spatial_dropout)
+local function convBlock(
+    depth_in, depth_out,  -- Input & output channels/filters
+    kernel_w, kernel_h,   -- Size of the convolution kernels
+    pool_w, pool_h,       -- Size of the pooling windows
+    activation, batch_norm, dropout, spatial_dropout)
   activation = activation or 'relu'
   batch_norm = batch_norm or false
   dropout = dropout or 0
@@ -145,20 +194,20 @@ function convBlock(depth_in, depth_out,  -- Input & output channels/filters
   end
   -- Spatial 2D convolution. Image is padded with zeroes so that the output
   -- has the same size as the input / stride.
-  block:add(cudnn.SpatialConvolution(
+  block:add(nn.SpatialConvolution(
 	      depth_in, depth_out,
 	      kernel_w, kernel_h,
 	      1, 1,
 	      (kernel_w - 1) / 2, (kernel_h - 1) / 2))
   -- Batch normalization
   if batch_norm then
-    block:add(cudnn.SpatialBatchNormalization(depth_out))
+    block:add(nn.SpatialBatchNormalization(depth_out))
   end
   -- Activation function
   if activation == 'relu' then
-    block:add(cudnn.ReLU(true))
+    block:add(nn.ReLU(true))
   elseif activation == 'tanh' then
-    block:add(cudnn.Tanh())
+    block:add(nn.Tanh())
   elseif activation == 'leakyrelu' then
     block:add(nn.LeakyReLU(true))
   elseif activation == 'softplus' then
@@ -177,7 +226,7 @@ function convBlock(depth_in, depth_out,  -- Input & output channels/filters
   return block
 end
 
-function computeSizeAfterPooling(input_size, pool_size)
+local function computeSizeAfterPooling(input_size, pool_size)
   if pool_size < 2 then
     return input_size
   else
@@ -191,32 +240,40 @@ local curr_h = opt.input_height
 local curr_c = opt.input_channels
 -- Append convolutional layer blocks
 for i=1,cnn_layers do
-  model:add(convBlock(curr_c, cnn_num_features[i],
-		      cnn_kernel_size[i][1], cnn_kernel_size[i][2],
-		      cnn_maxpool_size[i][1], cnn_maxpool_size[i][2],
-		      cnn_type[i], cnn_batch_norm[i], cnn_dropout[i],
-		      cnn_spatial_dropout[i]))
-  curr_h = computeSizeAfterPooling(curr_h, cnn_maxpool_size[i][2])
-  curr_c = cnn_num_features[i]
+  model:add(convBlock(curr_c, opt.cnn_num_features[i],
+		      opt.cnn_kernel_size[i][1], opt.cnn_kernel_size[i][2],
+		      opt.cnn_maxpool_size[i][1], opt.cnn_maxpool_size[i][2],
+		      opt.cnn_type[i], opt.cnn_batch_norm[i],
+		      opt.cnn_dropout[i], opt.cnn_spatial_dropout[i]))
+  curr_h = computeSizeAfterPooling(curr_h, opt.cnn_maxpool_size[i][2])
+  curr_c = opt.cnn_num_features[i]
 end
 -- Append recurrent layers
 local rnn_input_dim = curr_c * curr_h
-model:add(nn.Transpose({2,4},{1,2}))
-model:add(nn.Contiguous())
-model:add(nn.Reshape(-1, rnn_input_dim, true))
+-- Convert images to 1D sequences by processing columns of the image as the
+-- sequence elements.
+model:add(laia.nn.ImageColumnSequence())
+-- Append recurrent layers
 if opt.rnn_type == 'blstm' then
-  model:add(cudnn.BLSTM(rnn_input_dim, opt.rnn_units, opt.rnn_layers, false,
-			opt.rnn_dropout))
+  model:add(cudnn.BLSTM(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers,
+			false, opt.rnn_dropout))
 else
-  model:add(cudnn.BGRU(rnn_input_dim, opt.rnn_units, opt.rnn_layers, false,
-		       opt.rnn_dropout))
+  model:add(cudnn.BGRU(rnn_input_dim, opt.rnn_num_units, opt.rnn_num_layers,
+		       false, opt.rnn_dropout))
 end
-model:add(nn.Contiguous())
-model:add(nn.Reshape(-1, opt.rnn_units * 2, false))
+-- Linear projection of each timestep and batch sample (LxNxD -> (LN)xD)
+model:add(nn.Reshape(-1, opt.rnn_num_units * 2, false))
 if opt.linear_dropout > 0 then
-  model:add(nn.Dropout(linear_dropout))
+  model:add(nn.Dropout(opt.linear_dropout))
 end
-model:add(nn.Linear(opt.rnn_units * 2, opt.output_size))
+model:add(nn.Linear(opt.rnn_num_units * 2, opt.output_size))
+
+-- Put everything on the CPU before saving.
+-- TODO(jpuigcerver): BLSTM/BGRU have no CPU implementation, if one tries to use
+-- this model without making a cuda() conversion, the program will crash.
+-- However, it's better to store all weights in the CPU just in case these
+-- implimentations are provided at some point.
+model:float()
 
 -- Save model to disk
 local checkpoint = {
@@ -224,3 +281,8 @@ local checkpoint = {
   model_opt = opt
 }
 torch.save(opt.output_file, checkpoint)
+
+local p, _ = model:getParameters()
+laia.log.info('\n' .. model:__tostring__())
+laia.log.info('Saved model with %d parameters to %q',
+	      p:nElement(), opt.output_file)

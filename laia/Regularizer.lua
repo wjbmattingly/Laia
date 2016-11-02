@@ -13,8 +13,8 @@ end
 function Regularizer:registerOptions(parser)
 end
 
-function Regularizer:setOptions(opts)
-  table.update_values(self._opt, opts)
+function Regularizer:setOptions(opt)
+  if opt then table.update(self._opt, opt, false) end
   self:checkOptions()
 end
 

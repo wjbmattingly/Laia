@@ -18,19 +18,19 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ -f train.log ] && cp train.log train.log.bck;
 
 ../../create_model.lua \
-    -cnn_type leakyrelu \
-    -cnn_num_features "16 16 32 32" \
-    -cnn_kernel_size  "3 3 3 3" \
-    -cnn_maxpool_size "2 2 2 0" \
-    -cnn_batch_norm false \
-    -cnn_dropout 0 \
-    -rnn_type blstm \
-    -rnn_layers 3 \
-    -rnn_units 256 \
-    -rnn_dropout 0.5 \
-    -linear_dropout 0.5 \
-    -seed 74565 \
-    1 96 79 model.t7;
+    --cnn_type leakyrelu \
+    --cnn_num_features "16 16 32 32" \
+    --cnn_kernel_size  "3 3 3 3" \
+    --cnn_maxpool_size "2 2 2 0" \
+    --cnn_batch_norm false \
+    --cnn_dropout 0 \
+    --rnn_type blstm \
+    --rnn_num_layers 3 \
+    --rnn_num_units 256 \
+    --rnn_dropout 0.5 \
+    --linear_dropout 0.5 \
+    --seed 74565 \
+    -- 1 96 79 model.t7;
 
 ../../train.lua \
     -batch_size "$batch_size" \

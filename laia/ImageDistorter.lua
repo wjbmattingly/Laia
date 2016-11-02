@@ -44,7 +44,7 @@ function ImageDistorter:registerOptions(parser)
     '--distort_scale_prob',
     'Probability of scaling an image. Scaling is relative to the center of ' ..
       'the image and the scaling factor is sampled from a log-normal ' ..
-      'distribution (see --distort_scale_stdv).',
+      'distribution with zero mean (see --distort_scale_stdv).',
     self._opt.scale_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
@@ -61,9 +61,8 @@ function ImageDistorter:registerOptions(parser)
   parser:option(
     '--distort_shear_prob',
     'Probability of applying horizontal shear to an image. The shear angle ' ..
-      '(in radians) is sampled from a von Mises distribution (see ' ..
-      '--distort_shear_prec).',
-    self._opt.shear_prob, tonumber)
+      '(in radians) is sampled from a von Mises distribution with zero ' ..
+      'mean (see --distort_shear_prec).', self._opt.shear_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
     :ge(0.0):le(1.0)
@@ -81,8 +80,8 @@ function ImageDistorter:registerOptions(parser)
     '--distort_translate_prob',
     'Probability of applying a translation to an image. The translation is ' ..
       'relative to the dimension size and it is sampled from a normal ' ..
-      'distribution (see --distort_translate_stdv).', self._opt.translate_prob,
-    tonumber)
+      'distribution with zero mean (see --distort_translate_stdv).',
+    self._opt.translate_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
     :ge(0.0):le(1.0)
@@ -102,8 +101,8 @@ function ImageDistorter:registerOptions(parser)
     '--distort_rotate_prob',
     'Probability of applying a rotation to an image. The rotation angle (in ' ..
       'radians) is relative to the maximum aspect ratio of the image and it ' ..
-      'is sampled from a von Mises distribution (see --distort_rotate_prec).',
-    self._opt.rotate_prob, tonumber)
+      'is sampled from a von Mises distribution with zero mean ' ..
+      '(see --distort_rotate_prec).', self._opt.rotate_prob, tonumber)
     :argname('<p>')
     :overwrite(false)
     :ge(0.0):le(1.0)
@@ -177,7 +176,7 @@ function ImageDistorter:registerOptions(parser)
 end
 
 function ImageDistorter:setOptions(opt)
-  table.update_values(self._opt, opt)
+  if opt then table.update(self._opt, opt, false) end
   self:checkOptions()
 end
 
@@ -207,7 +206,16 @@ end
 function ImageDistorter:distort(x, sizes, y)
   assert(x:nDimension() == 4, 'Input to ImageDistorter must be a 4-dim ' ..
 	   'tensor with NCHW layout.')
-  local x = x:clone():cuda()
+  -- All data must be in the GPU!
+  local x_type = torch.type(x)
+  if x_type ~= 'torch.CudaTensor' then
+    laia.log.warn(
+      'Distortions are only implemented on the GPU, data will be transfered ' ..
+	'to the GPU. If you badly need distortions running on the CPU, ' ..
+	'report a new issue to ' ..
+	'https://github.com/jpuigcerver/imgdistort/issues')
+  end
+  local x = x:cuda()
   y = y and y:resizeAs(x):cuda():zero() or x:clone():zero()
   -- Affine distortion
   local N, H, W = x:size()[1], x:size()[3], x:size()[4]
@@ -226,6 +234,7 @@ function ImageDistorter:distort(x, sizes, y)
     x, y = y, x
     erode_NCHW(x, y, M)
   end
+  y = y:type(x_type)
   return y
 end
 

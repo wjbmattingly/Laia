@@ -104,7 +104,7 @@ for f in $(awk '{print $1}' data/lang/chars/train.txt data/lang/chars/test.txt);
 	echo "Slope: $slope";
 	echo "Slant: $slant";
 	echo "Remove white borders2: $trim2";
-    ) &> data/imgs_proc/$f.log
+    ) &> data/imgs_proc/$f.log &
     bkg_pids+=("$!");
     bkg_errs+=("data/imgs_proc/$f.log");
     if [ "${#bkg_pids[@]}" -eq "$np" ]; then

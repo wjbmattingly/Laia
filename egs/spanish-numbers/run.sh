@@ -24,8 +24,8 @@ mkdir -p data/;
 ./steps/prepare.sh --overwrite "$overwrite";
 
 create_model.lua \
-  -cnn_type leakyrelu \
-  1 64 20 model.t7;
+  --cnn_type leakyrelu \
+  -- 1 64 20 model.t7;
 
 train.lua \
   -batch_size "$batch_size" \
