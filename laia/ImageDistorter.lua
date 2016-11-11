@@ -1,10 +1,12 @@
+require 'laia.ClassWithOptions'
 require 'imgdistort'
 require 'pl'
 
-local ImageDistorter = torch.class('laia.ImageDistorter')
+local ImageDistorter, Parent = torch.class('laia.ImageDistorter',
+					   'laia.ClassWithOptions')
 
 function ImageDistorter:__init()
-  self._opt = {
+  Parent.__init(self, {
     -- Scale parameters. Scaling is applied at the center of the image.
     -- Log-normal distribution with mean 0.
     scale_prob = 0.5,
@@ -35,28 +37,29 @@ function ImageDistorter:__init()
     erode_prob = 0.5,
     erode_srate = 0.8,
     erode_rrate = 1.2
-  }
+  })
 end
 
-function ImageDistorter:registerOptions(parser)
+function ImageDistorter:registerOptions(parser, advanced)
+  advanced = advanced or false
   -- Scale parameters. Scaling is applied at the center of the image.
-  parser:option(
+  local a = parser:option(
     '--distort_scale_prob',
     'Probability of scaling an image. Scaling is relative to the center of ' ..
       'the image and the scaling factor is sampled from a log-normal ' ..
       'distribution with zero mean (see --distort_scale_stdv).',
     self._opt.scale_prob, tonumber)
     :argname('<p>')
-    :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'scale_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_scale_stdv', 'Standard deviation of the log of the scaling ' ..
       'factor.', self._opt.scale_stdv, tonumber)
     :argname('<s>')
-    :overwrite(false)
     :gt(0.0)
     :bind(self._opt, 'scale_stdv')
+    :advanced(advanced)
   -- Horizontal shear parameters.
   parser:option(
     '--distort_shear_prob',
@@ -64,16 +67,16 @@ function ImageDistorter:registerOptions(parser)
       '(in radians) is sampled from a von Mises distribution with zero ' ..
       'mean (see --distort_shear_prec).', self._opt.shear_prob, tonumber)
     :argname('<p>')
-    :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'shear_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_shear_prec', 'Precision of the shear angle (rad).',
     self._opt.shear_prec, tonumber)
     :argname('<k>')
-    :overwrite(false)
     :ge(0.0)
     :bind(self._opt, 'shear_prec')
+    :advanced(advanced)
   -- Translate parameters. Translation is relative to the size in each
   -- dimension.
   parser:option(
@@ -83,9 +86,9 @@ function ImageDistorter:registerOptions(parser)
       'distribution with zero mean (see --distort_translate_stdv).',
     self._opt.translate_prob, tonumber)
     :argname('<p>')
-    :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'translate_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_translate_stdv',
     'Standard deviation of the translation across each dimension ' ..
@@ -93,8 +96,8 @@ function ImageDistorter:registerOptions(parser)
     tonumber)
     :argname('<s>')
     :gt(0.0)
-    :overwrite(false)
     :bind(self._opt, 'translate_stdv')
+    :advanced(advanced)
   -- Rotate parameters. Rotation is applied at the center of the image.
   -- Rotation is relative to the maximum aspect ratio, i.e: max(W/H, H/W).
   parser:option(
@@ -104,17 +107,17 @@ function ImageDistorter:registerOptions(parser)
       'is sampled from a von Mises distribution with zero mean ' ..
       '(see --distort_rotate_prec).', self._opt.rotate_prob, tonumber)
     :argname('<p>')
-    :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'rotate_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_rotate_prec',
     'Precision of the rotation angle (rad), actual used precision is ' ..
       'k\' = k * max(H/W, W/H).', self._opt.rotate_prec, tonumber)
     :argname('<k>')
     :ge(0.0)
-    :overwrite(false)
     :bind(self._opt, 'rotate_prec')
+    :advanced(advanced)
   -- Dilate parameters.
   parser:option(
     '--distort_dilate_prob',
@@ -123,8 +126,8 @@ function ImageDistorter:registerOptions(parser)
       'and --distort_dilate_rrate).', self._opt.dilate_prob, tonumber)
     :argname('<p>')
     :ge(0.0):lt(1.0)
-    :overwrite(false)
     :bind(self._opt, 'dilate_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_dilate_srate',
     'Rate of the geometric distribution used to sample the size of the size ' ..
@@ -133,8 +136,8 @@ function ImageDistorter:registerOptions(parser)
       'proportional to r * (1 - r)^(s - 3).', self._opt.dilate_srate, tonumber)
     :argname('<r>')
     :ge(0.0):le(1.0)
-    :overwrite(false)
     :bind(self._opt, 'dilate_srate')
+    :advanced(advanced)
   parser:option(
     '--distort_dilate_rrate',
     'An element of the dilate kernel at an euclidean distance of d from the ' ..
@@ -142,8 +145,8 @@ function ImageDistorter:registerOptions(parser)
       'exp(-d * r).', self._opt.dilate_rrate, tonumber)
     :argname('<r>')
     :ge(0.0)
-    :overwrite(false)
     :bind(self._opt, 'dilate_rrate')
+    :advanced(advanced)
   -- Erode parameters.
   parser:option(
     '--distort_erode_prob',
@@ -152,8 +155,8 @@ function ImageDistorter:registerOptions(parser)
       'and --distort_erode_rrate).', self._opt.erode_prob, tonumber)
     :argname('<p>')
     :ge(0.0):lt(1.0)
-    :overwrite(false)
     :bind(self._opt, 'erode_prob')
+    :advanced(advanced)
   parser:option(
     '--distort_erode_srate',
     'Rate of the geometric distribution used to sample the size of the size ' ..
@@ -162,8 +165,8 @@ function ImageDistorter:registerOptions(parser)
       'proportional to (1 - r)^(s - 3) * r.', self._opt.erode_srate, tonumber)
     :argname('<r>')
     :ge(0.0):le(1.0)
-    :overwrite(false)
     :bind(self._opt, 'erode_srate')
+    :advanced(advanced)
   parser:option(
     '--distort_erode_rrate',
     'An element of the erode kernel at an euclidean distance of d from the ' ..
@@ -171,13 +174,8 @@ function ImageDistorter:registerOptions(parser)
       'exp(-d * r).', self._opt.erode_rrate, tonumber)
     :argname('<r>')
     :ge(0.0)
-    :overwrite(false)
     :bind(self._opt, 'erode_rrate')
-end
-
-function ImageDistorter:setOptions(opt)
-  if opt then table.update(self._opt, opt, false) end
-  self:checkOptions()
+    :advanced(advanced)
 end
 
 function ImageDistorter:checkOptions()

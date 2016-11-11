@@ -1,5 +1,7 @@
-local AdversarialRegularizer, Parent =
-  torch.class('laia.AdversarialRegularizer', 'laia.Regularizer')
+require 'laia.ClassWithOptions'
+
+local AdversarialRegularizer, Parent = torch.class(
+  'laia.AdversarialRegularizer', 'laia.ClassWithOptions')
 
 function AdversarialRegularizer:__init()
   Parent.__init(self)
@@ -44,23 +46,24 @@ end
 -- are parsed the internal variables are directly updated.
 -- Note: observe that the options will not be part of the parsed options, since
 -- the action does not register them in result table.
-function AdversarialRegularizer:registerOptions(parser)
+function AdversarialRegularizer:registerOptions(parser, advanced)
+  advanced = advanced or false
   parser:option(
     '--adversarial_weight',
-    'Weight of the adversarial samples during training', 0.0,
+    'Weight of the adversarial samples during training.', 0.0,
     tonumber)
     :argname('<weight>')
-    :overwrite(false)
     :ge(0.0):le(1.0)
     :bind(self._opt, 'adversarial_weight')
+    :advanced(advanced)
   parser:option(
     '--adversarial_epsilon',
-    'Maximum differences in the adversarial samples', 0.007,
+    'Maximum differences in the adversarial samples.', 0.0019,
     tonumber)
     :argname('<eps>')
-    :overwrite(false)
     :ge(0.0)
     :bind(self._opt, 'adversarial_epsilon')
+    :advanced(advanced)
 end
 
 function AdversarialRegularizer:checkOptions()

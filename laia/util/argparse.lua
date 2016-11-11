@@ -220,18 +220,27 @@ local add_help = {
 
     if value then
       local help = self:flag()
-	:description "Show this help message and exit."
+	:description "Show the help message and exit."
 	:action(function()
-	    print(self:get_help())
+	    print(self:get_help(false))
+	    os.exit(0)
+	       end)
+
+      local fullhelp = self:flag()
+	:description "Show the help message with advanced options and exit."
+	:action(function()
+	    print(self:get_help(true))
 	    os.exit(0)
 	       end)
 
       if value ~= true then
 	help = help(value)
+	fullhelp = fullhelp(value)
       end
 
       if not help._name then
-	help "-h" "--help"
+	help "--help" "-h"
+	fullhelp "--help_full" "-H"
       end
 
       self._has_help = true
@@ -327,6 +336,7 @@ local Option = class(
     typechecked("show_default", "boolean"),
     typechecked("overwrite", "boolean"),
     typechecked("argname", "string", "table"),
+    typechecked("advanced", "boolean"),
     option_action,
     option_init
   }, Argument)
@@ -622,7 +632,8 @@ end
 local max_usage_width = 70
 local usage_welcome = "Usage: "
 
-function Parser:get_usage()
+function Parser:get_usage(advanced)
+  advanced = advanced or false
   if self._usage then
     return self._usage
   end
@@ -667,7 +678,8 @@ function Parser:get_usage()
 
   -- Second, put regular options
   for _, option in ipairs(self._options) do
-    if not mutex_options[option] and not option:_is_vararg() then
+    if not mutex_options[option] and not option:_is_vararg() and
+    advanced or not option._advanced then
       add(option:_get_usage())
     end
   end
@@ -722,12 +734,13 @@ local function make_two_columns(s1, s2)
   end
 end
 
-function Parser:get_help()
+function Parser:get_help(advanced)
+  advanced = advanced or false
   if self._help then
     return self._help
   end
 
-  local blocks = {self:get_usage()}
+  local blocks = {self:get_usage(advanced)}
 
   if self._description then
     table.insert(blocks, self._description)
@@ -740,8 +753,10 @@ function Parser:get_help()
       local buf = {labels[i]}
 
       for _, element in ipairs(elements) do
-	table.insert(buf, make_two_columns(element:_get_label(),
-					   element:_get_description()))
+	if advanced or not element._advanced then
+	  table.insert(buf, make_two_columns(element:_get_label(),
+					     element:_get_description()))
+	end
       end
 
       table.insert(blocks, table.concat(buf, "\n"))
@@ -1259,6 +1274,7 @@ function Argument:bind(tab, key)
   assert(type(tab) == 'table')
   assert(key ~= nil and (type(key) == 'string' or type(key) == 'number'))
   self._bind = function(val) tab[key] = val end
+  return self
 end
 
 function Argument:assert(func)

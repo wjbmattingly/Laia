@@ -60,7 +60,9 @@ function laia.tolistint(x)
   local rx = {}
   for _, v in ipairs(sx) do
     local v2 = laia.toint(v)
-    if v2 == nil then return nil, ('value %q is not an integer'):format(tostring(v)) end
+    if v2 == nil then
+      return nil, ('value %q is not an integer'):format(tostring(v))
+    end
     table.insert(rx, v2)
   end
   return rx

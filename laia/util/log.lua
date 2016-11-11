@@ -49,7 +49,8 @@ local modes = {
 }
 
 -- Utility function to register logging options, common to all tools.
-log.registerOptions = function(parser)
+log.registerOptions = function(parser, advanced)
+  advanced = advanced or false
   local loglevels = {
     ['trace'] = 'trace',
     ['debug'] = 'debug',
@@ -60,27 +61,27 @@ log.registerOptions = function(parser)
   }
   -- loglevel, binds value directly to log.loglevel
   parser:option(
-    '--loglevel',
+    '--log_level',
     'All log messages bellow this level are ignored. Valid levels are ' ..
       'trace, debug, info, warn, error, fatal.', log.loglevel, loglevels)
     :argname('<level>')
-    :overwrite(false)
     :bind(log, 'loglevel')
+    :advanced(advanced)
   -- logfile, binds value directly to log.logfile
   parser:option(
-    '--logfile',
+    '--log_file',
     'Write log messages to this file instead of stderr.')
     :argname('<file>')
-    :overwrite(false)
     :bind(log, 'logfile')
+    :advanced(advanced)
   -- logalsostderr, binds value directly to log.logstderrthreshold
   parser:option(
-    '--logalsostderr',
+    '--log_also_to_stderr',
     'Copy log messages at or above this level to stderr in addition to the ' ..
       'logfile.', log.logstderrthreshold, loglevels)
     :argname('<level>')
-    :overwrite(false)
     :bind(log, 'logstderrthreshold')
+    :advanced(advanced)
 end
 
 

@@ -1,5 +1,7 @@
-local WeightDecayRegularizer, Parent =
-  torch.class('laia.WeightDecayRegularizer', 'laia.Regularizer')
+require 'laia.ClassWithOptions'
+
+local WeightDecayRegularizer, Parent = torch.class(
+  'laia.WeightDecayRegularizer', 'laia.ClassWithOptions')
 
 function WeightDecayRegularizer:__init()
   Parent.__init(self)
@@ -37,21 +39,24 @@ end
 -- are parsed the internal variables are directly updated.
 -- Note: observe that the options will not be part of the parsed options, since
 -- the action does not register them in result table.
-function WeightDecayRegularizer:registerOptions(parser)
-  parser:option('--weight_l1_decay',
-		'L1 regularization factor, applied to ALL trainable parameters',
-		0.0, tonumber)
+function WeightDecayRegularizer:registerOptions(parser, advanced)
+  advanced = advanced or false
+  parser:option(
+    '--weight_l1_decay',
+    'L1 regularization factor, applied to ALL trainable parameters.',
+    0.0, tonumber)
     :argname('<weight>')
-    :overwrite(false)
     :ge(0.0)
     :bind(self._opt, 'weight_l1_decay')
-  parser:option('--weight_l2_decay',
-		'L2 regularization factor, applied to ALL trainable parameters',
-		0.0, tonumber)
+    :advanced(advanced)
+  parser:option(
+    '--weight_l2_decay',
+    'L2 regularization factor, applied to ALL trainable parameters.',
+    0.0, tonumber)
     :argname('<weight>')
-    :overwrite(false)
     :ge(0.0)
     :bind(self._opt, 'weight_l2_decay')
+    :advanced(advanced)
 end
 
 function WeightDecayRegularizer:checkOptions()

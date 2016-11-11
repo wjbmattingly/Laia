@@ -1,0 +1,346 @@
+require 'laia'
+require 'optim'
+
+local ctc_trainer = laia.CTCTrainer()
+local train_batcher = laia.RandomBatcher()
+local valid_batcher = laia.RandomBatcher()
+local distorter = laia.ImageDistorter and laia.ImageDistorter()
+local weight_decay_regularizer = laia.WeightDecayRegularizer()
+local adversarial_regularizer  = laia.AdversarialRegularizer()
+local epoch_summarizer = laia.EpochSummarizer()
+local progress_table = laia.ProgressTable()
+
+local parser = laia.argparse(){
+  name = 'train_ctc',
+  description = ''
+}
+
+-- train_ctc arguments
+parser:argument('checkpoint', 'Input model or checkpoint for training.')
+parser:argument('symbols_table', 'Table mapping from symbols to integer IDs.')
+parser:argument('train_img', 'List of training image files.')
+parser:argument('train_txt', 'Table of training image transcripts.')
+parser:argument('valid_img', 'List of validation image files.'):args('?')
+parser:argument('valid_txt', 'Table of validation image transcripts.'):args('?')
+
+-- train_ctc options
+parser:option(
+  '--seed -s', 'Seed for random numbers generation.',
+  0x012345, laia.toint)
+parser:option(
+  '--gpu', 'If gpu>0, uses the specified GPU, otherwise uses the CPU.',
+  1, laia.toint)
+parser:option(
+  '--continue_train', 'If true, continue training from the last state.',
+  false, laia.toboolean)
+parser:option(
+  '--learning_rate', 'Initial learning rate.', 0.001, tonumber)
+  :gt(0.0)
+
+-- Optimization parameters.
+parser:option(
+  '--learning_rate_decay',
+  'Learning rate decay after each epoch (1.0 means no decay).', 1.0, tonumber)
+  :ge(0.0):le(1.0)
+parser:option(
+  '--learning_rate_decay_after',
+  'Start learning rate decay after this number of epochs.', 10, laia.toint)
+  :ge(1)
+parser:option(
+  '--rmsprop_alpha', 'RMSProp smoothing parameter.', 0.95, tonumber)
+  :argname('<alpha>')
+  :gt(0.0):lt(1.0)
+parser:option(
+  '--max_epochs', 'If n>0, the training will stop after at most n epochs.',
+  0, laia.toint)
+  :argname('<n>')
+  :ge(0)
+parser:option(
+  '--best_criterion', 'If not empty, use this criterion to choose the ' ..
+  'best model (e.g. for early stopping).', 'valid_cer',
+  { train_loss = 'train_loss', train_cer = 'train_cer',
+    valid_loss = 'valid_loss', valid_cer = 'valid_cer' })
+  :argname('<criterion>')
+parser:option(
+  '--max_epochs', 'If n>0, training will continue for, at most, n epochs.',
+  0, laia.toint)
+  :argname('<n>')
+parser:option(
+  '--early_stop_epochs', 'If n>0, stop training after this number of epochs ' ..
+    'without a significant improvement, according to --best_criterion.' ..
+    'If n=0, early stopping will not be used.', 0, laia.toint)
+  :argname('<n>')
+parser:option(
+  '--early_stop_threshold', 'Minimum relative improvement threshold used ' ..
+  'for early stop. Relate improvement lower than this are not considered ' ..
+    'relevant; e.g.: 0.05 will consider significant improvements =>5%.',
+  0.0, tonumber)
+  :argname('<t>')
+  :ge(0.0)
+parser:option(
+  '--checkpoint_save_interval', 'Save a checkpoint to disk on every n ' ..
+    'epochs. Note: regardless of this, every time a better model is found, ' ..
+    'a checkpoint is saved.', 50, laia.toint)
+  :argname('<n>')
+  :gt(0)
+parser:option(
+  '--checkpoint_output', 'Save checkpoints to this file. If not given, ' ..
+    'the input checkpoint will be overwritten.', '')
+  :argname('<file>')
+parser:option(
+  '--progress_table_output', 'Save the progress of training after each ' ..
+    'epoch to this text file. Useful for plotting and monitoring.', '')
+  :argname('<file>')
+
+
+-- Register laia.log options
+laia.log.registerOptions(parser, true)
+-- Register cudnn options, only if available
+if cudnn then cudnn.registerOptions(parser, true) end
+-- Register batcher options (only for train_batcher, valid_batcher will use the
+-- same options).
+train_batcher:registerOptions(parser)
+-- CTC training options.
+ctc_trainer:registerOptions(parser)
+-- Register regularizers options.
+weight_decay_regularizer:registerOptions(parser, true)
+adversarial_regularizer:registerOptions(parser, true)
+-- Register distorter options.
+if distorter then distorter:registerOptions(parser, true) end
+epoch_summarizer:registerOptions(parser, true)
+-- Progress Table options
+progress_table:registerOptions(parser, true)
+
+-- Parse from command line
+local opts = parser:parse()
+
+-- Initialize random seeds
+laia.manualSeed(opts.seed)
+
+-- If validation specified, both images and transcripts are required.
+if opts.valid_img and not opts.valid_txt then
+  laia.log.warn('Ignoring validation partition: a list of images was given, ' ..
+		  'but not a list of transcripts.')
+  opts.valid_img = nil
+end
+
+local checkpoint = laia.Checkpoint():load(opts.checkpoint)
+local model = checkpoint:Last():getModel()
+
+-- If a GPU is requested, check that we have everything necessary.
+if opts.gpu > 0 then
+  assert(cutorch ~= nil, 'Package cutorch is required in order to use the GPU.')
+  assert(nn ~= nil, 'Package nn is required in order to use the GPU.')
+  cutorch.setDevice(opts.gpu)
+  model = model:cuda()
+  -- If cudnn_force_convert=true, force all possible layers to use cuDNN impl.
+  if cudnn and cudnn.force_convert then
+    laia.log.warn('Some layers in cuDNN are non-deterministic on the ' ..
+		    'backward pass. If 100% reproducible experiments are ' ..
+		    'required, use --cudnn_force_convert=false.')
+    cudnn.convert(model, cudnn)
+  end
+else
+  -- This should not be necessary, but just in case
+  model = model:float()
+end
+
+-- Load Laia RNGState from the checkpoint. Notice that if a RNGState is
+-- available in the chkpt, it will override the manual seed specified with
+-- the --seed option.
+laia.setRNGState(checkpoint:getRNGState())
+
+-- Prepare batchers
+train_batcher:load(opts.train_img, opts.train_txt, opts.symbols_table)
+if opts.valid_img and opts.valid_txt then
+  valid_batcher:setOptions(train_batcher:getOptions())
+  valid_batcher:load(opts.valid_img, opts.valid_txt, opts.symbols_table)
+else
+  valid_batcher = nil
+end
+
+-- Prepare CTC trainer
+ctc_trainer
+  :setModel(model)
+  :setTrainBatcher(train_batcher)
+  :setValidBatcher(valid_batcher)
+  :setDistorter(distorter)
+  :setWeightRegularizer(weight_decay_regularizer)
+  :setAdversarialRegularizer(adversarial_regularizer)
+  :setOptimizer(optim.rmsprop)
+  :start()
+
+local epoch = 0
+local rmsprop_opts = {
+  alpha = opts.rmsprop_alpha,
+  learningRate = opts.learning_rate
+}
+
+if opts.continue_train then
+  -- Continue training from the last epoch.
+  epoch = checkpoint:Last():getEpoch()
+  rmsprop_opts = checkpoint:getRMSPropState()
+  checkpoint:setTrainConfig(opts)
+else
+  -- Forget about the previous "best" model and results, if any.
+  checkpoint:Best():setModel(nil)
+  checkpoint:Best():setEpoch(0)
+  checkpoint:Best():addSummary('train', nil)
+  checkpoint:Best():addSummary('valid', nil)
+  checkpoint:setTrainConfig(opts)
+end
+
+-- If no validation data was passed but --best_criterion is supposed to use
+-- validation data, change the --best_criterion to use training data instead
+-- and report an ERROR to the user.
+if (not opts.valid_img or not opts.valid_txt) then
+  local m = opts.best_criterion:match('^valid_(.+)$')
+  if m ~= nil then
+    local new_criterion = 'train_' .. m
+    laia.log.error('You are trying to use --best_criterion=%s but no ' ..
+		 'validation data was provided. Criterion changed to: %q.',
+	       opts.best_criterion, new_criterion)
+    opts.best_criterion = new_criterion
+  end
+end
+
+if checkpoint:getTrainConfig() ~= nil and
+opts.best_criterion ~= checkpoint:getTrainConfig().best_criterion then
+  laia.log.warn('Current --best_criterion does not match the one used to ' ..
+		  'create the input checkpoint.')
+end
+
+-- At the end, get_criterion_value is a function that returns the value used
+-- to choose the "best" model, according to --best_criterion and the
+-- train/valid summaries.
+local get_criterion_value = {
+  train_cer  = function(train_summary, valid_summary)
+    if not train_summary then return nil end
+    return train_summary.cer
+  end,
+  train_loss = function(train_summary, valid_summary)
+    if not train_summary then return nil end
+    return train_summary.loss
+  end,
+  valid_cer  = function(train_summary, valid_summary)
+    if not valid_summary then return nil end
+    return valid_summary.cer
+  end,
+  valid_loss = function(train_summary, valid_summary)
+    if not valid_summary then return nil end
+    return valid_summary.loss
+  end
+}
+get_criterion_value = get_criterion_value[opts.best_criterion]
+
+-- Current best criterion value, or nil
+local best_criterion_value = get_criterion_value(
+  checkpoint:Best():getSummary('train'),
+  checkpoint:Best():getSummary('valid'))
+
+local early_stop_last_significant_epoch = epoch
+local early_stop_last_significant_value = best_criterion_value
+
+-- Open progress table
+if opts.progress_table_output ~= '' then
+  progress_table:open(
+    opts.progress_table_output,
+    epoch ~= 0 and io.open(opts.progress_table_output, 'r') ~= nil)
+end
+
+while opts.max_epochs <= 0 or epoch < opts.max_epochs do
+  if laia.SignalHandler.ExitRequested() then break end
+  -- Epoch starts at 0, when the model is created
+  epoch = epoch + 1
+
+  -- Apply learning rate decay
+  if epoch > opts.learning_rate_decay_after and
+  opts.learning_rate_decay < 1 then
+    rmsprop_opts.learningRate =
+      rmsprop_opts.learningRate * opts.learning_rate_decay
+  end
+
+  -- Train
+  local train_epoch_info = ctc_trainer:trainEpoch(rmsprop_opts)
+  if laia.SignalHandler.ExitRequested() then break end
+  local train_summary = epoch_summarizer:summarize(train_epoch_info)
+  laia.log.info('Epoch %d, train summary: %s',
+		  epoch, laia.EpochSummarizer.ToString(train_summary))
+
+  -- Valid (if possible)
+  local valid_epoch_info, valid_summary = nil, nil
+  if valid_batcher then
+    valid_epoch_info = ctc_trainer:validEpoch()
+    if laia.SignalHandler.ExitRequested() then break end
+    valid_summary = epoch_summarizer:summarize(valid_epoch_info)
+    laia.log.info('Epoch %d, valid summary: %s',
+		  epoch, laia.EpochSummarizer.ToString(valid_summary))
+  end
+
+  -- Determine whether or not the new model is better than the previous ones.
+  local current_criterion_value = get_criterion_value(
+    train_summary, valid_summary)
+  if best_criterion_value == nil or
+  current_criterion_value < best_criterion_value then
+    laia.log.info('Epoch %d, new better model according to criterion %q: ' ..
+		    '%f vs. %f (on epoch %d).',
+		  epoch, opts.best_criterion,
+		  current_criterion_value,
+		  best_criterion_value or math.huge,
+		  checkpoint:Best():getEpoch())
+    best_criterion_value = current_criterion_value
+    checkpoint:Best():setEpoch(epoch)
+    checkpoint:Best():setModel(model)
+    checkpoint:Best():addSummary('train', train_summary)
+    checkpoint:Best():addSummary('valid', valid_summary)
+  end
+
+  -- Save checkpoint: every --checkpoint_save_interval or when a new better
+  -- model is found.
+  if epoch % opts.checkpoint_save_interval == 0 or
+    checkpoint:Best():getEpoch() == epoch then
+      checkpoint:Last():setEpoch(epoch)
+      checkpoint:Last():setModel(model)
+      checkpoint:Last():addSummary('train', train_summary)
+      checkpoint:Last():addSummary('valid', valid_summary)
+      checkpoint:setRMSPropState(rmsprop_opts)
+      checkpoint:setRNGState(laia.getRNGState())
+      local checkpoint_filename = (opts.output_checkpoint ~= '' and
+				     opts.output_checkpoint) or opts.checkpoint
+      laia.log.info('Epoch %d, checkpoint saved to %q.',
+		    epoch, checkpoint_filename)
+      checkpoint:save(checkpoint_filename)
+  end
+
+  -- Write progress table row
+  if opts.progress_table_output ~= '' then
+    progress_table:write(epoch, train_summary, valid_summary,
+			 checkpoint:Best():getEpoch() == epoch)
+  end
+
+  -- Early stopping strategy: keep track of the last *significant* result
+  if early_stop_last_significant_value == nil or
+    ((early_stop_last_significant_value - best_criterion_value) /
+      early_stop_last_significant_value) > opts.early_stop_threshold then
+      laia.log.info(
+      'Epoch %d, new significantly better model according to %q criterion ' ..
+	'and relative threshold %.4f%%: %f vs. %f (on epoch %d).',
+      epoch, opts.best_criterion, opts.early_stop_threshold,
+      best_criterion_value,
+      early_stop_last_significant_value or math.huge,
+      early_stop_last_significant_epoch)
+    early_stop_last_significant_epoch = epoch
+    early_stop_last_significant_value = best_criterion_value
+  end
+  -- If the last significant result was achieved too long ago, stop.
+  if opts.early_stop_epochs > 0 and
+  epoch - early_stop_last_significant_epoch >= opts.early_stop_epochs then
+    laia.log.info('Epoch %d, last epoch with a significant improvement on ' ..
+		    '%q criterion was %d. Triggering early stop!',
+		  epoch, opts.best_criterion, early_stop_last_significant_epoch)
+    break;
+  end
+
+  -- Garbage collection from time to time.
+  if epoch % 50 == 0 then collectgarbage() end
+end

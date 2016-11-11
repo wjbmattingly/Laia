@@ -39,7 +39,7 @@ end
 -- Load symbols
 local symbols_table
 if opt.symbols_table then
-  symbols_table = read_symbols_table(opt.symbols_table)
+  _, _, symbols_table = laia.read_symbols_table(opt.symbols_table)
 end
 
 model:evaluate()
@@ -66,7 +66,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
   end
   -- Forward through network
   local output = model:forward(batch_img)
-  local batch_decode = framewise_decode(opt.batch_size, output)
+  local batch_decode = laia.framewise_decode(opt.batch_size, output)
   for i=1,opt.batch_size do
     n = n + 1
     -- Batch can contain more images

@@ -20,7 +20,6 @@ parser:option(
   {false, false, true, false}, toboolean)
   :argname('<bool>')  -- Placeholder
   :args('+')          -- Option with >= 1 arguments
-  :overwrite(false)   -- Option cannot be passed twice
 
 parser:option(
   '--cnn_dropout',
@@ -28,7 +27,6 @@ parser:option(
   {0}, tonumber)
   :argname('<p>')
   :args('+')
-  :overwrite(false)
   :ge(0.0):lt(1.0)  -- Dropout must be in the range [0, 1)
 
 parser:option(
@@ -38,14 +36,12 @@ parser:option(
   {false}, toboolean)
   :argname('<bool>')
   :args('+')
-  :overwrite(false)
 
 parser:option(
   '--cnn_num_features', 'Number of feature maps in each conv layer, n > 0',
   {16, 16, 32, 32}, laia.toint)
   :argname('<n>')
   :args('+')
-  :overwrite(false)
   :gt(0)            -- Number of features must be > 0
 
 parser:option(
@@ -54,7 +50,6 @@ parser:option(
   {{2,2}, {2,2}, {0}, {2,2}}, laia.tolistint)
   :argname('<size>')
   :args('+')
-  :overwrite(false)
   :assert(function(t) return table.all(t, function(x) return x >= 0 end) end)
   :tostring(function(x) return table.concat(table.map(x, tostring), ',') end)
 
@@ -64,7 +59,6 @@ parser:option(
   {{3,3}, {3,3}, {3,3}, {3,3}}, laia.tolistint)
   :argname('<size>')
   :args('+')
-  :overwrite(false)
   :assert(function(t) return table.all(t, function(x) return x > 0 end) end)
   :tostring(function(x) return table.concat(table.map(x, tostring), ',') end)
 
@@ -80,28 +74,24 @@ parser:option(
 	     softplus = 'softplus'})
   :argname('<type>')
   :args('+')
-  :overwrite(false)
 
 parser:option(
   '--rnn_dropout',
   'Dropout probability at the input of each recurrent layer, 0 <= p < 1.',
   0.5, tonumber)
   :argname('<p>')
-  :overwrite(false)
   :ge(0.0):lt(1.0)
 
 parser:option(
   '--rnn_num_layers',
   'Number of recurrent layers, n > 0.', 3, laia.toint)
   :argname('<n>')
-  :overwrite(false)
   :gt(0)
 
 parser:option(
   '--rnn_num_units',
   'Number of units the recurrent layers, n > 0.', 256, laia.toint)
   :argname('<n>')
-  :overwrite(false)
   :gt(0)
 
 parser:option(
@@ -109,20 +99,17 @@ parser:option(
   'Type of the recurrent layers, valid types are blstm, bgru.',
   'blstm', {blstm = 'blstm', bgru = 'bgru'})
   :argname('<type>')
-  :overwrite(false)
 
 parser:option(
   '--linear_dropout',
   'Dropout probability at the input of the final linear layer, 0 <= p < 1.',
   0.5, tonumber)
   :argname('<p>')
-  :overwrite(false)
   :ge(0.0):lt(1.0)
 
 parser:option(
-  '-s --seed', 'Seed for random numbers generation.',
+  '--seed -s', 'Seed for random numbers generation.',
   0x012345, laia.toint)
-  :overwrite(false)
 
 -- Arguments
 parser:argument(
@@ -268,21 +255,14 @@ if opt.linear_dropout > 0 then
 end
 model:add(nn.Linear(opt.rnn_num_units * 2, opt.output_size))
 
--- Put everything on the CPU before saving.
--- TODO(jpuigcerver): BLSTM/BGRU have no CPU implementation, if one tries to use
--- this model without making a cuda() conversion, the program will crash.
--- However, it's better to store all weights in the CPU just in case these
--- implimentations are provided at some point.
-model:float()
-
 -- Save model to disk
-local checkpoint = {
-  model = model,
-  model_opt = opt
-}
-torch.save(opt.output_file, checkpoint)
+local checkpoint = laia.Checkpoint()
+checkpoint:setModelConfig(opt)
+checkpoint:Best():setModel(model)
+checkpoint:Last():setModel(model)
+checkpoint:save(opt.output_file)
 
-local p, _ = model:getParameters()
+local p, _ = laia.getFlatParameters(model)
 laia.log.info('\n' .. model:__tostring__())
 laia.log.info('Saved model with %d parameters to %q',
 	      p:nElement(), opt.output_file)

@@ -223,7 +223,7 @@ for batch=1,dv:numSamples(),opt.batch_size do
       end
 
       -- Do forced alignment of sample w.r.t. batch_gt[i]
-      local tbFA = forceAlignment(sample,batch_gt[i])
+      local tbFA = laia.force_alignment(sample, batch_gt[i])
 
       if opt.forcealign then
         outfile:write(batch_ids[i])

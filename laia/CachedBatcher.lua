@@ -1,23 +1,26 @@
+require 'laia.ClassWithOptions'
 require 'image'
 
-local CachedBatcher = torch.class('laia.CachedBatcher')
+local CachedBatcher, Parent = torch.class('laia.CachedBatcher',
+					  'laia.ClassWithOptions')
 
 function CachedBatcher:__init(opt)
-  self._opt = {
+  Parent.__init(self, {
     centered_patch = true,
     cache_max_size = 512,
     cache_gpu      = 0,
     invert_colors  = true,
     min_width      = 0,
     width_factor   = 0
-  }
+  })
   -- Set batcher options
   self:setOptions(opt)
   -- Initialize internal variables
   self:clearDataset()
 end
 
-function CachedBatcher:registerOptions(parser)
+function CachedBatcher:registerOptions(parser, advanced)
+  advanced = advanced or false
   parser:option(
     '--batcher_center_patch',
     'If true, place all the image patches at the center of the batch. ' ..
@@ -25,16 +28,16 @@ function CachedBatcher:registerOptions(parser)
       'batch are always zero-padded to have the same size.',
     true, laia.toboolean)
     :argname('<bool>')
-    :overwrite(false)
     :bind(self._opt, 'centered_patch')
+    :advanced(advanced)
   parser:option(
     '--batcher_cache_max_size',
     'Use a cache of this size (MB) to preload the images. (Note: If you ' ..
       'have enough memory, try to load the whole dataset once to avoid ' ..
       'repeatedly access to the disk).', 512, laia.toint)
     :argname('<size>')
-    :overwrite(false)
     :bind(self._opt, 'cache_max_size')
+    :advanced(advanced)
   parser:option(
     '--batcher_cache_gpu',
     'Use this GPU (GPU index starting from 1, 0 for CPU) to cache the ' ..
@@ -42,23 +45,18 @@ function CachedBatcher:registerOptions(parser)
       'want to leave this to 0 (CPU).',
       0, laia.toint)
     :argname('<gpu>')
-    :overwrite(false)
     :bind(self._opt, 'cache_gpu')
+    :advanced(advanced)
   parser:option(
     '--batcher_min_width',
     'Minimum image width. Images with a width lower than this value are ' ..
       'zero-padded.', 0, laia.toint)
     :argname('<width>')
-    :overwrite(false)
     :bind(self._opt, 'min_width')
+    :advanced(advanced)
   -- TODO(mauvilsa): The current implementation assumes that the pixel values
   -- must be inverted.
   -- cmd:option('-batcher_invert', true, 'Invert the image pixel values')
-end
-
-function CachedBatcher:setOptions(opt)
-  if opt then table.update(self._opt, opt, false) end
-  self:checkOptions()
 end
 
 function CachedBatcher:checkOptions()
@@ -85,7 +83,7 @@ end
 
 function CachedBatcher:cacheType()
   -- Note: GPU index starts at 1, <= 0 is used for the CPU
-  return self._cache_gpu > 0 and 'torch.CudaTensor' or 'torch.FloatTensor'
+  return self._opt.cache_gpu > 0 and 'torch.CudaTensor' or 'torch.FloatTensor'
 end
 
 function CachedBatcher:clearCache()
@@ -117,67 +115,18 @@ function CachedBatcher:load(img_list, gt_file, symbols_table)
   if self._has_gt then
     -- Load symbols list
     assert(symbols_table ~= nil,
-	   'A symbols list is required when providing transcripts')
-    local f = io.open(symbols_table, 'r')
-    assert(f ~= nil, ('Unable to read symbols file: %q'):format(symbols_table))
-    local ln = 0
-    while true do
-      local line = f:read('*line')
-      if line == nil then break end
-      ln = ln + 1
-      local sym, id = string.match(line, '^(%S+)%s+(%d+)$')
-      assert(sym ~= nil and id ~= nil,
-	     ('Expected a string and an integer separated by a space at ' ..
-		'line %d in file %q'):format(ln, symbols_table))
-      self._sym2int[sym] = tonumber(id)
-      table.insert(self._int2sym, tonumber(id), sym)
-      self._num_symbols = tonumber(id) > self._num_symbols and tonumber(id) or
-	self._num_symbols
-    end
-    f:close()
-
+	   'A symbols list is required when providing transcripts.')
+    self._num_symbols = laia.read_symbols_table(
+      symbols_table, self._sym2int, self._int2sym)
+    assert(laia.check_contiguous_int2sym(self._int2sym),
+	   'The symbol numeric IDs must be sequential integers from 1.')
     -- Load sample transcripts
-    local f = io.open(gt_file, 'r')
-    assert(f ~= nil, ('Unable to read transcripts file: %q'):format(gt_file))
-    local ln = 0
-    while true do
-      local line = f:read('*line')
-      if line == nil then break end
-      ln = ln + 1
-      local id, txt = string.match(line, '^(%S+)%s+(%S.*)$')
-      assert(id ~= nil and txt ~= nil,
-	     ('Wrong transcript format at line %d in file %q'):format(ln,
-								      gt_file))
-      self._gt[id] = {}
-      for sym in txt:gmatch('%S+') do
-        assert(self._sym2int[sym] ~= nil,
-	       ('Symbol %q is not in the symbols table'):format(sym))
-        table.insert(self._gt[id], self._sym2int[sym])
-      end
-    end
-    f:close()
+    laia.read_transcripts_table(gt_file, self._sym2int, self._gt)
   end
 
-  -- Load image list and sample IDs. By default, they are ordered as read from
-  -- the list. The IDs are the basenames of the files, i.e., removing directory
-  -- and extension.
-  local f = io.open(img_list, 'r')
-  assert(f ~= nil, ('Unable to read image list file: %q'):format(img_file))
-  local ln = 0
-  while true do
-    local line = f:read('*line')
-    if line == nil then break end
-    ln = ln + 1
-    local id = string.match( string.gsub(line, ".*/", ""), '^(.+)[.][^./]+$' )
-    assert(id ~= nil, ('Unable to determine sample ID at line %d in ' ..
-			 'file %q'):format(ln, img_list))
-    assert(not self._has_gt or self._gt[id] ~= nil,
-	   ('No transcript found for sample %q'):format(id))
-    table.insert(self._imglist, line)
-    table.insert(self._samples, id)
-    self._num_samples = self._num_samples + 1
-  end
-  f:close()
+  -- Load image list and sample IDs.
+  self._num_samples = laia.read_files_list(
+    img_list, self._gt, self._imglist, self._samples)
 end
 
 function CachedBatcher:epochReset(epoch_opt)
