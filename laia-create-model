@@ -256,11 +256,19 @@ end
 model:add(nn.Linear(opt.rnn_num_units * 2, opt.output_size))
 
 -- Save model to disk
+--[[
 local checkpoint = laia.Checkpoint()
 checkpoint:setModelConfig(opt)
 checkpoint:Best():setModel(model)
 checkpoint:Last():setModel(model)
 checkpoint:save(opt.output_file)
+--]]
+model:float()
+local checkpoint = {
+  model = model,
+  model_opt = opt
+}
+torch.save(opt.output_file, checkpoint)
 
 local p, _ = laia.getFlatParameters(model)
 laia.log.info('\n' .. model:__tostring__())

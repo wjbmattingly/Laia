@@ -1,3 +1,5 @@
+#!/usr/bin/env th
+
 require 'laia'
 require 'optim'
 
@@ -11,7 +13,7 @@ local epoch_summarizer = laia.EpochSummarizer()
 local progress_table = laia.ProgressTable()
 
 local parser = laia.argparse(){
-  name = 'train_ctc',
+  name = 'laia-train-ctc',
   description = ''
 }
 
