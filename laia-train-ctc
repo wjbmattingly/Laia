@@ -17,6 +17,24 @@ local parser = laia.argparse(){
   description = ''
 }
 
+-- Register laia.log options
+laia.log.registerOptions(parser, true)
+-- Register cudnn options, only if available
+if cudnn then cudnn.registerOptions(parser, true) end
+-- Register batcher options (only for train_batcher, valid_batcher will use the
+-- same options).
+train_batcher:registerOptions(parser)
+-- CTC training options.
+ctc_trainer:registerOptions(parser)
+-- Register regularizers options.
+weight_decay_regularizer:registerOptions(parser, true)
+adversarial_regularizer:registerOptions(parser, true)
+-- Register distorter options.
+if distorter then distorter:registerOptions(parser, true) end
+epoch_summarizer:registerOptions(parser, true)
+-- Progress Table options
+progress_table:registerOptions(parser, true)
+
 -- train_ctc arguments
 parser:argument('checkpoint', 'Input model or checkpoint for training.')
 parser:argument('symbols_table', 'Table mapping from symbols to integer IDs.')
@@ -49,6 +67,10 @@ parser:option(
   'Start learning rate decay after this number of epochs.', 10, laia.toint)
   :ge(1)
 parser:option(
+  '--learning_rate_decay_period',
+  'Apply learning rate decay every this number of epochs.', 1, laia.toint)
+  :ge(1)
+parser:option(
   '--rmsprop_alpha', 'RMSProp smoothing parameter.', 0.95, tonumber)
   :argname('<alpha>')
   :gt(0.0):lt(1.0)
@@ -68,9 +90,10 @@ parser:option(
   0, laia.toint)
   :argname('<n>')
 parser:option(
-  '--early_stop_epochs', 'If n>0, stop training after this number of epochs ' ..
-    'without a significant improvement, according to --best_criterion.' ..
-    'If n=0, early stopping will not be used.', 0, laia.toint)
+  '--early_stop_epochs', 'If n>0, stop training after this number of ' ..
+    'epochs without a significant improvement, according to ' ..
+    '--best_criterion. If n=0, early stopping will not be used.',
+    0, laia.toint)
   :argname('<n>')
 parser:option(
   '--early_stop_threshold', 'Minimum relative improvement threshold used ' ..
@@ -93,25 +116,10 @@ parser:option(
   '--progress_table_output', 'Save the progress of training after each ' ..
     'epoch to this text file. Useful for plotting and monitoring.', '')
   :argname('<file>')
-
-
--- Register laia.log options
-laia.log.registerOptions(parser, true)
--- Register cudnn options, only if available
-if cudnn then cudnn.registerOptions(parser, true) end
--- Register batcher options (only for train_batcher, valid_batcher will use the
--- same options).
-train_batcher:registerOptions(parser)
--- CTC training options.
-ctc_trainer:registerOptions(parser)
--- Register regularizers options.
-weight_decay_regularizer:registerOptions(parser, true)
-adversarial_regularizer:registerOptions(parser, true)
--- Register distorter options.
-if distorter then distorter:registerOptions(parser, true) end
-epoch_summarizer:registerOptions(parser, true)
--- Progress Table options
-progress_table:registerOptions(parser, true)
+parser:option(
+  '--auto_width_factor', 'If true, sets the width factor for the batchers ' ..
+  'automatically, from the size of the pooling layers.', false, laia.toboolean)
+  :argname('<bool>')
 
 -- Parse from command line
 local opts = parser:parse()
@@ -153,6 +161,12 @@ end
 laia.setRNGState(checkpoint:getRNGState())
 
 -- Prepare batchers
+if opts.auto_width_factor then
+   local width_factor = laia.getWidthFactor(model)
+   train_batcher:setOptions({width_factor = width_factor})
+   laia.log.info('Batcher width factor was automatically set to %d',
+                 width_factor)
+end
 train_batcher:load(opts.train_img, opts.train_txt, opts.symbols_table)
 if opts.valid_img and opts.valid_txt then
   valid_batcher:setOptions(train_batcher:getOptions())
@@ -256,10 +270,13 @@ while opts.max_epochs <= 0 or epoch < opts.max_epochs do
   epoch = epoch + 1
 
   -- Apply learning rate decay
-  if epoch > opts.learning_rate_decay_after and
-  opts.learning_rate_decay < 1 then
+  if opts.learning_rate_decay < 1 and
+  epoch > opts.learning_rate_decay_after and
+  epoch % opts.learning_rate_decay_period == 0 then
     rmsprop_opts.learningRate =
       rmsprop_opts.learningRate * opts.learning_rate_decay
+    laia.log.info('Learning rate decay applied. New learning rate = %g',
+		  rmsprop_opts.learningRate)
   end
 
   -- Train
@@ -309,7 +326,7 @@ while opts.max_epochs <= 0 or epoch < opts.max_epochs do
       checkpoint:setRNGState(laia.getRNGState())
       local checkpoint_filename = (opts.output_checkpoint ~= '' and
 				     opts.output_checkpoint) or opts.checkpoint
-      laia.log.info('Epoch %d, checkpoint saved to %q.',
+      laia.log.info('Epoch %d, saving checkpoint to %q.',
 		    epoch, checkpoint_filename)
       checkpoint:save(checkpoint_filename)
   end
@@ -345,4 +362,17 @@ while opts.max_epochs <= 0 or epoch < opts.max_epochs do
 
   -- Garbage collection from time to time.
   if epoch % 50 == 0 then collectgarbage() end
+end
+
+-- If we actually did something
+local p = opts.best_criterion:match('^([^_]+)_.*$')
+if checkpoint:Best():getEpoch() > 0 and
+   checkpoint:Best():getSummary(p) ~= nil then
+  laia.log.info('Finished training after %d epochs. According to %q ' ..
+	        'criterion, epoch %d was the best: %s', epoch,
+		opts.best_criterion, checkpoint:Best():getEpoch(),
+		laia.EpochSummarizer.ToString(checkpoint:Best():getSummary(p)))
+else
+  laia.log.error('Training stopped on epoch %d, but the model was not ' ..
+                 'updated.', epoch)
 end

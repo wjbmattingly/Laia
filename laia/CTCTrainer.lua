@@ -60,24 +60,37 @@ end
 function CTCTrainer:setDistorter(distorter)
   self._distorter = distorter
   self._initialized = false
+  if self._distorter then
+    laia.log.info('CTCTrainer uses the distorter:\n' ..
+		    self._distorter:__tostring__())
+  end
   return self
 end
 
 function CTCTrainer:setAdversarialRegularizer(regularizer)
   self._adversarial_regularizer = regularizer
   self._initialized = false
+  if self._adversarial_regularizer then
+    laia.log.info('CTCTrainer uses the adversarial regularizer:\n' ..
+		    self._adversarial_regularizer:__tostring__())
+  end
   return self
 end
 
 function CTCTrainer:setWeightRegularizer(regularizer)
   self._weight_regularizer = regularizer
   self._initialized = false
+  if self._weight_regularizer then
+    laia.log.info('CTCTrainer uses the weight regularizer:\n' ..
+		    self._weight_regularizer:__tostring__())
+  end
   return self
 end
 
 function CTCTrainer:registerOptions(parser, advanced)
   advanced = advanced or false
-  parser:option('--batch_size -b', 'Batch size', 16, laia.toint)
+  parser:option(
+    '--batch_size -b', 'Batch size', self._opt.batch_size, laia.toint)
     :gt(0)
     :bind(self._opt, 'batch_size')
     :advanced(advanced)
@@ -95,6 +108,7 @@ function CTCTrainer:registerOptions(parser, advanced)
     :ge(0)
     :bind(self._opt, 'cer_trim')
     :advanced(advanced)
+  --[[
   parser:option(
     '--snapshot_interval',
     'If n>0, create a snapshot of the model every n batches.',
@@ -103,6 +117,7 @@ function CTCTrainer:registerOptions(parser, advanced)
     :ge(0)
     :bind(self._opt, 'snapshot_interval')
     :advanced(advanced)
+  --]]
   parser:option(
     '--grad_clip', 'If c>0, clip gradients to the range [-c,+c].',
     self._opt.grad_clip, tonumber)
@@ -221,8 +236,8 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
     -- Apply distortions, if a distorter was given
     if self._distorter and self._opt.use_distortions then
       if b == 1 then
-	laia.log.debug('Applying distortions on the training data ' ..
-		       '(this message only shown for first batch).')
+	laia.log.debug('Applying distortions on the training data (this ' ..
+		       'message only shown for the first batch on each epoch).')
       end
       batch_img = self._distorter:distort(batch_img)
     end

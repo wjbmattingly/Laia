@@ -22,4 +22,13 @@ function ClassWithOptions:checkOptions()
   error('Not implemented!')
 end
 
+function ClassWithOptions:__tostring__()
+  local s = ('%s {'):format(torch.type(self))
+  for k,v in pairs(self._opt) do
+    s = s .. ('\n  %s = %s'):format(k, tostring(v))
+  end
+  s = s .. '\n}'
+  return s
+end
+
 return ClassWithOptions

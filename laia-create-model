@@ -254,23 +254,16 @@ if opt.linear_dropout > 0 then
   model:add(nn.Dropout(opt.linear_dropout))
 end
 model:add(nn.Linear(opt.rnn_num_units * 2, opt.output_size))
+model:float()
 
 -- Save model to disk
---[[
 local checkpoint = laia.Checkpoint()
 checkpoint:setModelConfig(opt)
 checkpoint:Best():setModel(model)
 checkpoint:Last():setModel(model)
 checkpoint:save(opt.output_file)
---]]
-model:float()
-local checkpoint = {
-  model = model,
-  model_opt = opt
-}
-torch.save(opt.output_file, checkpoint)
 
-local p, _ = laia.getFlatParameters(model)
+local p, _ = model:getParameters()
 laia.log.info('\n' .. model:__tostring__())
 laia.log.info('Saved model with %d parameters to %q',
 	      p:nElement(), opt.output_file)

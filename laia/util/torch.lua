@@ -68,8 +68,32 @@ function laia.getFlatParameters(m)
 	 ('Expected a nn.Module class (type = %q)'):format(torch.type(m)))
   local Tensor = torch.factory(m:type())
   p, g = m:parameters()
+  if not p then laia.log.warn('p is nil!!!!') end
   if not p or #p == 0 then return Tensor() end
   local sp, gp = p[1]:storage(), g[1]:storage()
   local n  = sp:size()
   return Tensor(sp, 1, n, 1), Tensor(gp, 1, n, 1)
+end
+
+-- Return the factor that divides the width of the image.
+-- For now, it only works for pooling layers, and assuming that there is no
+-- stride in these layers.
+-- TODO(mauvilsa): Make this more generic for all types of layers.
+local __getWidthFactorFromLayer = {
+  ['cudnn.AveragePooling'] = function(m) return m.kW end,
+  ['cudnn.SpatialMaxPooling'] = function(m) return m.kW end,
+  ['nn.AveragePooling'] = function(m) return m.kW end,
+  ['nn.SpatialMaxPooling'] = function(m) return m.kW end,
+  ['nn.SpatialSubSampling'] = function(m) return m.kW end,
+  ['nn.SpatialDilatedMaxPooling'] = function(m) return m.kW end,
+  ['nn.SpatialLPPooling'] = function(m) return m.kW end
+}
+function laia.getWidthFactor(m)
+  local factor = 1
+  for t, func in pairs(__getWidthFactorFromLayer) do
+    for _, layer in ipairs(m:findModules(t)) do
+      factor = factor * func(layer)
+    end
+  end
+  return factor
 end

@@ -10,7 +10,7 @@ function CachedBatcher:__init(opt)
     cache_max_size = 512,
     cache_gpu      = 0,
     invert_colors  = true,
-    min_width      = 0,
+    width_min      = 0,
     width_factor   = 0
   })
   -- Set batcher options
@@ -26,7 +26,7 @@ function CachedBatcher:registerOptions(parser, advanced)
     'If true, place all the image patches at the center of the batch. ' ..
       'Otherwise, the images are aligned at the (0,0) corner. Images in a ' ..
       'batch are always zero-padded to have the same size.',
-    true, laia.toboolean)
+    self._opt.centered_patch, laia.toboolean)
     :argname('<bool>')
     :bind(self._opt, 'centered_patch')
     :advanced(advanced)
@@ -34,7 +34,7 @@ function CachedBatcher:registerOptions(parser, advanced)
     '--batcher_cache_max_size',
     'Use a cache of this size (MB) to preload the images. (Note: If you ' ..
       'have enough memory, try to load the whole dataset once to avoid ' ..
-      'repeatedly access to the disk).', 512, laia.toint)
+      'repeatedly access to the disk).', self._opt.cache_max_size, laia.toint)
     :argname('<size>')
     :bind(self._opt, 'cache_max_size')
     :advanced(advanced)
@@ -43,17 +43,23 @@ function CachedBatcher:registerOptions(parser, advanced)
     'Use this GPU (GPU index starting from 1, 0 for CPU) to cache the ' ..
       'images. Unless you have GPU with an humongous amount of memory, you ' ..
       'want to leave this to 0 (CPU).',
-      0, laia.toint)
+      self._opt.cache_gpu, laia.toint)
     :argname('<gpu>')
     :bind(self._opt, 'cache_gpu')
     :advanced(advanced)
   parser:option(
-    '--batcher_min_width',
+    '--batcher_width_min',
     'Minimum image width. Images with a width lower than this value are ' ..
-      'zero-padded.', 0, laia.toint)
+      'zero-padded.', self._opt.width_min, laia.toint)
     :argname('<width>')
-    :bind(self._opt, 'min_width')
+    :bind(self._opt, 'width_min')
     :advanced(advanced)
+  parser:option(
+    '--batcher_width_factor',
+    'If >0 add zero-padding to the images to make the width a multiple of ' ..
+      'this value.', self._opt.width_factor, laia.toint)
+    :argname('<n>')
+    :bind(self._opt, 'width_factor')
   -- TODO(mauvilsa): The current implementation assumes that the pixel values
   -- must be inverted.
   -- cmd:option('-batcher_invert', true, 'Invert the image pixel values')
@@ -62,7 +68,7 @@ end
 function CachedBatcher:checkOptions()
   assert(laia.isint(self._opt.cache_max_size) and self._opt.cache_max_size > 0)
   assert(laia.isint(self._opt.cache_gpu))
-  assert(laia.isint(self._opt.min_width) and self._opt.min_width >= 0)
+  assert(laia.isint(self._opt.width_min) and self._opt.width_min >= 0)
   assert(laia.isint(self._opt.width_factor))
   -- TODO(mauvilsa): The current implementation assumes that the pixel values
   -- must be inverted.
@@ -135,7 +141,8 @@ end
 
 function CachedBatcher:next(batch_size, batch_img)
   batch_size = batch_size or 1
-  batch_img  = batch_img or torch.FloatTensor()
+  batch_img  = batch_img or
+    (self._opt.cache_gpu == 0 and torch.FloatTensor() or torch.CudaTensor())
   local batch_gt   = {}
   local batch_ids  = {}
   local batch_hpad = {}
@@ -153,19 +160,15 @@ function CachedBatcher:next(batch_size, batch_img)
   end
   -- Copy data into single batch tensors
   local max_sizes = torch.max(batch_sizes, 1)
-  max_sizes[{1,2}] = math.max(max_sizes[{1,2}], self._opt.min_width)
+  max_sizes[{1,2}] = math.max(max_sizes[{1,2}], self._opt.width_min)
   if self._opt.width_factor > 0 then
     max_sizes[{1,2}] = self._opt.width_factor *
       math.ceil(max_sizes[{1,2}] / self._opt.width_factor)
+    laia.log.debug('Batcher has a width_factor, new width for the batch is %d.',
+                   max_sizes[{1,2}])
   end
   batch_img:resize(batch_size, self._channels,
 		   max_sizes[{1,1}], max_sizes[{1,2}]):zero()
-  local old_gpu = -1
-  if self._opt.cache_gpu > 0 then
-    old_gpu = cutorch.getDevice()
-    cutorch.setDevice(self._opt.cache_gpu - 1)
-    batch_img = batch_img:cuda()
-  end
   for i=0,(batch_size-1) do
     local j = 1 + (i + self._idx) % self._num_samples
     self:_fillCache(j)
@@ -182,9 +185,6 @@ function CachedBatcher:next(batch_size, batch_img)
     table.insert(batch_gt, self._gt[self._samples[j]])
     table.insert(batch_ids, self._samples[j])
     table.insert(batch_hpad, {dx,img:size(3),max_sizes[{1,2}]-dx-img:size(3)})
-  end
-  if old_gpu >= 0 then
-    cutorch.setDevice(old_gpu)
   end
   -- Increase index for next batch
   self._idx = (self._idx + batch_size) % self._num_samples
@@ -230,10 +230,10 @@ function CachedBatcher:_fillCache(idx)
     self._cache_idx = idx  -- First cached image = first in the batch
     -- Allocate memory in the GPU device self._opt.cache_gpu, the current device
     -- is saved and restored later.
-    local old_gpu = -1
+    local old_gpu = 0
     if self._opt.cache_gpu > 0 then
       old_gpu = cutorch.getDevice()
-      cutorch.setDevice(self._opt.cache_gpu - 1)
+      cutorch.setDevice(self._opt.cache_gpu)
     end
     while self._cache_size < self._opt.cache_max_size and
     #self._cache_img < self._num_samples do
@@ -255,8 +255,10 @@ function CachedBatcher:_fillCache(idx)
       self._cache_size = self._cache_size +
 	img:nElement() * img:storage():elementSize() / 1048576
     end
+    laia.log.debug('Batcher cache was filled with %d images, which takes ' ..
+		     'a size of %.2fMB.', #self._cache_img, self._cache_size)
     -- Restore value of the current GPU device
-    if old_gpu >= 0 then
+    if old_gpu > 0 then
       cutorch.setDevice(old_gpu)
     end
   end

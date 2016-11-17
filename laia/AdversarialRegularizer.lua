@@ -6,7 +6,7 @@ local AdversarialRegularizer, Parent = torch.class(
 function AdversarialRegularizer:__init()
   Parent.__init(self)
   self._opt.adversarial_weight  = 0.0
-  self._opt.adversarial_epsilon = 0.7
+  self._opt.adversarial_epsilon = 1.0 / (2 * 255)
 end
 
 -- loss  = the loss value to regularize

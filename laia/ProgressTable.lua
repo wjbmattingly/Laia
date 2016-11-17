@@ -42,14 +42,17 @@ function ProgressTable:open(filename, append)
     self._written_before = append and io.open(filename 'r') ~= nil
     self._file = append and io.open(filename, 'a') or io.open(filename, 'w')
     self._opened = true
+    self._warn_ci = false
   elseif filename == '-' then
     self._written_before = false
     self._file = io.stdout
     self._opened = true
+    self._warn_ci = false
   else
     self._written_before = false
     self._file = nil
     self._opened = false
+    self._warn_ci = false
   end
 end
 
@@ -71,11 +74,17 @@ function ProgressTable:write(epoch, train_summary, valid_summary, is_better)
     if valid_summary then header = header .. ' VALID_LOSS' end
     header = header .. ' TRAIN_CER'
     if valid_summary then header = header .. ' VALID_CER' end
-    if self._opt.cer_confidence_interval then
+    if self._opt.cer_confidence_interval and train_summary.cer_ci and
+    valid_summary.cer_ci then
       header = header .. ' TRAIN_CER_LO'
       if valid_summary then header = header .. ' VALID_CER_LO' end
       header = header .. ' TRAIN_CER_UP'
       if valid_summary then header = header .. ' VALID_CER_UP' end
+    elseif self._opt.cer_confidence_interval then
+      laia.log.warn('Confidence interval cannot be written to the progress ' ..
+		    'table because your summaries do not include them. ' ..
+		      'Please, check your options.')
+      self._warn_ci = true
     end
     if self._opt.cer_edit_operations then
       header = header .. ' TRAIN_DEL'
@@ -107,17 +116,21 @@ function ProgressTable:write(epoch, train_summary, valid_summary, is_better)
     self._file:write((' %9.3f'):format(valid_summary.cer * 100))
   end
   -- Confidence intervals
-  if self._opt.cer_confidence_interval then
-    -- Lower interval
+  if self._opt.cer_confidence_interval and train_summary.cer_ci and
+  valid_summary.cer_ci then
+    -- Train Lower/Upper intervals
     self._file:write((' %12.3f'):format(train_summary.cer_ci.lower * 100))
+    self._file:write((' %12.3f'):format(train_summary.cer_ci.upper * 100))
+    -- Valid Lower/Upper interval
     if valid_summary then
       self._file:write((' %12.3f'):format(valid_summary.cer_ci.lower * 100))
-    end
-    -- Upper interval
-    self._file:write((' %12.3f'):format(train_summary.cer_ci.upper * 100))
-    if valid_summary then
       self._file:write((' %12.3f'):format(valid_summary.cer_ci.upper * 100))
     end
+  elseif self._opt.cer_confidence_interval and not self._warn_ci then
+    laia.log.warn('Confidence interval cannot be written to the progress ' ..
+		  'table because your summaries do not include them. ' ..
+		    'Please, check your options.')
+    self._warn_ci = true
   end
   -- Details about the edit operations
   if self._opt.cer_edit_operations then
