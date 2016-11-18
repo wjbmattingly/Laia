@@ -132,7 +132,7 @@ function CachedBatcher:load(img_list, gt_file, symbols_table)
 
   -- Load image list and sample IDs.
   self._num_samples = laia.read_files_list(
-    img_list, self._gt, self._imglist, self._samples)
+    img_list, self._has_gt and self._gt or nil, self._imglist, self._samples)
 end
 
 function CachedBatcher:epochReset(epoch_opt)

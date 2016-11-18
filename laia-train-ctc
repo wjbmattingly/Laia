@@ -43,7 +43,7 @@ parser:argument('train_txt', 'Table of training image transcripts.')
 parser:argument('valid_img', 'List of validation image files.'):args('?')
 parser:argument('valid_txt', 'Table of validation image transcripts.'):args('?')
 
--- train_ctc options
+-- Custom options
 parser:option(
   '--seed -s', 'Seed for random numbers generation.',
   0x012345, laia.toint)
@@ -56,8 +56,6 @@ parser:option(
 parser:option(
   '--learning_rate', 'Initial learning rate.', 0.001, tonumber)
   :gt(0.0)
-
--- Optimization parameters.
 parser:option(
   '--learning_rate_decay',
   'Learning rate decay after each epoch (1.0 means no decay).', 1.0, tonumber)
@@ -118,7 +116,8 @@ parser:option(
   :argname('<file>')
 parser:option(
   '--auto_width_factor', 'If true, sets the width factor for the batchers ' ..
-  'automatically, from the size of the pooling layers.', false, laia.toboolean)
+    'automatically, from the size of the pooling layers.',
+  false, laia.toboolean)
   :argname('<bool>')
 
 -- Parse from command line
@@ -136,6 +135,7 @@ end
 
 local checkpoint = laia.Checkpoint():load(opts.checkpoint)
 local model = checkpoint:Last():getModel()
+assert(model ~= nil, 'No model was found in the checkpoint file!')
 
 -- If a GPU is requested, check that we have everything necessary.
 if opts.gpu > 0 then
@@ -162,10 +162,10 @@ laia.setRNGState(checkpoint:getRNGState())
 
 -- Prepare batchers
 if opts.auto_width_factor then
-   local width_factor = laia.getWidthFactor(model)
-   train_batcher:setOptions({width_factor = width_factor})
-   laia.log.info('Batcher width factor was automatically set to %d',
-                 width_factor)
+  local width_factor = laia.getWidthFactor(model)
+  train_batcher:setOptions({width_factor = width_factor})
+  laia.log.info('Batcher width factor was automatically set to %d',
+		width_factor)
 end
 train_batcher:load(opts.train_img, opts.train_txt, opts.symbols_table)
 if opts.valid_img and opts.valid_txt then

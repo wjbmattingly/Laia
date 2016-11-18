@@ -1,81 +1,105 @@
 #!/usr/bin/env th
 
-require 'torch'
-require 'cudnn'
-
 require 'laia'
-local Batcher = laia.RandomBatcher
 
--- local str2bool_table = {
---    ['true'] = true, ['false'] = false,
---    ['t'] = true, ['f'] = false,
---    ['True'] = true, ['False'] = false,
---    ['1'] = true, ['0'] = false,
---    ['TRUE'] = true, ['FALSE'] = false
--- }
+local batcher = laia.RandomBatcher()
+local parser = laia.argparse(){
+  name = 'laia-decode',
+  description = ''
+}
 
-local opts = require 'laia.DecodeOptions'
-local opt = opts.parse(arg)
+-- Register laia.log options.
+laia.log.registerOptions(parser, true)
+-- Register cudnn options, only if available.
+if cudnn then cudnn.registerOptions(parser, true) end
+-- Register batcher options.
+batcher:registerOptions(parser)
 
-torch.manualSeed(opt.seed)
-if opt.gpu >= 0 then
-  require 'cutorch'
-  require 'cunn'
-  require 'cudnn'
-  cutorch.manualSeed(opt.seed)
-end
+parser:argument('checkpoint',
+		'Path to the file containing the trained checkpoint/model.')
+parser:argument('image_list',
+		'Path to the file containing the list of images to decode.')
 
-local model = torch.load(opt.model).model
+parser:option(
+  '--seed -s', 'Seed for random numbers generation.',
+  0x012345, laia.toint)
+parser:option(
+  '--gpu', 'If gpu>0, uses the specified GPU, otherwise uses the CPU.',
+  1, laia.toint)
+parser:option(
+  '--auto_width_factor', 'If true, sets the width factor for the batchers ' ..
+    'automatically, from the size of the pooling layers.',
+  false, laia.toboolean)
+  :argname('<bool>')
+parser:option(
+  '--batch_size -b', 'Batch size', 16, laia.toint)
+  :ge(1)
+parser:option(
+  '--symbols_table', 'Path of the file containing the symbols table.', '')
+  :argname('<file>')
 
-if opt.gpu >= 0 then
-  cutorch.setDevice(opt.gpu + 1) -- +1 because lua is 1-indexed
+-- Parse options
+local opts = parser:parse()
+
+-- Initialize random seeds
+laia.manualSeed(opts.seed)
+
+-- Load *BEST* model from the checkpoint.
+local model = laia.Checkpoint():load(opts.checkpoint):Best():getModel()
+assert(model ~= nil, 'No model was found in the checkpoint file!')
+
+-- If a GPU is requested, check that we have everything necessary.
+if opts.gpu > 0 then
+  assert(cutorch ~= nil, 'Package cutorch is required in order to use the GPU.')
+  assert(nn ~= nil, 'Package nn is required in order to use the GPU.')
+  cutorch.setDevice(opts.gpu)
   model = model:cuda()
-  cudnn.convert(model, cudnn)
+  -- If cudnn_force_convert=true, force all possible layers to use cuDNN impl.
+  if cudnn and cudnn.force_convert then
+    cudnn.convert(model, cudnn)
+  end
 else
-  -- CPU
-  model:float()
+  -- This should not be necessary, but just in case
+  model = model:float()
 end
+-- We are going to evaluate the model
+model:evaluate()
 
 -- Load symbols
 local symbols_table
-if opt.symbols_table then
-  _, _, symbols_table = laia.read_symbols_table(opt.symbols_table)
+if opts.symbols_table ~= '' then
+  _, _, symbols_table = laia.read_symbols_table(opts.symbols_table)
 end
 
-model:evaluate()
-
--- Compute width factor from model
-if opt.width_factor then
-  opt.width_factor = 1
-  local maxpool = model:findModules('cudnn.SpatialMaxPooling')
-  for n=1,#maxpool do
-    opt.width_factor = opt.width_factor * maxpool[n].kW
-  end
-else
-  opt.width_factor = 0
+-- Prepare batcher
+if opts.auto_width_factor then
+  local width_factor = laia.getWidthFactor(model)
+  batcher:setOptions({width_factor = width_factor})
+  laia.log.info('Batcher width factor was automatically set to %d',
+		width_factor)
 end
-local dv = Batcher(opt)
-dv:load(opt.data)
-dv:epochReset()
+batcher:load(opts.image_list)
+batcher:epochReset()
+
 local n = 0
-for batch=1,dv:numSamples(),opt.batch_size do
+for batch=1,batcher:numSamples(),opts.batch_size do
   -- Prepare batch
-  local batch_img, _, _, batch_ids = dv:next(opt.batch_size)
-  if opt.gpu >= 0 then
+  local batch_img, _, _, batch_ids = batcher:next(opts.batch_size)
+  if opts.gpu > 0 then
     batch_img = batch_img:cuda()
   end
   -- Forward through network
   local output = model:forward(batch_img)
-  local batch_decode = laia.framewise_decode(opt.batch_size, output)
-  for i=1,opt.batch_size do
+  local batch_decode = laia.framewise_decode(opts.batch_size, output)
+  for i=1,opts.batch_size do
     n = n + 1
     -- Batch can contain more images
-    if n > dv:numSamples() then
+    if n > batcher:numSamples() then
       break
     end
     io.write(string.format('%s', batch_ids[i]))
     for t=1, #batch_decode[i] do
-      if opt.symbols_table ~= '' then
+      if symbols_table then
         -- Print symbols
         io.write(string.format(' %s', symbols_table[batch_decode[i][t]]))
       else

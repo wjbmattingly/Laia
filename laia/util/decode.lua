@@ -80,6 +80,7 @@ function laia.framewise_decode(batch_size, rnn_output)
   end
 
   local _, idx = torch.max(rnn_output,2)
+  idx = idx:type('torch.LongTensor')
   for b=0,batch_size-1 do
     for l=0, seq_len-1 do
       label = idx[l*batch_size+b+1][1]-1
@@ -109,15 +110,20 @@ end
 -- containing the char-ID sequence of the given sample.
 -- OUTPUT: char-ID sequence alignment (it includes BLANK-CHAR)
 function laia.force_alignment(teCM, tbGT)
-  assert(teCM ~= nil and tbGT ~= nil, "Confidence matrix and/or ground-truth vector not defined")
+  assert(teCM ~= nil and tbGT ~= nil,
+	 'Confidence matrix and/or ground-truth vector not defined')
+
+  -- Make sure that the confidence matrix is in the CPU
+  teCM = teCM:float()
 
   -- BLANK symbol ID
   local blkCharID = 1
-
   local nSymbols, nframes, nTotSymbols = #tbGT, teCM:size()[1], teCM:size()[2]
   local tbAuxGT = {}
   for i = 1, nSymbols do
-    assert(tbGT[i]+1 <= nTotSymbols, string.format('One char-ID is greater than the total number of chars: %q',nTotSymbols))
+    assert(tbGT[i]+1 <= nTotSymbols, string.format(
+	     'One char-ID is greater than the total number of chars: %q',
+	     nTotSymbols))
     table.insert(tbAuxGT, blkCharID)
     -- tbAuxGT[1] is for blkCharID according to teCM[{{},1}], so we
     -- add 1 to every tbGT[i] (symb ID)
@@ -149,7 +155,8 @@ function laia.force_alignment(teCM, tbGT)
 	teTRL[{s,f}] = teTRL[{s,f-1}]
 	tbTBK[s][f] = {s, f-1, tbAuxGT[s]}
       end
-      if (s%2 == 0 and s>3) and (teTRL[{s-2,f-1}] > teTRL[{s,f}]) and (tbAuxGT[s-2] ~= tbAuxGT[s]) then
+      if (s%2 == 0 and s>3) and (teTRL[{s-2,f-1}] > teTRL[{s,f}]) and
+      (tbAuxGT[s-2] ~= tbAuxGT[s]) then
 	teTRL[{s,f}] = teTRL[{s-2,f-1}]
 	tbTBK[s][f] = {s-2, f-1, tbAuxGT[s]}
       end
@@ -158,7 +165,7 @@ function laia.force_alignment(teCM, tbGT)
   end
 
   local t = {}
-  local traceBackPath = function (nS, nF, t)
+  local function traceBackPath(nS, nF, t)
     local aux = tbTBK[nS][nF]
     if aux[1]==0 and aux[2]==0 then
       table.insert(t,aux[3])

@@ -1,0 +1,146 @@
+#!/usr/bin/env th
+
+require 'laia'
+
+local batcher = laia.RandomBatcher()
+local parser = laia.argparse(){
+  name = 'laia-force-align',
+  description = ''
+}
+
+-- Register laia.log options
+laia.log.registerOptions(parser, true)
+-- Register cudnn options, only if available
+if cudnn then cudnn.registerOptions(parser, true) end
+-- Register batcher options
+batcher:registerOptions(parser)
+
+parser:argument('checkpoint',
+		'Path of the file containing the trained checkpoint/model.')
+parser:argument('symbols_table', 'Table mapping from symbols to integer IDs.')
+parser:argument('image_list', 'File containing the list of images to align.')
+parser:argument('text_table',
+		'File containing the table of transcripts to align.')
+parser:argument('output_align', 'File containing the output alignments.')
+parser:argument('output_prior', 'File containing the output label priors.')
+  :args('?')   -- This argument is optional
+
+parser:option(
+  '--seed -s', 'Seed for random numbers generation.',
+  0x012345, laia.toint)
+parser:option(
+  '--gpu', 'If gpu>0, uses the specified GPU, otherwise uses the CPU.',
+  1, laia.toint)
+parser:option(
+  '--auto_width_factor', 'If true, sets the width factor for the batchers ' ..
+    'automatically, from the size of the pooling layers.',
+  false, laia.toboolean)
+  :argname('<bool>')
+parser:option(
+  '--batch_size -b', 'Batch size', 16, laia.toint)
+  :ge(1)
+
+-- Parse options
+local opts = parser:parse()
+
+-- Initialize random seeds
+laia.manualSeed(opts.seed)
+
+-- Load *BEST* model from the checkpoint.
+local model = laia.Checkpoint():load(opts.checkpoint):Best():getModel()
+assert(model ~= nil, 'No model was found in the checkpoint file!')
+
+-- If a GPU is requested, check that we have everything necessary.
+if opts.gpu > 0 then
+  assert(cutorch ~= nil, 'Package cutorch is required in order to use the GPU.')
+  assert(nn ~= nil, 'Package nn is required in order to use the GPU.')
+  cutorch.setDevice(opts.gpu)
+  model = model:cuda()
+  -- If cudnn_force_convert=true, force all possible layers to use cuDNN impl.
+  if cudnn and cudnn.force_convert then
+    cudnn.convert(model, cudnn)
+  end
+else
+  -- This should not be necessary, but just in case
+  model = model:float()
+end
+-- We are going to evaluate the model
+model:evaluate()
+
+-- Prepare batcher
+if opts.auto_width_factor then
+  local width_factor = laia.getWidthFactor(model)
+  batcher:setOptions({width_factor = width_factor})
+  laia.log.info('Batcher width factor was automatically set to %d',
+		width_factor)
+end
+batcher:load(opts.image_list, opts.text_table, opts.symbols_table)
+batcher:epochReset()
+
+-- Open file to output the alignments.
+output_align = opts.output_align == '-' and io.stdout or
+  io.open(opts.output_align, 'w')
+assert(output_align ~= nil, 'File %q could not be opened for writing!',
+       opts.output_align)
+
+-- Open file to write the label priors.
+output_prior = opts.output_prior == '-' and io.stdout or
+  opts.output_prior ~= '' and io.open(opts.output_prior, 'w') or nil
+print(output_prior, opts.output_prior)
+
+local prior_count = nil
+local n = 0
+for b=1,batcher:numSamples(),opts.batch_size do
+  -- Prepare batch
+  local batch_img, batch_gt, _, batch_ids = batcher:next(opts.batch_size)
+  if opts.gpu > 0 then batch_img = batch_img:cuda() end
+  -- Forward through network, and copy to the CPU
+  local output = model:forward(batch_img):float()
+  -- Put output in batch x frame x label layout
+  local num_frames = output:size(1) / opts.batch_size
+  output = output:view(num_frames, opts.batch_size, output:size(2))
+  output = output:permute(2, 1, 3):contiguous()
+
+  for i=1,opts.batch_size do
+    n = n + 1
+    -- Batch can contain more images, stop here.
+    if n > batcher:numSamples() then
+      break
+    end
+
+    -- Do forced alignment of the sample w.r.t. batch_gt[i]
+    laia.log.info('Performing forced alignment of sample %q', batch_ids[i])
+    local alignment = laia.force_alignment(output[i], batch_gt[i])
+
+    -- Print alignment
+    output_align:write(batch_ids[i])
+    for f=1,#alignment do
+      output_align:write(' ' .. alignment[f])
+    end
+    output_align:write('\n')
+    output_align:flush()
+
+    if output_prior then
+      -- Initialize prior count on the first batch
+      if not prior_count then
+	prior_count = torch.LongTensor(output:size()[3]):zero()
+      end
+      for _,v in ipairs(alignment) do
+	prior_count[v] = prior_count[v] + 1
+      end
+    end
+  end
+end
+
+-- Close files
+output_align:close()
+
+-- Output priors and total counts
+if output_prior and prior_count then
+  local prior_total = prior_count:sum()
+  for n=1,prior_count:size(1) do
+    output_prior:write(('%d\t%d\t%d\t%.10e\n'):format(
+	n, prior_count[n], prior_total, prior_count[n]/prior_total))
+  end
+  output_prior:close()
+end
