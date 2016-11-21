@@ -86,7 +86,6 @@ assert(output_align ~= nil, 'File %q could not be opened for writing!',
 -- Open file to write the label priors.
 output_prior = opts.output_prior == '-' and io.stdout or
   opts.output_prior ~= '' and io.open(opts.output_prior, 'w') or nil
-print(output_prior, opts.output_prior)
 
 local prior_count = nil
 local n = 0
