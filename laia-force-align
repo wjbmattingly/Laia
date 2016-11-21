@@ -78,13 +78,13 @@ batcher:load(opts.image_list, opts.text_table, opts.symbols_table)
 batcher:epochReset()
 
 -- Open file to output the alignments.
-output_align = opts.output_align == '-' and io.stdout or
+local output_align = opts.output_align == '-' and io.stdout or
   io.open(opts.output_align, 'w')
 assert(output_align ~= nil, 'File %q could not be opened for writing!',
        opts.output_align)
 
 -- Open file to write the label priors.
-output_prior = opts.output_prior == '-' and io.stdout or
+local output_prior = opts.output_prior == '-' and io.stdout or
   opts.output_prior ~= '' and io.open(opts.output_prior, 'w') or nil
 
 local prior_count = nil
@@ -99,6 +99,11 @@ for b=1,batcher:numSamples(),opts.batch_size do
   local num_frames = output:size(1) / opts.batch_size
   output = output:view(num_frames, opts.batch_size, output:size(2))
   output = output:permute(2, 1, 3):contiguous()
+
+  -- Initialize prior count
+  if output_prior and not prior_count then
+    prior_count = torch.LongTensor(output:size(3)):zero()
+  end
 
   for i=1,opts.batch_size do
     n = n + 1
@@ -120,10 +125,6 @@ for b=1,batcher:numSamples(),opts.batch_size do
     output_align:flush()
 
     if output_prior then
-      -- Initialize prior count on the first batch
-      if not prior_count then
-	prior_count = torch.LongTensor(output:size()[3]):zero()
-      end
       for _,v in ipairs(alignment) do
 	prior_count[v] = prior_count[v] + 1
       end
