@@ -16,24 +16,28 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 mkdir -p data/;
 # download dataset
 [ -f data/Spanish_Number_DB.tgz ] || \
-    wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
+  wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB.tgz;
 # extract it
 [ -d data/Spanish_Number_DB ] || \
-    tar -xzf data/Spanish_Number_DB.tgz -C data/;
+  tar -xzf data/Spanish_Number_DB.tgz -C data/;
 
 ./steps/prepare.sh --overwrite "$overwrite";
 
-create_model.lua \
+th ../../laia-create-model \
+  --cnn_batch_norm true \
   --cnn_type leakyrelu \
   -- 1 64 20 model.t7;
 
-train.lua \
-  -batch_size "$batch_size" \
-  -early_stop_criterion valid_cer \
-  -max_no_improv_epochs 15 \
-  -num_samples_epoch 4000 \
-  -adversarial_weight 0.5 \
-  -output_progress laia.log \
+th ../../laia-train-ctc \
+  --adversarial_weight 0.5 \
+  --batch_size "$batch_size" \
+  --log_also_to_stderr info \
+  --log_level info \
+  --log_file laia.log \
+  --progress_table_output laia.dat \
+  --use_distortions true \
+  --early_stop_epochs 100 \
+  --learning_rate 0.0005 \
   model.t7 data/lang/chars/symbs.txt \
   data/train.lst data/lang/chars/train.txt \
   data/test.lst data/lang/chars/test.txt;

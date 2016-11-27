@@ -327,7 +327,7 @@ function CTCTrainer:_trainBatch(batch_img, batch_gt)
     local ncg = torch.abs(self._gradParameters):gt(self._opt.grad_clip):sum()
     if ncg > 0 then
       laia.log.debug(('%d (%.2f%%) gradients clamped to [-%g,%g]'):format(
-	  ncg, 100 * ncg / gradParameters:nElement(),
+	  ncg, 100 * ncg / self._gradParameters:nElement(),
 	  self._opt.grad_clip, self._opt.grad_clip))
       self._gradParameters:clamp(-self._opt.grad_clip, self._opt.grad_clip)
     end

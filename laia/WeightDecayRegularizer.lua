@@ -20,6 +20,7 @@ function WeightDecayRegularizer:regularize(loss, model)
   local parameters, gradParameters = laia.getFlatParameters(model)
   -- L1 Regularization
   if w1 > 0 then
+    w1 = w1 / parameters:nElement()
     -- J += w1 * sum_i |P(i)|
     loss = loss + w1 * torch.abs(parameters):sum()
     -- dJ/dP(i) += w1 * sign(P(i))
@@ -27,6 +28,7 @@ function WeightDecayRegularizer:regularize(loss, model)
   end
   -- L2 Regularization
   if w2 > 0 then
+    w2 = w2 / parameters:nElement()
     -- J += w_l2 * 0.5 * sum_i P(i)^2
     loss = loss + w2 * 0.5 * torch.pow(parameters, 2):sum()
     -- dJ/dP(i) += w_l2 * P(i)

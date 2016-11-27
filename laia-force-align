@@ -9,7 +9,7 @@ local parser = laia.argparse(){
 }
 
 -- Register laia.log options
-laia.log.registerOptions(parser, true)
+laia.log.registerOptions(parser)
 -- Register cudnn options, only if available
 if cudnn then cudnn.registerOptions(parser, true) end
 -- Register batcher options

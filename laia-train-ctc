@@ -18,7 +18,7 @@ local parser = laia.argparse(){
 }
 
 -- Register laia.log options
-laia.log.registerOptions(parser, true)
+laia.log.registerOptions(parser)
 -- Register cudnn options, only if available
 if cudnn then cudnn.registerOptions(parser, true) end
 -- Register batcher options (only for train_batcher, valid_batcher will use the
@@ -72,11 +72,6 @@ parser:option(
   '--rmsprop_alpha', 'RMSProp smoothing parameter.', 0.95, tonumber)
   :argname('<alpha>')
   :gt(0.0):lt(1.0)
-parser:option(
-  '--max_epochs', 'If n>0, the training will stop after at most n epochs.',
-  0, laia.toint)
-  :argname('<n>')
-  :ge(0)
 parser:option(
   '--best_criterion', 'If not empty, use this criterion to choose the ' ..
   'best model (e.g. for early stopping).', 'valid_cer',
