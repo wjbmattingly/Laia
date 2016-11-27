@@ -19,29 +19,32 @@ tar -xvzf data/Spanish_Number_DB.tgz -C data/;
   - Scales them to 64px height.
   - Creates the auxiliary files necessary for training.
 
-- Execute the `create_model` script to create an "empty" laia model using:
+- Execute the `laia-create-model` script to create an "empty" laia model using:
 ```bash
-../../create_model -cnn_type leakyrelu \
-  1 64 20 model.t7;
+../../laia-create-model \
+  --cnn_batch_norm true \
+  --cnn_type leakyrelu \
+  -- 1 64 20 model.t7;
 ```
 
-- Use the `train_ctc` script to train the model:
+- Use the `laia-train-ctc` script to train the model:
 ```bash
-../../train_ctc -batch_size 16 \
-  -num_samples_epoch 4000 \
-  -adversarial_weight 0.5 \
-  -output_progress data/laia.log \
-  model.t7 \
-  data/lang/chars/symbs.txt \
-  data/train.lst \
-  data/lang/chars/train.txt \
-  data/test.lst \
-  data/lang/chars/test.txt;
+../../laia-train-ctc \
+  --adversarial_weight 0.5 \
+  --batch_size "$batch_size" \
+  --log_also_to_stderr info \
+  --log_level info \
+  --log_file laia.log \
+  --progress_table_output laia.dat \
+  --use_distortions true \
+  --early_stop_epochs 100 \
+  --learning_rate 0.0005 \
+  model.t7 data/lang/chars/symbs.txt \
+  data/train.lst data/lang/chars/train.txt \
+  data/test.lst data/lang/chars/test.txt;
 ```
 
-**Note**: We use `-num_samples_epoch 4000` to increase the number of samples per epoch. Given that the amount of asked samples (4000) is higher than the number of available training samples (298), Laia will augment the training samples by using distortions. For more information see [imgdistort library](https://github.com/jpuigcerver/imgdistort).
-
-After 30 epochs the model achieves a CER=~1.5% in validation.
+After 367 epochs the model achieves a CER=~1.67% in validation, with a 95% confidence interval in [1.12%, 2.17%].
 
 ## Decoding
 
