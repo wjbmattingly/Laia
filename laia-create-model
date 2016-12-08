@@ -129,6 +129,8 @@ parser:argument(
 parser:argument(
   'output_file', 'Output file to store the model')
 
+-- Register laia.Version options
+laia.Version():registerOptions(parser)
 -- Register logging options
 laia.log.registerOptions(parser)
 

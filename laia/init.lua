@@ -29,6 +29,7 @@ cunn = wrequire('cunn')
 cudnn = wrequire('laia.util.cudnn')   -- cudnn with extensions
 
 -- Mandatory Laia classes
+require('laia.Version')
 require('laia.AdversarialRegularizer')
 require('laia.CachedBatcher')
 require('laia.Checkpoint')
