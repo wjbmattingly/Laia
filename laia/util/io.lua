@@ -2,10 +2,11 @@ require 'laia.util.types'
 
 -- read symbols_table file. this file contains
 -- two columns: "symbol     id"
-function laia.read_symbols_table(filename, sym2int, int2sym)
+function laia.read_symbols_table(filename, sym2int, int2sym, subtract)
   local num_symbols = 0
   sym2int = sym2int or {}  -- If sym2int table is given, update it
   int2sym = int2sym or {}  -- If int2sym table is given, update it
+  subtract = subtract or true
   local f = io.open(filename, 'r')
   assert(f ~= nil, ('Unable to read symbols table: %q'):format(filename))
   local ln = 0  -- Line number
@@ -18,9 +19,10 @@ function laia.read_symbols_table(filename, sym2int, int2sym)
 	   ('Expected a string and an integer separated by a space at ' ..
 	      'line %d in file %q'):format(ln, filename))
     int = tonumber(id)
+    num_symbols = int > num_symbols and int or num_symbols
+    if subtract then int = int - 1 end
     sym2int[sym] = int
     table.insert(int2sym, int, sym)
-    num_symbols = int > num_symbols and int or num_symbols
   end
   f:close()
   return num_symbols, sym2int, int2sym

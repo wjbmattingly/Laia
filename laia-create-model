@@ -46,7 +46,7 @@ parser:option(
 
 parser:option(
   '--cnn_maxpool_size', 'MaxPooling size after each conv layer. Separate ' ..
-  'each dimension with commas.',
+  'each dimension with commas (order: width,height).',
   {{2,2}, {2,2}, {0}, {2,2}}, laia.tolistint)
   :argname('<size>')
   :args('+')
@@ -55,7 +55,7 @@ parser:option(
 
 parser:option(
   '--cnn_kernel_size', 'Kernel size of each conv layer. Separate each ' ..
-  'dimension with commas.',
+  'dimension with commas (order: width,height).',
   {{3,3}, {3,3}, {3,3}, {3,3}}, laia.tolistint)
   :argname('<size>')
   :args('+')
