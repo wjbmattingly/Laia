@@ -74,7 +74,7 @@ set xlabel '$xlabel'
 set ylabel '$ylabel'
 set title '$title'
 set key outside vertical
-set key right top
+set key center bottom
 plot \\
 EOF
 

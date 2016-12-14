@@ -28,28 +28,40 @@ source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 [ -d data/$dataset_name/adq3/frases2/ -a -s data/$dataset_name/train.lst -a -s data/$dataset_name/test.lst ] || \
   ( echo "The Spanish Number database is not available!">&2 && exit 1; );
 
-mkdir -p data/lang/chars;
+mkdir -p data/lang/{char,word};
 
 echo -n "Creating transcripts..." >&2;
 for p in train test; do
   # Place all character-level transcripts into a single txt table file.
   # Token {space} is used to mark whitespaces between words.
-  [ -s data/lang/chars/$p.txt -a $overwrite = false ] && continue;
-  for s in $(< data/$dataset_name/$p.lst); do
-    echo "$s $(cat data/$dataset_name/adq3/frases2/$s.txt | sed 's/./& /g' | sed 's/@/{space}/g')";
-  done > data/lang/chars/$p.txt;
+  [ -s data/lang/char/$p.txt -a $overwrite = false ] || {
+    for s in $(< data/$dataset_name/$p.lst); do
+      echo "$s $(cat data/$dataset_name/adq3/frases2/$s.txt | sed 's/./& /g' | sed 's/@/{space}/g')";
+    done > data/lang/char/$p.txt;
+  }
+  # Place all word-levle transcripts into a single txt table file.
+  [ -s data/lang/word/$p.txt -a $overwrite = false ] || {
+    for s in $(< data/$dataset_name/$p.lst); do
+      echo "$s $(cat data/$dataset_name/adq3/frases2/$s.txt | tr @ \ )";
+    done > data/lang/word/$p.txt;
+  }
 done;
 echo -e "  \tDone." >&2;
 
 echo -n "Creating symbols table..." >&2;
 # Generate symbols table from training and validation characters.
 # This table will be used to convert characters to integers using Kaldi format.
-[ -s data/lang/chars/symbs.txt -a $overwrite = false ] || (
+[ -s data/lang/char/symbs.txt -a $overwrite = false ] || (
   for p in train test; do
-    cut -f 2- -d\  data/lang/chars/$p.txt | tr \  \\n;
-  done | sort -u -V | \
-    awk 'BEGIN{N=1;}NF==1{ printf("%-10s %d\n", $1, N); N++; }' \
-  > data/lang/chars/symbs.txt;
+    cut -f 2- -d\  data/lang/char/$p.txt | tr \  \\n;
+  done | sort -u -V |
+  awk 'BEGIN{
+    N=0;
+    printf("%-12s %d\n", "<eps>", N++);
+    printf("%-12s %d\n", "<ctc>", N++);
+  }NF==1{
+    printf("%-12s %d\n", $1, N++);
+  }' > data/lang/char/symbs.txt;
 )
 echo -e "  \tDone." >&2;
 

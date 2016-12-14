@@ -44,11 +44,46 @@ tar -xvzf data/Spanish_Number_DB.tgz -C data/;
   data/test.lst data/lang/chars/test.txt;
 ```
 
-After 367 epochs the model achieves a CER=~1.67% in validation, with a 95% confidence interval in [1.12%, 2.17%].
+After 366 epochs the model achieves a CER=~2.08% in test, with a 95% confidence interval in [1.295%, 2.610%].
 
 ## Decoding
 
-TBD
+You can use laia-decode to obtain the transcripts of any set of images.
+
+```bash
+../../laia-decode --symbols_table data/lang/char/symbs.txt \
+  model.t7 data/test.lst > test_hyp.char.txt;
+```
+
+Once you have created the test_hyp.char.txt you can compute the character
+error rate (CER) using Kaldi's compute-wer, for instance:
+
+```bash
+compute-wer --mode=strict ark:data/lang/char/test.txt ark:test_hyp.char.txt |
+grep WER | sed -r 's|%WER|%CER|g';
+```
+
+In order to compute the WER, you will need first to convert the character-level
+transcripts into word-level transcripts (you can use a simple AWK script,
+for instance). Finally, you can compute the WER using Kaldi's compute-wer
+as well.
+
+```bash
+# Get word-level hypothesis transcript
+awk '{
+  printf("%s ", $1);
+  for (i=2;i<=NF;++i) {
+    if ($i == "{space}")
+      printf(" ");
+    else
+      printf("%s", $i);
+  }
+  printf("\n");
+}' test_hyp.char.txt > test_hyp.word.txt;
+# ... and compute WER
+compute-wer --mode=strict ark:data/lang/word/test.txt ark:test_hyp.word.txt |
+grep WER;
+```
 
 ## TL;DR
 

@@ -23,21 +23,49 @@ mkdir -p data/;
 
 ./steps/prepare.sh --overwrite "$overwrite";
 
-th ../../laia-create-model \
-  --cnn_batch_norm true \
-  --cnn_type leakyrelu \
-  -- 1 64 20 model.t7;
+[ -f model.t7 -a "$overwrite" = false ] || {
+  th ../../laia-create-model \
+    --cnn_batch_norm true \
+    --cnn_type leakyrelu \
+    -- 1 64 $[$(wc -l data/lang/char/symbs.txt) - 1] model.t7;
 
-th ../../laia-train-ctc \
-  --adversarial_weight 0.5 \
-  --batch_size "$batch_size" \
-  --log_also_to_stderr info \
-  --log_level info \
-  --log_file laia.log \
-  --progress_table_output laia.dat \
-  --use_distortions true \
-  --early_stop_epochs 100 \
-  --learning_rate 0.0005 \
-  model.t7 data/lang/chars/symbs.txt \
-  data/train.lst data/lang/chars/train.txt \
-  data/test.lst data/lang/chars/test.txt;
+  th ../../laia-train-ctc \
+    --adversarial_weight 0.5 \
+    --batch_size "$batch_size" \
+    --log_also_to_stderr info \
+    --log_level info \
+    --log_file laia.log \
+    --progress_table_output laia.dat \
+    --use_distortions true \
+    --early_stop_epochs 100 \
+    --learning_rate 0.0005 \
+    model.t7 data/lang/char/symbs.txt \
+    data/train.lst data/lang/char/train.txt \
+    data/test.lst data/lang/char/test.txt;
+}
+
+# Decode
+th ../../laia-decode --symbols_table data/lang/char/symbs.txt \
+  model.t7 data/test.lst > test_hyp.char.txt;
+# ... and compute CER
+compute-wer --mode=strict ark:data/lang/char/test.txt ark:test_hyp.char.txt |
+grep WER | sed -r 's|%WER|%CER|g';
+
+# Get word-level hypothesis transcript
+awk '{
+  printf("%s ", $1);
+  for (i=2;i<=NF;++i) {
+    if ($i == "{space}")
+      printf(" ");
+    else
+      printf("%s", $i);
+  }
+  printf("\n");
+}' test_hyp.char.txt > test_hyp.word.txt;
+# ... and compute WER
+compute-wer --mode=strict ark:data/lang/word/test.txt ark:test_hyp.word.txt |
+grep WER;
+
+
+th ../../laia-netout --output_format lattice --output_transform logsoftmax \
+  model.t7 data/test.lst test.lat;

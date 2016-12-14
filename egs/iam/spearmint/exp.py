@@ -1,8 +1,9 @@
 from subprocess import check_call
 import os
+import sys
 
 def main(job_id, params):
-    learning_rate  = 10 ** params['learning_rate_log'][0]
+    learning_rate  = 2 ** params['learning_rate_log'][0]
     ###dropout        = params['dropout'][0]
     dropout        = 0.5
     rnn_num_layers = params['rnn_num_layers'][0]
@@ -29,7 +30,7 @@ def main(job_id, params):
     os.chdir('..')
 
     # Create model
-    check_call([
+    create_model_call = [
         '../../laia-create-model',
         '--cnn_type', 'leakyrelu',
         '--cnn_kernel_size', '3',
@@ -44,24 +45,28 @@ def main(job_id, params):
         '--linear_dropout', str(dropout),
         '--log_level', 'info',
         '1', '64', '79', 'spearmint/model_%d.t7' % job_id
-    ])
+    ]
+    print >> sys.stderr, ' '.join(create_model_call)
+    check_call(create_model_call)
 
     # Run training
-    check_call([
+    train_ctc_call = [
         '../../laia-train-ctc',
         '--use_distortions', 'true',
-        '--batch_size', '16',
+        '--batch_size', '32',
         '--progress_table_output', 'spearmint/train_%d.dat' % job_id,
-        '--early_stop_epochs', '20',
+        '--early_stop_epochs', '25',
         '--early_stop_threshold', '0.05',
-        '--max_epochs', '150',
+        '--max_epochs', '300',
         '--learning_rate', str(learning_rate),
         '--log_level', 'info',
         'spearmint/model_%d.t7' % job_id,
         'data/htr/lang/char/symbs.txt',
         'data/htr/tr.lst', 'data/htr/lang/char/tr.txt',
         'data/htr/va.lst', 'data/htr/lang/char/va.txt'
-    ])
+    ]
+    print >> sys.stderr, ' '.join(train_ctc_call)
+    check_call(train_ctc_call)
 
     # Get validation CER
     f = open('spearmint/train_%d.dat' % job_id, 'r')
@@ -72,6 +77,9 @@ def main(job_id, params):
         cer = float(line[4])
         min_cer = min(min_cer, cer)
     f.close()
+
+    # Remove model file, to save space
+    os.remove('spearmint/model_%d.t7' % job_id)
 
     # Return to spearmint directory
     os.chdir(cwd)

@@ -22,6 +22,7 @@ assert = function(test, msg, ...)
     msg = msg or ('Assertion %q failed'):format(source)
     laia.log.fatal{fmt = msg, arg = {...}, level = 3}
   end
+  return test
 end
 
 -- Overload error to use Laia's own logging system
