@@ -47,6 +47,13 @@ mkdir -p data/;
 # Decode
 th ../../laia-decode --symbols_table data/lang/char/symbs.txt \
   model.t7 data/test.lst > test_hyp.char.txt;
+
+# Check compute-wer
+which compute-wer &> /dev/null || {
+  echo "Kaldi's compute-wer was not found in your PATH!" >&2;
+  exit 1;
+}
+
 # ... and compute CER
 compute-wer --mode=strict ark:data/lang/char/test.txt ark:test_hyp.char.txt |
 grep WER | sed -r 's|%WER|%CER|g';

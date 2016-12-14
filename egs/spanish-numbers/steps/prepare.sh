@@ -30,6 +30,11 @@ source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 
 mkdir -p data/lang/{char,word};
 
+which convert &> /dev/null || {
+  echo "ImageMagick's convert was not found in your PATH" >&2;
+  exit 1;
+}
+
 echo -n "Creating transcripts..." >&2;
 for p in train test; do
   # Place all character-level transcripts into a single txt table file.
