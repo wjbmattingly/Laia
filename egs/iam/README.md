@@ -128,13 +128,13 @@ WER equal to 22.9, on the test set of the HTR partition.
 You can compare these results with other publications on this dataset
 in the following table:
 
-| System | CER (%)   | WER (%)    | Comment                                      |
-|--------|-----------|------------|----------------------------------------------|
+| System   | CER (%)   | WER (%)    | Comment                        |
+|----------|-----------|------------|--------------------------------|
 | A2IA [1] | **4.4 ± 0.1** | **10.9 ± 0.4** | 2D-LSTM + CTC, 3-gram word + 10-gram char LM |
-| A2IA [1] | 7.3 ± 0.1 | 24.7 ± 0.5 | 2D-LSTM + CTC, No LM                         |
+| A2IA [1] | 7.3 ± 0.1 | 24.7 ± 0.5 | 2D-LSTM + CTC, No LM           |
 | RWTH [2] | 4.7 ± 0.1 | 12.2 ± 0.4 | 1D-LSTM + HMM + Framewise softmax, 3-gram word + 10-gram char LM |
-|--------------------------------------------------------------------------------|
-| Laia   | 6.7 ± 0.1 | 22.9 ± 0.5 | ConvNet + 1D-LSTM + CTC, No LM               |
+|----------|-----------|------------|--------------------------------|
+| Laia     | 6.7 ± 0.1 | 22.9 ± 0.5 | ConvNet + 1D-LSTM + CTC, No LM |
 
 
 [1] "Deep Neural Networks for Large Vocabulary Handwritten Text Recognition", by
