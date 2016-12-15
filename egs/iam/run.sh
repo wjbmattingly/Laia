@@ -109,5 +109,4 @@ for c in ${experiments[@]}; do
   else
     echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
   fi;
-
 done;

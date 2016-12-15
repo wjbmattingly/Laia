@@ -9,7 +9,9 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 column=5;
 column_min=;
 column_max=;
+output_dumb=;
 output_pdf=;
+show_legend=true;
 title=;
 xlabel="";
 ylabel="";
@@ -27,8 +29,13 @@ Options:
   --column_min  : (type = integer, default = $column_min)
                   Use this two columns to plot the confidence area surrounding
                   the main curve.
-  --output_pdf  : (type = string, default = $output_pdf)
+  --output_pdf  : (type = string, default = \"$output_pdf\")
                   Plot the graph into a PDF.
+  --output_dumb : (type = string, default = \"$output_dumb\")
+                  Plot the graph into the terminal using the given width and
+                  height characters (separated by a whitespace, e.g: \"79 24\").
+  --show_legend : (type = boolean, default = $show_legend)
+                  If true, show the legend/key of the plot.
   --title       : (type = string, default = \"$title\")
                   Plot title.
   --xlabel      : (type = string, default = \"$xlabel\")
@@ -63,9 +70,21 @@ done;
 (
   if [ -n "$output_pdf" ]; then
     cat <<EOF
-    set term pdf
-    set output '$output_pdf'
+set term pdf
+set output '$output_pdf'
 EOF
+  elif [ -n "$output_dumb" ]; then
+    cat <<EOF
+set term dumb $output_dumb enhanced
+EOF
+  fi;
+  if [ "$show_legend" = true ]; then
+    cat <<EOF
+set key outside vertical
+set key center top
+EOF
+  else
+    echo "set key off";
   fi;
   cat <<EOF
 set style data lines
@@ -73,8 +92,6 @@ set style fill solid 0.3 noborder
 set xlabel '$xlabel'
 set ylabel '$ylabel'
 set title '$title'
-set key outside vertical
-set key center bottom
 plot \\
 EOF
 

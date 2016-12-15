@@ -32,7 +32,7 @@ for tool in imgtxtenh imageSlant convert; do
     (echo "Required tool $tool was not found!" >&2 && exit 1);
 done;
 
-mkdir -p data/lang/char data/lang/word;
+mkdir -p data/lang/{char,word};
 
 for p in train test; do
   [ -f data/lang/word/$p.orig.txt -a \
@@ -80,7 +80,6 @@ done;
     printf("%-12s %d\n", $1, N++);
   }' > data/lang/char/symbs.txt;
 )
-echo -e "  \tDone." >&2;
 
 ## Enhance images with Mauricio's tool, crop image white borders and resize
 ## to a fixed height.

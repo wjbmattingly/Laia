@@ -3,7 +3,7 @@ set -e;
 export LC_NUMERIC=C;
 export LUA_PATH="$(pwd)/../../?/init.lua;$(pwd)/../../?.lua;$LUA_PATH";
 
-batch_size=32;
+batch_size=16;
 height=96;
 overwrite=false;
 
@@ -26,6 +26,7 @@ mkdir -p data;
 num_labels="$[$(wc -l data/lang/char/symbs.txt | cut -d\  -f1) - 1]";
 
 [ -f model.t7 -a "$overwrite" = false ] || {
+  # Create model
   ../../laia-create-model \
     --cnn_type leakyrelu \
     --cnn_num_features 32 64 96 \
@@ -38,6 +39,7 @@ num_labels="$[$(wc -l data/lang/char/symbs.txt | cut -d\  -f1) - 1]";
     --linear_dropout 0.5 \
     1 "$height" "$num_labels" model.t7;
 
+  # Train model
   ../../laia-train-ctc \
     --batch_size "$batch_size" \
     --log_also_to_stderr info \
@@ -46,13 +48,41 @@ num_labels="$[$(wc -l data/lang/char/symbs.txt | cut -d\  -f1) - 1]";
     --progress_table_output train.dat \
     --use_distortions true \
     --learning_rate 0.0005 \
+    --early_stop_epochs 50 \
     model.t7 data/lang/char/symbs.txt \
     data/train.lst data/lang/char/train.txt \
     data/valid.lst data/lang/char/train.txt;
 }
 
+mkdir -p decode/{char,word};
+
+# Get char-level transcript hypotheses
 ../../laia-decode \
   --batch_size "$batch_size" \
   --symbols_table data/lang/char/symbs.txt \
-  model.t7 data/test.lst |
-compute-wer --text ark:data/lang/char/test.txt ark:-;
+  model.t7 data/test.lst > decode/char/test.txt;
+
+# Get word-level transcript hypotheses
+awk '{
+  printf("%s ", $1);
+  for (i=2;i<=NF;++i) {
+    if ($i == "@")
+      printf(" ");
+    else
+      printf("%s", $i);
+  }
+  printf("\n");
+}' decode/char/test.txt > decode/word/test.txt;
+
+# Compute CER/WER.
+if $(which compute-wer &> /dev/null); then
+  compute-wer --mode=strict \
+    ark:data/lang/char/test.txt ark:decode/char/test.txt |
+  grep WER | sed -r 's|%WER|%CER|g';
+
+  compute-wer --mode=strict \
+    ark:data/lang/word/test.orig.txt ark:decode/word/test.txt |
+  grep WER;
+else
+  echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
+fi;
