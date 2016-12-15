@@ -44,19 +44,13 @@ mkdir -p data/;
     data/test.lst data/lang/char/test.txt;
 }
 
-# Decode
-th ../../laia-decode --symbols_table data/lang/char/symbs.txt \
-  model.t7 data/test.lst > test_hyp.char.txt;
+mkdir -p decode/{char,word};
 
-# Check compute-wer
-which compute-wer &> /dev/null || {
-  echo "Kaldi's compute-wer was not found in your PATH!" >&2;
-  exit 1;
-}
-
-# ... and compute CER
-compute-wer --mode=strict ark:data/lang/char/test.txt ark:test_hyp.char.txt |
-grep WER | sed -r 's|%WER|%CER|g';
+# Get character-level transcript hypotheses
+th ../../laia-decode \
+  --batch_size "$batch_size" \
+  --symbols_table data/lang/char/symbs.txt \
+  model.t7 data/test.lst > decode/char/test.txt;
 
 # Get word-level transcript hypotheses
 awk '{
@@ -68,11 +62,17 @@ awk '{
       printf("%s", $i);
   }
   printf("\n");
-}' test_hyp.char.txt > test_hyp.word.txt;
-# ... and compute WER
-compute-wer --mode=strict ark:data/lang/word/test.txt ark:test_hyp.word.txt |
-grep WER;
+}' decode/char/test.txt > decode/word/test.txt;
 
+# Compute CER/WER.
+if $(which compute-wer &> /dev/null); then
+  compute-wer --mode=strict \
+    ark:data/lang/char/test.txt ark:decode/char/test.txt |
+  grep WER | sed -r 's|%WER|%CER|g';
 
-th ../../laia-netout --output_format lattice --output_transform logsoftmax \
-  model.t7 data/test.lst test.lat;
+  compute-wer --mode=strict \
+    ark:data/lang/word/test.txt ark:decode/word/test.txt |
+  grep WER;
+else
+  echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
+fi;
