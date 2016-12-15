@@ -58,7 +58,7 @@ which compute-wer &> /dev/null || {
 compute-wer --mode=strict ark:data/lang/char/test.txt ark:test_hyp.char.txt |
 grep WER | sed -r 's|%WER|%CER|g';
 
-# Get word-level hypothesis transcript
+# Get word-level transcript hypotheses
 awk '{
   printf("%s ", $1);
   for (i=2;i<=NF;++i) {

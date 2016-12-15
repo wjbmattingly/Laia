@@ -33,13 +33,8 @@ mkdir -p data/imgs;
   find data/imgs -name "???" | xargs rm -r;
 }
 
+## Prepare images
 ./steps/prepare.sh --height "$height" --overwrite "$overwrite";
-
-function rand_choice () {
-  local i="$(shuf -i 1-$# -n1)";
-  local a=( "$@" );
-  echo ${a[i-1]};
-}
 
 for c in ${experiments[@]}; do
   # Keep a copy of the previous trained model, just in case you mess something.
@@ -52,108 +47,67 @@ for c in ${experiments[@]}; do
   # <eps> symbol typically used by Kaldi.
   num_symbols=$[$(wc -l data/$c/lang/char/symbs.txt | cut -d\  -f1) - 1];
 
-  # Create a new model.
-  ../../laia-create-model \
-    --cnn_type leakyrelu \
-    --cnn_num_features 16 16 32 64 \
-    --cnn_kernel_size 3 \
-    --cnn_maxpool_size 2,2 2,2 2,2 2,1 \
-    --cnn_batch_norm true \
-    --cnn_dropout 0 \
-    --rnn_type blstm \
-    --rnn_num_layers 3 \
-    --rnn_num_units 256 \
-    --rnn_dropout 0.5 \
-    --linear_dropout 0.5 \
-    -- 1 "$height" "$num_symbols" model_$c.t7;
-
-  ../../laia-train-ctc \
-    --use_distortions true \
-    --batch_size "$batch_size" \
-    --progress_table_output train_$c.dat \
-    --log_also_to_stderr info \
-    --log_level info \
-    --log_file train_$c.log \
-    --early_stop_epochs 50 \
-    --learning_rate 0.001 \
-    model_$c.t7 data/$c/lang/char/symbs.txt \
-    data/$c/tr.lst data/$c/lang/char/tr.txt \
-    data/$c/va.lst data/$c/lang/char/va.txt;
-
-  : <<EOF
-  # Create a new model.
-  for r in $(seq 1 1000); do
-    num_layers=$(shuf -i 3-5 -n1);
-    cnn_maxpool_size=( "2,2" );
-    cnn_num_features=( 32 );
-    for i in $(seq 2 $num_layers); do
-      cnn_maxpool_size+=( "$(rand_choice 0 2,2 2,1 1,2)" );
-      cnn_num_features+=( 32 );
-    done;
-
+  # Create model & train it!
+  [ -f model_$c.t7 -a "$overwrite" = false ] || {
     ../../laia-create-model \
       --cnn_type leakyrelu \
-      --cnn_num_features ${cnn_num_features[@]} \
       --cnn_kernel_size 3 \
-      --cnn_maxpool_size ${cnn_maxpool_size[@]} \
+      --cnn_num_features 12 24 48 96 \
+      --cnn_maxpool_size 2,2 2,2 1,2 1,2 \
       --cnn_batch_norm false \
-      --cnn_dropout 0 \
-      --rnn_type blstm \
-      --rnn_num_layers 2 \
-      --rnn_num_units 64 \
-      --rnn_dropout 0 \
-      --linear_dropout 0 \
-      -- 1 "$height" "$num_symbols" model_$c.t7;
+      --rnn_num_layers 4 \
+      --rnn_num_units 256 \
+      --rnn_dropout 0.5 \
+      --linear_dropout 0.5 \
+      --log_level info \
+      1 "$height" "$num_symbols" model_$c.t7;
 
     ../../laia-train-ctc \
+      --use_distortions true \
       --batch_size "$batch_size" \
-      --progress_table_output train.$r.dat \
-      --early_stop_epochs 400 \
-      --max_epochs 1000 \
-      --learning_rate 0.001 \
+      --progress_table_output train_$c.dat \
+      --early_stop_epochs 50 \
+      --learning_rate 0.00027 \
+      --log_also_to_stderr info \
+      --log_level info \
+      --log_file train_$c.log \
       model_$c.t7 data/$c/lang/char/symbs.txt \
-      data/tr.mini.lst data/htr/lang/char/tr.txt \
-      data/tr.mini.lst data/htr/lang/char/tr.txt;
+      data/$c/tr.lst data/$c/lang/char/tr.txt  \
+      data/$c/va.lst data/$c/lang/char/va.txt;
+  }
 
-    printf "%4d %30s %30s %s\n" "$r" \
-      "${cnn_num_features[*]}" "${cnn_maxpool_size[*]}" \
-      "$(awk '$NF == "*"{ print $5, $1 }' train.$r.dat | tail -n1)";
-  done > model_selection.log;
-EOF
+  mkdir -p decode/$c/{char,word};
 
-done
-
-
-
-
-
-
-: <<EOF
-  ../../laia-train-ctc \
+  # Get character-level transcript hypotheses
+  ../../laia-decode \
     --batch_size "$batch_size" \
-    -early_stop_criterion valid_cer \
-    -max_no_improv_epochs 50 \
-    -min_relative_improv 0.0 \
-    -adversarial_weight 0.0 \
-    -grad_clip 5 \
-    -weight_l1_decay 0 \
-    -weight_l2_decay 0 \
-    -alpha 0.95 \
-    -learning_rate 0.001 \
-    -learning_rate_decay 0.99 \
-    -learning_rate_decay_after 10 \
-    -gpu 0 \
-    -seed 74565 \
-    -output_progress train.log \
-    model.t7 data/lang/chars/symbs.txt \
-    data/tr.lst data/lang/chars/tr.txt \
-    data/va.lst data/lang/chars/va.txt;
+    --log_level info \
+    --symbols_table data/$c/lang/char/symbs.txt \
+    model_$c.t7 data/$c/te.lst > decode/$c/char/te.txt;
 
-  ../../laia-decode.lua \
-    -batch_size "$batch_size" \
-    -symbols_table data/lang/chars/symbs.txt \
-    model.t7 data/te.lst | \
-    compute-wer --text ark:data/lang/chars/te.txt ark:-;
+  # Get word-level transcript hypotheses
+  awk '{
+    printf("%s ", $1);
+    for (i=2;i<=NF;++i) {
+      if ($i == "<space>")
+        printf(" ");
+      else
+        printf("%s", $i);
+    }
+    printf("\n");
+  }' decode/$c/char/te.txt > decode/$c/word/te.txt;
+
+  # Compute CER/WER.
+  if $(which compute-wer &> /dev/null); then
+    compute-wer --mode=strict \
+      ark:data/$c/lang/char/te.txt ark:decode/$c/char/te.txt |
+    grep WER | sed -r 's|%WER|%CER|g';
+
+    compute-wer --mode=strict \
+      ark:data/$c/lang/word/te.txt ark:decode/$c/word/te.txt |
+    grep WER;
+  else
+    echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
+  fi;
+
 done;
-
-EOF

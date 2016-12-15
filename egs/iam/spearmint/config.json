@@ -39,8 +39,8 @@
 	},
 	"learning_rate_log" : {
 	    "type"    : "FLOAT",
-	    "min"     : -4,
-	    "max"     : -2,
+	    "min"     : -14,
+	    "max"     : -7,
 	    "size"    : 1
 	}
     }
