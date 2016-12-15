@@ -2,8 +2,15 @@
 
 Spanish Numbers Dataset is a small dataset of 485 images containing handwritten sentences of Spanish numbers (298 for training and 187 for testing).
 
-###Example:
 ![Example](example.png "Example")
+
+## Requirements
+
+- Laia
+- ImageMagick's convert
+- Optionally: Kaldi's compute-wer
+
+## Training
 
 To train a new Laia model for the Spanish Numbers dataset just follow these steps. Given that this dataset does not provide validation partition, we will use the test partition as validation.
 
