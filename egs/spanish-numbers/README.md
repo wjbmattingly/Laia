@@ -1,4 +1,4 @@
-## Step-by-step Training Guide Using Spanish Numbers Dataset
+# Step-by-step Training Guide Using Spanish Numbers Dataset
 
 Spanish Numbers Dataset is a small dataset of 485 images containing handwritten sentences of Spanish numbers (298 for training and 187 for testing).
 
@@ -21,7 +21,7 @@ wget -P data/ https://www.prhlt.upv.es/corpora/spanish-numbers/Spanish_Number_DB
 tar -xvzf data/Spanish_Number_DB.tgz -C data/;
 ```
 
-- Execute `scripts/prepare.sh`. This script assumes that Spanish Numbers dataset is inside `data` folder. This script does the following:
+- Execute `steps/prepare.sh`. This script assumes that Spanish Numbers dataset is inside `data` folder. This script does the following:
   - Transforms the images from pbm to png.
   - Scales them to 64px height.
   - Creates the auxiliary files necessary for training.
