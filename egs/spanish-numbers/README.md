@@ -51,7 +51,8 @@ tar -xvzf data/Spanish_Number_DB.tgz -C data/;
   data/test.lst data/lang/chars/test.txt;
 ```
 
-After 366 epochs the model achieves a CER=~2.08% in test, with a 95% confidence interval in [1.295%, 2.610%].
+After 366 epochs the model achieves a CER=~2.08% in test, with a 95% confidence
+interval in [1.295%, 2.610%].
 
 ## Decoding
 
