@@ -80,6 +80,6 @@ For optional arguments check `laia-decode -h`.
 
 ### Example
 
-For an more detailed example, see the Spanish Numbers
+For a more detailed example, see the Spanish Numbers
 [README.md](egs/spanish-numbers/README.md) in `egs/spanish-numbers` folder, or
 the IAM [README.md](egs/iam/README.md) in `egs/iam` folder.
