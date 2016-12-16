@@ -12,7 +12,7 @@ If you find this toolkit useful in your research, please cite:
   title = {Laia: A deep learning toolkit for HTR},
   year = {2016},
   publisher = {GitHub},
-  journal = {GitHub repository},
+  note = {GitHub repository},
   howpublished = {\url{https://github.com/jpuigcerver/Laia}},
 }
 ```
