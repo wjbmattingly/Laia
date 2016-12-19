@@ -148,6 +148,9 @@ function CachedBatcher:next(batch_size, batch_img)
   local batch_hpad = {}
   assert(batch_size > 0, 'Batch size must be greater than 0!')
   assert(self._num_samples > 0, 'The dataset is empty!')
+  if self:_global2cacheIndex(1 + (batch_size - 1 + self._idx) % self._num_samples) < 0 then
+    self:clearCache() -- To prevent filling the cache twice in the second for i=0,(batch_size-1) loop
+  end
   -- Get sizes of each sample in the batch
   local batch_sizes = torch.LongTensor(batch_size, 2)
   for i=0,(batch_size-1) do
