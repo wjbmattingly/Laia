@@ -177,9 +177,6 @@ function CTCTrainer:start()
 	 'No distorter passed to the CTCTrainer, but --use_distortions=true')
   assert(self._train_batcher:symCount()[0] == 0,
          'CTC non-character symbol found in transcripts')
-  assert(self._train_batcher:numSymbols() == self._model:get(#self._model):parameters()[1]:size(1),
-         ('Expected model output to have %d dimensions'):format(
-           self._train_batcher:numSymbols()))
 
   -- Flatten the model parameters into a single big chunk of memory.
   self._parameters, self._gradParameters = self._model:getParameters()
@@ -361,6 +358,10 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   local output = self._model.output
   -- Set _gradOutput to have the same size as the output and fill it with zeros
   self._gradOutput = self._gradOutput:typeAs(output):resizeAs(output):zero()
+
+  assert(self._train_batcher:numSymbols() == output:size(2),
+         ('Expected model output to have %d dimensions and got %d'):format(
+           self._train_batcher:numSymbols(), output:size(2)))
 
   -- TODO(jpuigcerver): This assumes that all sequences have the same number
   -- of frames, which should not be the case, since padding should be ignored!
