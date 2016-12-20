@@ -175,6 +175,11 @@ function CTCTrainer:start()
   assert(self._optimizer ~= nil)
   assert(self._distorter or not self._use_distortions,
 	 'No distorter passed to the CTCTrainer, but --use_distortions=true')
+  assert(self._train_batcher:symCount()[0] == 0,
+         'CTC non-character symbol found in transcripts')
+  assert(self._train_batcher:numSymbols() == self._model:get(#self._model):parameters()[1]:size(1),
+         ('Expected model output to have %d dimensions'):format(
+           self._train_batcher:numSymbols()))
 
   -- Flatten the model parameters into a single big chunk of memory.
   self._parameters, self._gradParameters = self._model:getParameters()
