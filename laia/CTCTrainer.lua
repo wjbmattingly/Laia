@@ -60,7 +60,7 @@ end
 function CTCTrainer:setDistorter(distorter)
   self._distorter = distorter
   self._initialized = false
-  if self._distorter then
+  if self._distorter and self._opt.use_distortions then
     laia.log.info('CTCTrainer uses the distorter:\n' ..
 		    self._distorter:__tostring__())
   end
@@ -173,7 +173,7 @@ function CTCTrainer:start()
   assert(self._model ~= nil)
   assert(self._train_batcher ~= nil and self._train_batcher:numSamples() > 0)
   assert(self._optimizer ~= nil)
-  assert(self._distorter or not self._use_distortions,
+  assert(self._distorter or not self._opt.use_distortions,
 	 'No distorter passed to the CTCTrainer, but --use_distortions=true')
   assert(self._train_batcher:symCount()[0] == 0,
          'CTC non-character symbol found in transcripts')
