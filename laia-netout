@@ -47,7 +47,7 @@ parser:option(
   '--output_transform', 'Apply this transformation at the end of the model. ' ..
     'For instance, use "softmax" to get posterior probabilities as the ' ..
     'output of the model.',
-  '', { [''] = '', softmax = 'softmax', logsoftmax = 'logsoftmax' })
+  '', { [''] = '', softmax = 'softmax', logsoftmax = 'logsoftmax', negsoftmax = 'negsoftmax', neglogsoftmax = 'neglogsoftmax' })
 parser:option(
   '--prior', 'File containing the label priors used to compute the ' ..
     'log-likelihood: log p(x|s) = log P(s|x) - alpha * log P(s) ' ..
@@ -74,10 +74,13 @@ local model = laia.Checkpoint():load(opts.checkpoint):Best():getModel()
 assert(model ~= nil, 'No model was found in the checkpoint file!')
 
 -- Add custom output layers.
-if opts.prior ~= '' or opts.output_transform == 'logsoftmax' then
+if opts.prior ~= '' or opts.output_transform == 'logsoftmax' or opts.output_transform == 'neglogsoftmax' then
   model:add(nn.LogSoftMax())
-elseif opts.output_transform == 'softmax' then
+elseif opts.output_transform == 'softmax' or opts.output_transform == 'negsoftmax' then
   model:add(nn.SoftMax())
+end
+if opts.output_transform == 'negsoftmax' or opts.output_transform == 'neglogsoftmax' then
+  model:add(nn.MulConstant(-1,true))
 end
 
 -- If a GPU is requested, check that we have everything necessary.
