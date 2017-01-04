@@ -37,7 +37,7 @@ num_symbols=$[$(wc -l data/lang/char/symbs.txt | cut -d\  -f1) - 1];
     --log_level info \
     --log_file laia.log \
     --progress_table_output laia.dat \
-    --use_distortions false \
+    --use_distortions true \
     --early_stop_epochs 100 \
     --learning_rate 0.0005 \
     model.t7 data/lang/char/symbs.txt \
