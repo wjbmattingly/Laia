@@ -1,4 +1,5 @@
 -- Extension functions for Lua string.
+laia = laia or {}
 
 -- Return a list of the words in the input string, separated by whitespace
 -- characters (space, tab, newline, etc). The optional argument pattern
