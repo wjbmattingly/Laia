@@ -49,12 +49,12 @@ local modes = {
 }
 
 local levels = {
-  ['trace'] = 0,
-  ['debug'] = 1,
-  ['info']  = 2,
-  ['warn']  = 3,
-  ['error'] = 4,
-  ['fatal'] = 5,
+  ['trace'] = 1,
+  ['debug'] = 2,
+  ['info']  = 3,
+  ['warn']  = 4,
+  ['error'] = 5,
+  ['fatal'] = 6,
 }
 
 -- Utility function to register logging options, common to all tools.
