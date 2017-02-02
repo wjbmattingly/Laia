@@ -1,4 +1,4 @@
-# Parzival - IAM Historial Document Database
+# Saint Gall - IAM Historial Document Database
 
 The Saint Gall database presented in contains a handwritten historical
 manuscript from the 9th century, written in Latin by a single writter, using
