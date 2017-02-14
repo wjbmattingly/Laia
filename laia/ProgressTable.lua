@@ -39,7 +39,7 @@ function ProgressTable:open(filename, append)
   if self._file then self:close() end
   if filename and filename ~= '-' then
     append = append or false
-    self._written_before = append and io.open(filename 'r') ~= nil
+    self._written_before = append and io.open(filename, 'r') ~= nil
     self._file = append and io.open(filename, 'a') or io.open(filename, 'w')
     self._opened = true
     self._warn_ci = false
