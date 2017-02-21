@@ -36,6 +36,8 @@ if distorter then distorter:registerOptions(parser, true) end
 epoch_summarizer:registerOptions(parser, true)
 -- Progress Table options
 progress_table:registerOptions(parser, true)
+-- Memory monitor options
+laia.mem.registerOptions(parser, true)
 
 -- train_ctc arguments
 parser:argument('checkpoint', 'Input model or checkpoint for training.')
@@ -119,6 +121,9 @@ parser:option(
 
 -- Parse from command line
 local opts = parser:parse()
+
+-- Start memory monitor after parsing the options
+laia.mem.startMonitor()
 
 -- Initialize random seeds
 laia.manualSeed(opts.seed)
@@ -276,12 +281,28 @@ while opts.max_epochs <= 0 or epoch < opts.max_epochs do
 		  rmsprop_opts.learningRate)
   end
 
+  -- Show some memory usage messages before the training step
+  laia.log.info(
+    'Epoch %d, CPU memory usage before train: current %.1fMB, max %.1fMB',
+    epoch, laia.mem.getCurrentCPUMemory(), laia.mem.getMaxCPUMemory())
+  laia.log.info(
+    'Epoch %d, GPU memory usage before train: current %.1fMB, max %.1fMB',
+    epoch, laia.mem.getCurrentGPUMemory(), laia.mem.getMaxGPUMemory())
+
   -- Train
   local train_epoch_info = ctc_trainer:trainEpoch(rmsprop_opts)
   if laia.SignalHandler.ExitRequested() then break end
   local train_summary = epoch_summarizer:summarize(train_epoch_info)
   laia.log.info('Epoch %d, train summary: %s',
 		  epoch, laia.EpochSummarizer.ToString(train_summary))
+
+  -- Show some memory usage messages before the validation step
+  laia.log.info(
+    'Epoch %d, CPU memory usage before valid: current %.1fMB, max %.1fMB',
+    epoch, laia.mem.getCurrentCPUMemory(), laia.mem.getMaxCPUMemory())
+  laia.log.info(
+    'Epoch %d, GPU memory usage before valid: current %.1fMB, max %.1fMB',
+    epoch, laia.mem.getCurrentGPUMemory(), laia.mem.getMaxGPUMemory())
 
   -- Valid (if possible)
   local valid_epoch_info, valid_summary = nil, nil

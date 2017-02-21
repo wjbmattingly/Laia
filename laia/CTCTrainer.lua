@@ -15,6 +15,14 @@ local CTCTrainer, Parent = torch.class('laia.CTCTrainer',
 --   print(train_epoch_info.loss, valid_epoch_info.loss)
 -- end
 
+local function check_nan(x, m)
+  return x:ne(x):sum()
+end
+
+local function check_inf(x, m)
+  return x:ge(math.huge):sum() + x:le(-math.huge):sum()
+end
+
 function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
   Parent.__init(self, {
     batch_size = 16,
@@ -23,7 +31,9 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
     snapshot_interval = 0,
     display_progress_bar = false,
     num_samples_epoch = 0,
-    grad_clip = 0
+    grad_clip = 0,
+    check_nan = false,
+    check_inf = false,
   })
   self._model = model
   self._train_batcher = train_batcher
@@ -137,10 +147,20 @@ function CTCTrainer:registerOptions(parser, advanced)
     '--num_samples_epoch',
     'Number of training samples to process in each epoch; ' ..
       'If n=0, this value is equal to the number of samples in the training '..
-      'partition.', 0, laia.toint)
+      'partition.', self._opt.num_samples_epoch, laia.toint)
     :argname('<n>')
     :ge(0)
     :bind(self._opt, 'num_samples_epoch')
+    :advanced(advanced)
+  parser:option(
+    '--check_nan', 'If true, check for NaN values during training.',
+    self._opt.check_nan, laia.toboolean)
+    :bind(self._opt, 'check_nan')
+    :advanced(advanced)
+  parser:option(
+    '--check_inf', 'If true, check for infinity values during training.',
+    self._opt.check_inf, laia.toboolean)
+    :bind(self._opt, 'check_inf')
     :advanced(advanced)
 end
 
@@ -160,6 +180,12 @@ function CTCTrainer:checkOptions()
   assert(type(self._opt.display_progress_bar) == 'boolean',
 	 ('Display progress bar must be a boolean (value = %s)'):format(
 	   self._opt.display_progress_bar))
+  assert(type(self._opt.check_nan) == 'boolean',
+	 ('Expected a boolean value (got value = %s)')
+	   :format(self._opt.check_nan))
+  assert(type(self._opt.check_inf) == 'boolean',
+	 ('Expected a boolean value (got value = %s)')
+	   :format(self._opt.check_inf))
   -- Log some warnings
   if self._opt.display_progress_bar and not xlua then
     laia.log.warn('Progress bar not displayed, xlua was not found')
@@ -328,7 +354,7 @@ function CTCTrainer:_trainBatch(batch_img, batch_gt)
     -- Number of clamped gradients, for debugging purposes
     local ncg = torch.abs(self._gradParameters):gt(self._opt.grad_clip):sum()
     if ncg > 0 then
-      laia.log.debug(('%d (%.2f%%) gradients clamped to [-%g,%g]'):format(
+      laia.log.debug(('%d [%.2f%%] gradients clamped to [-%g,%g]'):format(
 	  ncg, 100 * ncg / self._gradParameters:nElement(),
 	  self._opt.grad_clip, self._opt.grad_clip))
       self._gradParameters:clamp(-self._opt.grad_clip, self._opt.grad_clip)
@@ -348,6 +374,7 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   else
     self._model:evaluate()
   end
+  self._model:clearState()
   local batch_size = batch_img:size(1)
   assert(batch_size == #batch_gt,
 	 ('The number of transcripts is not equal to the number of images '..
@@ -356,12 +383,24 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   -- Forward pass
   self._model:forward(batch_img)
   local output = self._model.output
-  -- Set _gradOutput to have the same size as the output and fill it with zeros
-  self._gradOutput = self._gradOutput:typeAs(output):resizeAs(output):zero()
-
+  -- Check output size
   assert(self._train_batcher:numSymbols() == output:size(2),
          ('Expected model output to have %d dimensions and got %d'):format(
            self._train_batcher:numSymbols(), output:size(2)))
+  -- Check NaNs
+  if self._opt.check_nan then
+    local n = check_nan(output)
+    local p = n / output:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) NaN values during forward!', n, p)
+  end
+  -- Check NaNs
+  if self._opt.check_inf then
+    local n = check_inf(output)
+    local p = n / output:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) inf values during forward!', n, p)
+  end
+  -- Set _gradOutput to have the same size as the output and fill it with zeros
+  self._gradOutput = self._gradOutput:typeAs(output):resizeAs(output):zero()
 
   -- TODO(jpuigcerver): This assumes that all sequences have the same number
   -- of frames, which should not be the case, since padding should be ignored!
@@ -378,6 +417,18 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   else
     laia.log.fatal(
       ('CTC is not implemented for tensors of type %q'):format(output:type()))
+  end
+  -- Check NaNs
+  if self._opt.check_nan then
+    local n = check_nan(self._gradOutput)
+    local p = n / self._gradOutput:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) NaN values during CTC!', n, p)
+  end
+  -- Check NaNs
+  if self._opt.check_inf then
+    local n = check_inf(self._gradOutput)
+    local p = n / self._gradOutput:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) inf values during CTC!', n, p)
   end
 
   -- Perform framewise decoding to estimate CER
@@ -402,6 +453,18 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   -- Compute gradients of the loss function w.r.t parameters
   if do_backprop then
     self._model:backward(batch_img, self._gradOutput)
+  end
+  -- Check NaNs
+  if self._opt.check_nan then
+    local n = check_nan(self._gradParameters)
+    local p = n / self._gradParameters:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) NaN values during backward!', n, p)
+  end
+  -- Check NaNs
+  if self._opt.check_inf then
+    local n = check_inf(self._gradParameters)
+    local p = n / self._gradParameters:nElement() * 100
+    assert(n == 0, 'Found %d (%.2f%%) inf values during backward!', n, p)
   end
 
   -- Make gradients independent of the batch size and sequence length
@@ -462,8 +525,5 @@ function CTCTrainer._resetCosts(dst)
     end
   end
 end
-
--- CTCTrainer is responsive to user signals to abort training in a graceful way
-
 
 return CTCTrainer

@@ -39,7 +39,7 @@ function ProgressTable:open(filename, append)
   if self._file then self:close() end
   if filename and filename ~= '-' then
     append = append or false
-    self._written_before = append and io.open(filename 'r') ~= nil
+    self._written_before = append and io.open(filename, 'r') ~= nil
     self._file = append and io.open(filename, 'a') or io.open(filename, 'w')
     self._opened = true
     self._warn_ci = false
@@ -74,11 +74,10 @@ function ProgressTable:write(epoch, train_summary, valid_summary, is_better)
     if valid_summary then header = header .. ' VALID_LOSS' end
     header = header .. ' TRAIN_CER'
     if valid_summary then header = header .. ' VALID_CER' end
-    if self._opt.cer_confidence_interval and train_summary.cer_ci and
-    valid_summary.cer_ci then
+    if self._opt.cer_confidence_interval and train_summary.cer_ci then
       header = header .. ' TRAIN_CER_LO'
       header = header .. ' TRAIN_CER_UP'
-      if valid_summary then
+      if valid_summary and valid_summary.cer_ci then
 	header = header .. ' VALID_CER_LO'
 	header = header .. ' VALID_CER_UP'
       end
@@ -118,13 +117,12 @@ function ProgressTable:write(epoch, train_summary, valid_summary, is_better)
     self._file:write((' %9.3f'):format(valid_summary.cer * 100))
   end
   -- Confidence intervals
-  if self._opt.cer_confidence_interval and train_summary.cer_ci and
-  valid_summary.cer_ci then
+  if self._opt.cer_confidence_interval and train_summary.cer_ci then
     -- Train Lower/Upper intervals
     self._file:write((' %12.3f'):format(train_summary.cer_ci.lower * 100))
     self._file:write((' %12.3f'):format(train_summary.cer_ci.upper * 100))
     -- Valid Lower/Upper interval
-    if valid_summary then
+    if valid_summary and valid_summary.cer_ci then
       self._file:write((' %12.3f'):format(valid_summary.cer_ci.lower * 100))
       self._file:write((' %12.3f'):format(valid_summary.cer_ci.upper * 100))
     end

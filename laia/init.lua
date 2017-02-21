@@ -17,6 +17,7 @@ laia.argparse = require('laia.util.argparse')   -- Argparse utility
 require('laia.util.decode')  -- Laia decoding utilities
 require('laia.util.format')  -- Laia decoding utilities
 require('laia.util.io')      -- Laia I/O utilities
+require('laia.util.mem')     -- Functions to monitor memory usage
 require('laia.util.rand')    -- RNG utils and distributions
 require('laia.util.torch')   -- Torch utilities
 require('laia.util.types')   -- type check/converstion utilities

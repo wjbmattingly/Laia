@@ -78,35 +78,70 @@ for c in ${experiments[@]}; do
 
   mkdir -p decode/$c/{char,word};
 
-  # Get character-level transcript hypotheses
-  ../../laia-decode \
-    --batch_size "$batch_size" \
-    --log_level info \
-    --symbols_table data/$c/lang/char/symbs.txt \
-    model_$c.t7 data/$c/te.lst > decode/$c/char/te.txt;
+  for p in va te; do
+    # Get character-level transcript hypotheses
+    [ -f decode/$c/char/$p.txt -a "$overwrite" = false ] ||
+    ../../laia-decode \
+      --batch_size "$batch_size" \
+      --log_level info \
+      --symbols_table data/$c/lang/char/symbs.txt \
+      model_$c.t7 data/$c/$p.lst | sort -V > decode/$c/char/$p.txt;
 
-  # Get word-level transcript hypotheses
-  awk '{
-    printf("%s ", $1);
-    for (i=2;i<=NF;++i) {
-      if ($i == "<space>")
-        printf(" ");
-      else
-        printf("%s", $i);
-    }
-    printf("\n");
-  }' decode/$c/char/te.txt > decode/$c/word/te.txt;
+    # Get word-level transcript hypotheses
+    [ -f decode/$c/word/$p.txt -a "$overwrite" = false ] ||
+    awk '{
+      printf("%s ", $1);
+      for (i=2;i<=NF;++i) {
+        if ($i == "<space>")
+          printf(" ");
+        else
+          printf("%s", $i);
+      }
+      printf("\n");
+    }' decode/$c/char/$p.txt > decode/$c/word/$p.txt;
 
-  # Compute CER/WER.
-  if $(which compute-wer &> /dev/null); then
-    compute-wer --mode=strict \
-      ark:data/$c/lang/char/te.txt ark:decode/$c/char/te.txt |
-    grep WER | sed -r 's|%WER|%CER|g';
+    # Compute CER/WER.
+    if $(which compute-wer &> /dev/null); then
+      echo "Partition: $p";
+      compute-wer --mode=strict \
+	ark:data/$c/lang/char/$p.txt ark:decode/$c/char/$p.txt 2> /dev/null |
+      grep WER | sed -r 's|%WER|%CER|g';
 
-    compute-wer --mode=strict \
-      ark:data/$c/lang/word/te.txt ark:decode/$c/word/te.txt |
-    grep WER;
-  else
-    echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
-  fi;
+      compute-wer --mode=strict \
+      ark:data/$c/lang/word/$p.txt ark:decode/$c/word/$p.txt 2> /dev/null |
+      grep WER;
+    else
+      echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
+    fi;
+  done;
+
+  # Compute label priors in the training data.
+  [ -f data/$c/lang/char/tr_prior.txt -a $overwrite = false ] ||
+  ../../laia-force-align \
+    --batch_size $batch_size \
+    model_$c.t7 \
+    data/$c/lang/char/symbs.txt \
+    data/$c/tr.lst \
+    data/$c/lang/char/tr.txt \
+    /dev/null \
+    data/$c/lang/char/tr_prior.txt;
+
+  # Compute likelihood matrices for the validation and test datasets.
+  alpha=0.3;
+  mkdir -p decode/$c/cm/alpha_$alpha;
+  for p in va; do
+    [ -f decode/$c/cm/alpha_$alpha/$p.ark -a $overwrite = false ] ||
+    ../../laia-netout \
+      --batch_size $batch_size \
+      --prior data/$c/lang/char/tr_prior.txt \
+      --prior_alpha $alpha \
+      --output_format matrix \
+      --log_level info \
+      model_$c.t7 \
+      data/$c/$p.lst \
+      /dev/stdout |
+    copy-matrix \
+      ark:- \
+      ark,scp:decode/$c/cm/alpha_$alpha/$p.ark,decode/$c/cm/alpha_$alpha/$p.scp;
+  done;
 done;

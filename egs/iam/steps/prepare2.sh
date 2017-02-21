@@ -29,42 +29,30 @@ source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
   -s data/kws/lang/word/va.txt ] || \
   ( echo "The IAM database is not available!">&2 && exit 1; );
 
-function tokenize_char () {
-  # The original transcriptions may contain some contractions already
-  # splitted (e.g. he 's), merge those contractions in order to avoid
-  # artificial whitespaces.
-  # Singleton grave accents (`) are subtituted by a single quote ('),
-  # since this character is not present in IAM train/valid.
-  # Double quotes (") are replaced by a pair of single quotes (''), to
-  # avoid graphical ambiguity.
-  # Token <space> is used to mark whitespaces between words.
-  # Also, replace # by <stroke>.
-  with_id=0;
-  [ "$1" = "--with-id" ] && with_id=1;
-  sed 's/ '\''\(s\|d\|ll\|m\|ve\|t\|re\|S\|D\|LL\|M\|VE\|T\|RE\)\b/'\''\1/g' |
-  awk -v WID=$with_id '{
-      start=1;
-      if (WID) { printf("%s", $1); start=2; }
-      for(i=start;i<=NF;++i) {
+for c in htr kws; do
+  mkdir -p data/$c/lang/char;
+
+  for p in te tr va; do
+    # Place all character-level transcriptions into a single txt table file.
+    # The original transcriptions may contain some contractions already
+    # splitted (e.g. he 's), merge those contractions in order to avoid
+    # artificial whitespaces.
+    # Token <space> is used to mark whitespaces between words.
+    # Also, replace # by <stroke>.
+    [ -s data/$c/lang/char/$p.txt -a $overwrite = false ] && continue;
+    cat data/$c/lang/word/$p.txt |
+    sed 's/ '\''\(s\|d\|ll\|ve\|t\|re\|S\|D\|LL\|VE\|T\|RE\)\([ $]\)/'\''\1\2/g' |
+    awk '{
+      printf("%s", $1);
+      for(i=2;i<=NF;++i) {
         for(j=1;j<=length($i);++j)
           printf(" %s", substr($i, j, 1));
         if (i < NF) printf(" <space>");
       }
       printf("\n");
     }' |
-  tr \` \' |
-  sed 's/"/'\'' '\''/g;s/#/<stroke>/g;s/^[ ]\+//g; s/[ ]\+$//g'
-}
-
-for c in htr kws; do
-  mkdir -p data/$c/lang/char;
-
-  for p in te tr va; do
-    # Place all character-level transcriptions into a single txt table file.
-
-    [ -s data/$c/lang/char/$p.txt -a $overwrite = false ] && continue;
-    cat data/$c/lang/word/$p.txt |
-    tokenize_char --with-id > data/$c/lang/char/$p.txt;
+    tr \` \' |
+    sed 's/"/'\'' '\''/g;s/#/<stroke>/g' > data/$c/lang/char/$p.txt;
   done;
 
   # Generate symbols table from training and valid characters.
@@ -85,12 +73,6 @@ for c in htr kws; do
   wc -l data/$c/lang/char/symbs.txt | awk '{
     printf("Number of training symbols in \"%s\" = %d\n", $2, $1 - 1);
   }' >&2;
-done;
-
-## Prepare external corpora data
-for c in brown lob_excludealltestsets wellington; do
-  [ -f data/htr/lang/char/$c.txt -a $overwrite = false ] ||
-  cat data/lm/$c.txt | tokenize_char > data/htr/lang/char/$c.txt
 done;
 
 ## Enhance images with Mauricio's tool, crop image white borders and resize
