@@ -45,8 +45,9 @@ tmpd="$(mktemp -d)";
 
 shuf "data/lists/$partition/tr_h$height.lst" | head -n 32 | sort > "$tmpd/list";
 
-multipliers=(4 8 12 16 20 24 32);
+echo "Check progress at $tmpd/dat ...";
 
+multipliers=(4 8 12 16 20 24 32);
 while true; do
   num_cnn_layers="$(shuf -i 3-5 -n 1)";
   num_cnn_hpool="$(shuf -i "2-$num_cnn_layers" -n 1)";
