@@ -70,7 +70,7 @@ while true; do
     fi;
   done;
 
-  fm="$(printf "%25s %25s\n" "${cnn_num_features[*]}" "${cnn_maxpool_size[*]}")"
+  fm="$(printf "%25s %25s" "${cnn_num_features[*]}" "${cnn_maxpool_size[*]}")"
   [ -s "$tmpd/search" ] && grep -q "$fm" "$tmpd/search" && continue;
 
   # Create model
@@ -91,18 +91,18 @@ while true; do
     --use_distortions false \
     --batch_size "$batch_size" \
     --best_criterion train_cer \
-    --progress_table_output "$tmpd/dat" \
     --early_stop_epochs 200 \
     --early_stop_threshold 0.05 \
     --learning_rate 0.0005 \
     --log_file "$tmpd/log" \
+    --max_epochs 1000 \
+    --progress_table_output "$tmpd/dat" \
     "$tmpd/model" "train/$ptype/syms.txt" \
     "$tmpd/list"   "data/lang/char/$partition/tr.txt";
 
   log=( $(awk '$NF == "*"{ print $3, $1, $2; }' "$tmpd/dat" | tail -n1) );
-
-  printf "%8.4f %5d %8.5f | %25s %25s\n" "${log[@]}" \
-	 "${cnn_num_features[*]}" "${cnn_maxpool_size[*]}" |
+  printf "%25s %25s | %8.4f %5d %8.5f\n" \
+	 "${cnn_num_features[*]}" "${cnn_maxpool_size[*]}" "${log[@]}" |
   tee -a "$tmpd/search";
 done;
 
