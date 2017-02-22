@@ -14,11 +14,9 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 height=128;
 batch_size=16;
 overwrite=false;
+partition="lines/aachen";
 help_message="
-Usage: ${0##*/} [options] partition
-
-Arguments:
-  partition           : Id of the partition: \"aachen\" or \"original\".
+Usage: ${0##*/} [options]
 
 Options:
   --height            : (type = integer, default = $height)
@@ -29,19 +27,26 @@ Options:
                         Overwrite previously created files.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-[ $# -ne 1 ] && echo "$help_message" >&2 && exit 1;
 
-for f in "data/part/$1/te.lst" "data/part/$1/tr.lst" "data/part/$1/va.lst" \
-  "data/lists/$1/te_h$height.lst" "data/lists/$1/tr_h$height.lst" \
-  "data/lists/$1/va_h$height.lst" train/syms.txt; do
+# Get "lines" or "sentences" from the full partition string (e.g. lines/aachen)
+ptype="${partition%%/*}";
+
+for f in  "data/lists/$partition/te_h$height.lst" \
+	  "data/lists/$partition/tr_h$height.lst" \
+	  "data/lists/$partition/va_h$height.lst" \
+	  "data/lang/char/$partition/tr.txt" \
+	  "data/lang/char/$partition/va.txt" \
+	  "train/$ptype/syms.txt"; do
   [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
 
-num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
+# Get number of symbols
+num_syms="$(tail -n1 train/$ptype/syms.txt | awk '{ print $2 }')";
 
-mkdir -p "train/$1";
+# Create directory
+mkdir -p "train/$partition";
 
-
+# Create model
 ../../laia-create-model \
   --cnn_type leakyrelu \
   --cnn_kernel_size 3 \
@@ -53,27 +58,21 @@ mkdir -p "train/$1";
   --rnn_dropout 0.5 \
   --linear_dropout 0.5 \
   --log_level info \
-  1 "$height" "$num_syms" "train/$1/lstm1d.t7";
+  1 "$height" "$num_syms" "train/$partition/lstm1d.t7";
 
+# Train model
 ../../laia-train-ctc \
   --use_distortions false \
   --batch_size "$batch_size" \
-  --progress_table_output "train/$1/lstm1d.dat" \
-  --early_stop_epochs 250 \
+  --progress_table_output "train/$partition/lstm1d.dat" \
+  --early_stop_epochs 25 \
   --early_stop_threshold 0.05 \
   --learning_rate 0.0005 \
   --log_also_to_stderr info \
   --log_level info \
-  --log_file "train/$1/lstm1d.log" \
-  --check_nan true \
-  --check_inf true \
-  --best_criterion train_cer \
-  "train/$1/lstm1d.t7" train/syms.txt \
-  mini1h.lst  "data/lang/char/$1/tr.txt";
-
-:<<EOF
-  "data/lists/$1/tr.lst" "data/lang/char/$1/tr.txt" \
-  "data/lists/$1/va.lst" "data/lang/char/$1/va.txt";
-EOF
+  --log_file "train/$partition/lstm1d.log" \
+  "train/$partition/lstm1d.t7" "train/$ptype/syms.txt" \
+  "data/lists/$partition/tr_h${height}.lst" "data/lang/char/$partition/tr.txt" \
+  "data/lists/$partition/va_h${height}.lst" "data/lang/char/$partition/va.txt";
 
 exit 0;

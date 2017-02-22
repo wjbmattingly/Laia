@@ -10,21 +10,19 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 overwrite=false;
+partition=lines;
 wspace="<space>";
 help_message="
-Usage: ${0##*/} [options] list_dir text_dir output_dir
-
-Arguments:
-  list_dir     : Directory containing the partition list files (e.g. data/htr).
-  text_dir     : Directory containing all the text data (i.e. data/text).
-  output_dir   : Output directory containing all the processed files
-                 (e.g. exp/htr/lang).
+Usage: ${0##*/} [options]
 
 Options:
-  --overwrite         : (type = boolean, default = $overwrite)
-                        Overwrite previously created files.
-  --wspace            : (type = string, default \"$wspace\")
-                        Use this symbol to represent the whitespace character.
+  --overwrite  : (type = boolean, default = $overwrite)
+                 Overwrite previously created files.
+  --partition  : (type = string, default = \"$partition\")
+                 Select the \"lines\" or \"sentences\" partition. Note: Aachen
+                 typically uses the sentences partition.
+  --wspace     : (type = string, default \"$wspace\")
+                 Use this symbol to represent the whitespace character.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 #[ $# -ne 3 ] && echo "$help_message" >&2 && exit 1;
@@ -33,11 +31,11 @@ source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 tokenize_cmd="./utils/nltk_tokenize.py";
 which pypy &> /dev/null && tokenize_cmd="pypy $tokenize_cmd";
 
-mkdir -p data/lang/{char,word};
+mkdir -p data/lang/{char,word}/"$partition";
 
 # Prepare word-level transcripts.
-[ "$overwrite" = false -a -s data/lang/word/all.txt ] ||
-awk '$1 !~ /^#/' data/original/lines.txt | cut -d\  -f1,9- |
+[ "$overwrite" = false -a -s "data/lang/word/$partition/all.txt" ] ||
+awk '$1 !~ /^#/' "data/original/$partition.txt" | cut -d\  -f1,9- |
 awk '{ $1=$1"|"; print; }' |
 # Some words include spaces (e.g. "B B C" -> "BBC"), remove them.
 sed -r 's| +||g' |
@@ -46,11 +44,11 @@ tr \| \  |
 # Some contractions where separated from the words to reduce the vocabulary
 # size. These separations are unreal, we join them (e.g. "We 'll" -> "We'll").
 sed 's/ '\''\(s\|d\|ll\|m\|ve\|t\|re\|S\|D\|LL\|M\|VE\|T\|RE\)\b/'\''\1/g' |
-sort -k1 > data/lang/word/all.txt ||
-( echo "ERROR: Creating file data/lang/word/all.txt" >&2 && exit 1 );
+sort -k1 > "data/lang/word/$partition/all.txt" ||
+( echo "ERROR: Creating file data/lang/word/$partition/all.txt" >&2 && exit 1 );
 
 # Prepare character-level transcripts.
-[ "$overwrite" = false -a -s data/lang/char/all.txt ] ||
+[ "$overwrite" = false -a -s "data/lang/char/$partition/all.txt" ] ||
 awk -v ws="$wspace" '{
   printf("%s", $1);
   for(i=2;i<=NF;++i) {
@@ -60,19 +58,23 @@ awk -v ws="$wspace" '{
     if (i < NF) printf(" %s", ws);
   }
   printf("\n");
-}' data/lang/word/all.txt | sort -k1 > data/lang/char/all.txt ||
-( echo "ERROR: Creating file data/lang/char/all.txt" >&2 && exit 1 );
+}' "data/lang/word/$partition/all.txt" |
+sort -k1 > "data/lang/char/$partition/all.txt" ||
+( echo "ERROR: Creating file data/lang/char/$partition/all.txt" >&2 && exit 1 );
 
 # Add whitespace boundaries to the character-level transcripts.
-[ "$overwrite" = false -a -s data/lang/char/all_wspace.txt ] ||
+# Note: Actually not used, so far.
+[ "$overwrite" = false -a -s "data/lang/char/$partition/all_wspace.txt" ] ||
 awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
-  data/lang/char/all.txt > data/lang/char/all_wspace.txt ||
-( echo "ERROR: Creating file data/lang/char/all_wspace.txt" >&2 && exit 1 );
+  "data/lang/char/$partition/all.txt" \
+  > "data/lang/char/$partition/all_wspace.txt" ||
+( echo "ERROR: Creating file data/lang/char/$partition/all_wspace.txt" >&2 &&
+  exit 1 );
 
 # Extract characters list for training.
-mkdir -p train;
-[ "$overwrite" = false -a -s train/syms.txt ] ||
-cut -d\  -f2- data/lang/char/all.txt | tr \  \\n | sort | uniq |
+mkdir -p "train/$partition";
+[ "$overwrite" = false -a -s train/$partition/syms.txt ] ||
+cut -d\  -f2- data/lang/char/$partition/all.txt | tr \  \\n | sort | uniq |
 awk -v ws="$wspace" 'BEGIN{
   printf("%-12s %d\n", "<eps>", 0);
   printf("%-12s %d\n", "<ctc>", 1);
@@ -80,21 +82,21 @@ awk -v ws="$wspace" 'BEGIN{
   N = 3;
 }$1 != ws{
   printf("%-12s %d\n", $1, N++);
-}' > train/syms.txt ||
-( echo "ERROR: Creating file train/syms.txt" >&2 && exit 1 );
+}' > train/$partition/syms.txt ||
+( echo "ERROR: Creating file train/$partition/syms.txt" >&2 && exit 1 );
 
 # Split files into different partitions (train, test, valid).
-mkdir -p data/lang/{char,word}/aachen;
-for p in aachen/{tr,te,va}; do
-  join -1 1 "data/part/$p.lst" data/lang/char/all.txt \
+mkdir -p data/lang/{char,word}/"$partition/aachen";
+for p in "$partition/aachen"/{tr,te,va}; do
+  join -1 1 "data/part/$p.lst" "data/lang/char/$partition/all.txt" \
     > "data/lang/char/$p.txt" ||
   ( echo "ERROR: Creating file data/lang/char/$p.txt" >&2 && exit 1 );
-  join -1 1 "data/part/$p.lst" data/lang/char/all_wspace.txt \
-    > "data/lang/char/${p}_wspace.txt" ||
-  ( echo "ERROR: Creating file data/lang/char/${p}_wspace.txt" >&2 && exit 1 );
-  join -1 1 "data/part/$p.lst" data/lang/word/all.txt \
+  join -1 1 "data/part/$p.lst" "data/lang/word/$partition/all.txt" \
     > "data/lang/word/$p.txt" ||
   ( echo "ERROR: Creating file data/lang/word/$p.txt" >&2 && exit 1 );
+  join -1 1 "data/part/$p.lst" "data/lang/char/$partition/all_wspace.txt" \
+    > "data/lang/char/${p}_wspace.txt" ||
+  ( echo "ERROR: Creating file data/lang/char/${p}_wspace.txt" >&2 && exit 1 );
 done;
 
 
