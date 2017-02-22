@@ -19,12 +19,15 @@ help_message="
 Usage: ${0##*/} [options]
 
 Options:
-  --height            : (type = integer, default = $height)
-                        Use images rescaled to this height.
-  --batch_size        : (type = integer, default = $batch_size)
-                        Batch size for training.
-  --overwrite         : (type = boolean, default = $overwrite)
-                        Overwrite previously created files.
+  --height      : (type = integer, default = $height)
+                  Use images rescaled to this height.
+  --batch_size  : (type = integer, default = $batch_size)
+                  Batch size for training.
+  --overwrite   : (type = boolean, default = $overwrite)
+                  Overwrite previously created files.
+  --partition   : (type = string, default = \"$partition\")
+                  Select the \"lines\" or \"sentences\" partition and the lists
+                  to use (\"aachen\", \"original\" or \"kws\").
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 
@@ -50,27 +53,31 @@ mkdir -p "train/$partition";
 ../../laia-create-model \
   --cnn_type leakyrelu \
   --cnn_kernel_size 3 \
-  --cnn_num_features 12 24 48 96 \
-  --cnn_maxpool_size 2,2 2,2 2,2 1,2 \
+  --cnn_num_features 12 24 36 48 \
+  --cnn_maxpool_size  2,2 2,2 2,2 2,2 \
   --cnn_batch_norm false \
   --rnn_num_layers 4 \
-  --rnn_num_units 256 \
+  --rnn_num_units 128 \
   --rnn_dropout 0.5 \
   --linear_dropout 0.5 \
+  --log_also_to_stderr info \
+  --log_file "train/$partition/lstm1d.log" \
   --log_level info \
   1 "$height" "$num_syms" "train/$partition/lstm1d.t7";
 
 # Train model
 ../../laia-train-ctc \
-  --use_distortions false \
+  --use_distortions true \
   --batch_size "$batch_size" \
   --progress_table_output "train/$partition/lstm1d.dat" \
-  --early_stop_epochs 25 \
+  --early_stop_epochs 50 \
   --early_stop_threshold 0.05 \
   --learning_rate 0.0005 \
   --log_also_to_stderr info \
   --log_level info \
   --log_file "train/$partition/lstm1d.log" \
+  --display_progress_bar true \
+  --gpu 2 \
   "train/$partition/lstm1d.t7" "train/$ptype/syms.txt" \
   "data/lists/$partition/tr_h${height}.lst" "data/lang/char/$partition/tr.txt" \
   "data/lists/$partition/va_h${height}.lst" "data/lang/char/$partition/va.txt";
