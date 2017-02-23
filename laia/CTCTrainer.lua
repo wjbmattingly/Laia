@@ -27,6 +27,7 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
   Parent.__init(self, {
     batch_size = 16,
     use_distortions = false,
+    use_distortions_after = 0,
     cer_trim = 0,
     snapshot_interval = 0,
     display_progress_bar = false,
@@ -109,6 +110,14 @@ function CTCTrainer:registerOptions(parser, advanced)
     'If true, augment the training set using random distortions.',
     self._opt.use_distortions, laia.toboolean)
     :bind(self._opt, 'use_distortions')
+    :advanced(advanced)
+  parser:option(
+    '--use_distortions_after',
+    'Start using distortions after this epoch (set this value to 0 to use ' ..
+    'distortions from the beginning).',
+    self._opt.use_distortions_after, laia.toint)
+    :bind(self._opt, 'use_distortions_after')
+    :gt(0)
     :advanced(advanced)
   parser:option(
     '--cer_trim', 'For computing CER, removes leading, trailing and ' ..
@@ -232,12 +241,13 @@ function CTCTrainer:start()
   self._valid_num_samples = self._valid_batcher and (self._opt.batch_size *
     math.ceil(self._valid_batcher:numSamples() / self._opt.batch_size))
 
-
+  self._currEpoch = 0
   self._initialized = true
 end
 
 function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
   assert(self._initialized, 'CTCTrainer must be initialized with :start()')
+  self._currEpoch = self._currEpoch + 1
   -- Reset batcher with the given parameters
   self._train_batcher:epochReset(batcher_reset_params)
   -- Useful information for monitoring the performance on trainining data
@@ -262,7 +272,8 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
     -- Ensure that batch is in the same device (GPU vs CPU) as the model
     batch_img = batch_img:type(self._model:type())
     -- Apply distortions, if a distorter was given
-    if self._distorter and self._opt.use_distortions then
+    if self._distorter and self._opt.use_distortions and
+       self._currEpoch > self._opt.use_distortions_after then
       if b == 1 then
 	laia.log.debug('Applying distortions on the training data (this ' ..
 		       'message only shown for the first batch on each epoch).')

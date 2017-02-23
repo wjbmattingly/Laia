@@ -18,7 +18,7 @@ function ImageDistorter:__init()
     -- Rotate parameters [relative to the maximum aspect ratio of the image].
     -- Von Mises distribution with mean 0.
     rotate_prob = 0.5,
-    rotate_prec = 50,     -- Precision is 1/variance
+    rotate_prec = 100,     -- Precision is 1/variance
     -- Translate parameters [relative to the size of each dimension].
     -- Normal distribution with mean 0.
     translate_prob = 0.5,

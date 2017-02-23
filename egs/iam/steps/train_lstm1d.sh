@@ -73,11 +73,13 @@ mkdir -p "train/$partition";
   --early_stop_epochs 50 \
   --early_stop_threshold 0.05 \
   --learning_rate 0.0005 \
+  --learning_rate_decay 0.98 \
+  --learning_rate_decay_after 50 \
+  --learning_rate_decay_min 0.0001 \
   --log_also_to_stderr info \
   --log_level info \
   --log_file "train/$partition/lstm1d.log" \
   --display_progress_bar true \
-  --gpu 2 \
   "train/$partition/lstm1d.t7" "train/$ptype/syms.txt" \
   "data/lists/$partition/tr_h${height}.lst" "data/lang/char/$partition/tr.txt" \
   "data/lists/$partition/va_h${height}.lst" "data/lang/char/$partition/va.txt";
