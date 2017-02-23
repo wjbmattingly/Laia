@@ -183,7 +183,7 @@ function CachedBatcher:next(batch_size, batch_img)
     local img = self._cache_img[self:_global2cacheIndex(j)]
     local dy = 0
     local dx = 0
-    if self._centered_patch then
+    if self._opt.centered_patch then
       dy = math.floor((max_sizes[{1,1}] - img:size(2)) / 2)
       dx = math.floor((max_sizes[{1,2}] - img:size(3)) / 2)
     end
