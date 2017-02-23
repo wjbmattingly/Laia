@@ -90,8 +90,7 @@ for d in "${xmldata[@]}"; do
   [[ "$overwrite" = false && -s "$o" ]] ||
   convert "$i" -crop "${w}x${h}+${l}+${t}" +repage png:- |
   imgtxtenh -u mm -d 118.110 - png:- |
-  convert png:- -colorspace Gray \
-    -set option:deskew:auto-crop true -deskew 40% \
+  convert png:- -colorspace Gray -deskew 40% \
     -bordercolor white -border 5 -trim \
     -bordercolor white -border 20x0 +repage \
     -strip "$o";

@@ -42,7 +42,7 @@ function process_image () {
   # Process image
   [ -s "data/imgs/$partition/$bn.jpg" ] ||
   imgtxtenh -u mm -d 118.110 "$1" png:- |
-  convert png:- -set option:deskew:auto-crop true -deskew 40% \
+  convert png:- -deskew 40% \
     -bordercolor white -border 5 -trim \
     -bordercolor white -border 20x0 +repage \
     -strip "data/imgs/$partition/$bn.jpg" ||
