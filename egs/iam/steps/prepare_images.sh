@@ -40,7 +40,7 @@ tmpd="$(mktemp -d)";
 function process_image () {
   local bn="$(basename "$1" .png)";
   # Process image
-  [ -s "data/imgs/$partition/$bn.jpg" ] ||
+  [ "$overwrite" = false -a -s "data/imgs/$partition/$bn.jpg" ] ||
   imgtxtenh -u mm -d 118.110 "$1" png:- |
   convert png:- -deskew 40% \
     -bordercolor white -border 5 -trim \
@@ -48,7 +48,7 @@ function process_image () {
     -strip "data/imgs/$partition/$bn.jpg" ||
   ( echo "ERROR: Processing image $1" >&2 && return 1 );
   # Resize image
-  [ -s "data/imgs/${partition}_h$height/$bn.jpg" ] ||
+  [ "$overwrite" = false -a -s "data/imgs/${partition}_h$height/$bn.jpg" ] ||
   convert "data/imgs/$partition/$bn.jpg" -resize "x$height" +repage \
     -strip "data/imgs/${partition}_h$height/$bn.jpg" ||
   ( echo "ERROR: Processing image $1" >&2 && return 1 );
@@ -76,9 +76,6 @@ exit 1;
 mkdir -p data/imgs/${partition}{,_h$height};
 bkg_pids=();
 for f in data/original/$partition/*.png; do
-  bn="$(basename "$f" .png)";
-  [ "$overwrite" = false -a -s "data/imgs/$partition/$bn.jpg" -a \
-    -s "data/imgs/${partition}_h$height/$bn.jpg" ] && continue;
   process_image "$f" &> "$tmpd/${#bkg_pids[@]}" &
   bkg_pids+=("$!");
   [ "${#bkg_pids[@]}" -lt "$nproc" ] ||
