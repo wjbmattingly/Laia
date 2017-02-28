@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e;
 export LC_NUMERIC=C;
 
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
@@ -8,208 +9,204 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
-add_train_voc=false;
 order=3;
 overwrite=false;
-ptr=lines;
-pva=lines;
-voc_size=20000;
-srilm_options="-kndiscount -interpolate -unk";
+partition=sentences/aachen;
+srilm_options="-kndiscount -interpolate";
+voc_size=50000;
+unknown=true;
 help_message="
-Usage: ${0##*/} [options] charmap input_dir output_dir
+Usage: ${0##*/} [options] output_dir
 
 Description:
   Build a word-level N-gram language model using SRILM. You can specify the
   order and the vocabulary size of the N-gram using --order and --voc_size
-  options, as well as the type of discount and other SRILM options with
-  --srilm_options.
+  options. You can also choose between creating an open-vocabulary (--unknown
+  true) or closed-vocabulary (--unknown false) LM. Other SRILM options can be
+  modified with --srilm_options.
 
 Arguments:
-  charmap         : File containing the mapping from characters to HMMs
-                    (e.g. \"data/text/charmap\").
-  input_dir       : Directory containing the tokenized files and the boundaries
-                    files of all the text data (e.g. \"exper/htr/lang/word\").
-  output_dir      : Output directory where the language models will be written
-                    together with other auxiliary files
-                    (e.g. \"exper/htr/lang/word/lm\").
+  output_dir      : Output directory where the language models and other
+                    files will be written (e.g. \"decode/lm\").
 
 Options:
-  --add_train_voc : (type = boolean, default = $add_train_voc)
-                    If true, add all words in the training set to the vocabulary
-                    and the extend this with external words.
   --order         : (type = integer, default = $order)
                     Order of the n-gram language model.
   --overwrite     : (type = boolean, default = $overwrite)
                     Overwrite previously created files.
-  --ptr           : (type = string, default = \"$ptr\")
-                    Specify which partition of IAM training data is used.
-                    Valid values = forms, lines, sentences.
-  --pva           : (type = string, default = \"$pva\")
-                    Specify which partition of IAM validation data is used.
+  --partition     : (type = string, default = \"$partition\")
+                    Specify which partition of IAM is used.
                     Valid values = forms, lines, sentences.
   --srilm_options : (type = string, default = \"$srilm_options\")
                     Use SRILM's ngram-count with these options.
+  --unknown       : (type = boolean, default = $unknown)
+                    If true, create a open vocabulary (with the <unk> token
+                    to represent the unknown words).
   --voc_size      : (type = integer, default = $voc_size)
                     Keep only this number of words.
 ";
-source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-[ $# -ne 3 ] && echo "$help_message" >&2 && exit 1;
+source utils/parse_options.inc.sh || exit 1;
+[ $# -ne 1 ] && echo "$help_message" >&2 && exit 1;
 
-cmap="$1";
-idir="$2";
-odir="$3";
+odir="$1";
+# Get "lines" or "sentences" from the full partition string (e.g. lines/aachen)
+ptype="${partition%%/*}";
+# Set -unk flag for SRILM, if --unknown true is passed.
+[ "$unknown" = true ] && unk="-unk";
 
 mkdir -p "$odir";
 
 vocf="$odir/voc-${voc_size}";
-va_txt="$idir/iam/$pva/va_tokenized.txt";
+tr_txt="data/lang/word/$partition/tr_tokenized.txt";
+va_txt="data/lang/word/$partition/va_tokenized.txt";
+te_txt="data/lang/word/$partition/te_tokenized.txt";
+tr_bnd="data/lang/word/$partition/tr_boundaries.txt";
+va_bnd="data/lang/word/$partition/va_boundaries.txt";
+te_bnd="data/lang/word/$partition/te_boundaries.txt";
 
-# Check required files
-for f in "$idir/iam/$ptr/tr_tokenized.txt" \
-  "$idir/iam/$ptr/tr_boundaries.txt" \
-  "$idir/brown_tokenized.txt" \
-  "$idir/lob_excludealltestsets_tokenized.txt" \
-  "$idir/wellington_tokenized.txt" \
-  "$idir/brown_boundaries.txt" \
-  "$idir/lob_excludealltestsets_boundaries.txt" \
-  "$idir/wellington_boundaries.txt" \
-  "$va_txt" \
-  "$cmap" ; do
-  [ ! -s "$f" ] && echo "File \"$f\" was not found!" >&2 && exit 1;
+# Get the total count for the tokens from the BOUNDARY files.
+function get_vocab_count () {
+  syms="$1"; shift;
+  awk '{ C[$1] += $2; }END{ for (w in C) print C[w], w; }' $@ |
+  awk -v SF="$syms" '
+  BEGIN{ while((getline < SF) > 0) { SYM[$1]=1; }
+  }NF > 0{
+    for (i=1;i<=length($2);++i) {
+      if (!(substr($2, i, 1) in SYM)) { N++; next; }
+    }
+    print;
+  }END{
+    if (N > 0) {
+      print N" tokens ignored due to missing symbols!" > "/dev/stderr";
+    }
+  }' | sort -nr
+}
+
+# Check that $1 is not newer than $2...$#.
+function check_notnew () {
+  for i in $(seq 2 $#); do [[ "${!i}" -ot "$1" ]] && return 1; done;
+  return 0;
+}
+
+# Interpolate a list of .arpa.gz files.
+function interpolate_arpa_files () {
+  # Compute detailed perplexity on the validation data
+  info_files=();
+  for arpa in $@; do
+    info="${arpa/.arpa.gz/.info}";
+    [[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$arpa" ) ]] ||
+    awk '{$1=""; print;}' "$va_txt" |
+    ngram -order "$order" $unk -debug 2 -ppl - -lm <(zcat "$arpa") &> "$info" ||
+    { echo "ERROR: Creating file \"$info\"!" >&2 && exit 1; }
+    info_files+=("$info");
+  done;
+  # Compute interpolation weights
+  mixf="$odir/interpolation-${order}gram-${voc_size}.mix";
+  ( [[ "$overwrite" = false && -s "$mixf" ]] &&
+    check_notnew "$mixf" "${info_files[@]}" ) ||
+  compute-best-mix "${info_files[@]}" &> "$mixf" ||
+  { echo "ERROR: Creating file \"$mixf\"!" >&2 && exit 1; }
+  lambdas=( $(grep "best lambda" "$mixf" | awk -F\( '{print $2}' | tr -d \)) );
+  # Interpolate language models.
+  tmpfs=();
+  args=();
+  for i in $(seq 1 $#); do
+    tmpfs+=( "$(mktemp)"  );
+    zcat "${!i}" > "${tmpfs[${#tmpfs[@]} - 1]}";
+    if [ $i -eq 1 ]; then
+      args+=( -lm "${tmpfs[${#tmpfs[@]} - 1]}" -lambda "${lambdas[i - 1]}" );
+    elif [ $i -eq 2 ]; then
+      args+=( -mix-lm "${tmpfs[${#tmpfs[@]} - 1]}" );
+    else
+      args+=( "-mix-lm$[i - 1]" "${tmpfs[${#tmpfs[@]} - 1]}" \
+              "-mix-lambda$[i - 1]" "${lambdas[i - 1]}" );
+    fi;
+  done;
+  outf="$odir/interpolation-${order}gram-${voc_size}.arpa.gz";
+  [[ "$overwrite" = false && -s "$outf" && ( ! "$outf" -ot "$mixf" ) ]] ||
+  ngram -order "${order}" $unk "${args[@]}" -write-lm - |
+  gzip -9 -c  > "$outf" ||
+  { echo "ERROR: Creating file \"$outf\"!" >&2 && exit 1; }
+  rm -f "${tmpfs[@]}";
+  return 0;
+}
+
+# Check IAM corpora
+for f in "$tr_txt" "$va_txt" "$te_txt" "$tr_bnd" "$va_bnd" "$te_bnd"; do
+  [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
 
-# Get total counts of each token across the different corpora
+# Check external corpora
+external_corpora=(brown lob_excludealltestsets wellington);
+for c in "${external_corpora[@]}"; do
+  for f in "data/lang/word/external/${c}_tokenized.txt" \
+           "data/lang/word/external/${c}_boundaries.txt"; do
+    [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
+  done;
+done;
+
+# Check required tools (SRILM)
+for f in ngram-count ngram compute-best-mix; do
+  which "$f" &> /dev/null ||
+  { echo "ERROR: Program $f is not in your PATH!" >&2 && exit 1; }
+done;
+
 tmpf="$(mktemp)";
-awk '{ C[$1] += $2; }END{ for (w in C) print w, C[w]; }' \
-  "$idir/brown_boundaries.txt" \
-  "$idir/lob_excludealltestsets_boundaries.txt" \
-  "$idir/wellington_boundaries.txt" |
-awk -v CMF="$cmap" '
-BEGIN{
-  while((getline < CMF) > 0) { c=$1; $1=""; gsub(/^\ +/, ""); M[c]=$0; }
-}{
-  for (i=1;i<=length($1);++i) { if (!(substr($1, i, 1) in M)) { N++; next; } }
-  print;
-}END{
-  print N" tokens ignored due to out-of-training symbols!" > "/dev/stderr";
-}' |
-awk '{ C[$1] = C[$1] + $2; }END{ for (w in C) print w, C[w]; }' |
-sort -nrk2 |
-if [ "$add_train_voc" = true ]; then
-  # With --add_train_voc=true we include all tokens in IAM train set
-  # and extend this list with tokens from the external datasets until
-  # a maximum of --voc_size tokens are used.
-  awk -v TBF="$idir/iam/$ptr/tr_boundaries.txt" '
-BEGIN{
-  while ((getline < TBF) > 0) { TV[$1]=1; print $1; }
-}{
-  if (($1 in TV)) next;
-  print $1;
-}' | head -n "$voc_size";
-else
-  # With --add_train_voc=false we sort all tokens by absolute frequency and
-  # just use the most --voc_size frequent.
-  head -n "$voc_size" | awk '{print $1}';
-fi | sort -V > "$tmpf";
-if [ "$overwrite" = true ] || ! cmp -s "$tmpf" "$vocf"; then
-  mv "$tmpf" "$vocf";
-fi;
 
+[[ "$overwrite" = false && -s "$vocf" && ( ! "$vocf" -ot "$tr_bnd" ) &&
+    ( ! "$vocf" -ot "data/lang/word/external/brown_boundaries.txt" ) &&
+    ( ! "$vocf" -ot "data/lang/word/external/lob_excludealltestsets_boundaries.txt" ) &&
+    ( ! "$vocf" -ot "data/lang/word/external/wellington_boundaries.txt" ) ]] ||
+get_vocab_count "train/$ptype/syms.txt" \
+  "$tr_bnd" \
+  "data/lang/word/external/brown_boundaries.txt" \
+  "data/lang/word/external/lob_excludealltestsets_boundaries.txt" \
+  "data/lang/word/external/wellington_boundaries.txt" |
+head -n "$voc_size" | awk '{print $2}' | sort > "$vocf" ||
+{ echo "ERROR: Creating file \"$vocf\"!" >&2 && exit 1; }
 
-# Train N-gram on the IAM data
-mkdir -p "$odir/iam/$ptr";
-outf="$odir/iam/$ptr/tr-${order}gram-${voc_size}.arpa.gz";
-info="$odir/iam/$ptr/tr-${order}gram-${voc_size}.info";
+# Train N-gram on the IAM corpora
+outf="$odir/tr-${order}gram-${voc_size}.arpa.gz";
 [[ "$overwrite" = false && -s "$outf" &&
-    ( ! "$outf" -ot "$idir/iam/$ptr/tr_tokenized.txt" ) &&
-    ( ! "$outf" -ot "$vocf" ) ]] ||
-awk '{$1=""; print;}' "$idir/iam/$ptr/tr_tokenized.txt" |
-ngram-count -order "$order" -vocab "$vocf" $srilm_options -text - -lm - |
+    ( ! "$outf" -ot "$tr_txt" ) && ( ! "$outf" -ot "$vocf" ) ]] ||
+awk '{$1=""; print;}' "$tr_txt" |
+ngram-count -order "$order" -vocab "$vocf" $unk $srilm_options -text - -lm - |
 gzip -9 -c > "$outf" ||
-exit 1;
-# Compute detailed perplexity
-[[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$outf" ) ]] ||
-awk '{$1=""; print;}' "$va_txt" |
-ngram -order "$order" -debug 2 -ppl - -lm <(zcat "$outf") \
-  &> "$info" ||
-exit 1;
+{ echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
 
-
-# Train N-gram on the external data
-for c in brown lob_excludealltestsets wellington; do
-  # Train n-gram
+# Train N-gram on each external corpus
+arpa_files=( "$outf" );
+for c in "${external_corpora[@]}"; do
+  tokf="data/lang/word/external/${c}_tokenized.txt";
   outf="$odir/$c-${order}gram-${voc_size}.arpa.gz";
   info="$odir/$c-${order}gram-${voc_size}.info";
   [[ "$overwrite" = false && -s "$outf" &&
-      ( ! "$outf" -ot "$idir/${c}_tokenized.txt" ) &&
-      ( ! "$outf" -ot "$vocf" ) ]] ||
-  cat "$idir/${c}_tokenized.txt" |
-  ngram-count -order "$order" -vocab "$vocf" $srilm_options -text - -lm - |
-  gzip -9 -c > "$outf" ||
-  exit 1;
-  # Compute detailed perplexity
-  [[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$outf" ) ]] ||
-  awk '{$1=""; print;}' "$va_txt" |
-  ngram -order "$order" -debug 2 -ppl - -lm <(zcat "$outf") \
-    &> "$info" ||
-  exit 1;
+      ( ! "$outf" -ot "$tokf" ) && ( ! "$outf" -ot "$vocf" ) ]] ||
+  ngram-count -order "$order" -vocab "$vocf" $unk $srilm_options -text "$tokf" \
+    -lm - | gzip -9 -c > "$outf" ||
+  { echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
+  arpa_files+=( "$outf" );
 done;
 
-
-# Compute interpolation weights
-outf="$odir/interpolation-${order}gram-${voc_size}.mix";
-[[ "$overwrite" = false && -s "$outf" &&
-    ( ! "$outf" -ot "$odir/iam/lines/tr-${order}gram-${voc_size}.info" ) &&
-    ( ! "$outf" -ot "$odir/brown-${order}gram-${voc_size}.info" ) &&
-    ( ! "$outf" -ot "$odir/lob_excludealltestsets-${order}gram-${voc_size}.info" ) &&
-    ( ! "$outf" -ot "$odir/wellington-${order}gram-${voc_size}.info" ) ]] ||
-compute-best-mix \
-  "$odir/iam/lines/tr-${order}gram-${voc_size}.info" \
-  "$odir/brown-${order}gram-${voc_size}.info" \
-  "$odir/lob_excludealltestsets-${order}gram-${voc_size}.info" \
-  "$odir/wellington-${order}gram-${voc_size}.info" \
-  &> "$outf" ||
-exit 1;
-
-
-# Interpolate n-grams
+# Interpolate all language models
+interpolate_arpa_files "${arpa_files[@]}";
 outf="$odir/interpolation-${order}gram-${voc_size}.arpa.gz";
-lambdas=( $(grep "best lambda" \
-  "$odir/interpolation-${order}gram-${voc_size}.mix" | \
-  awk -F\( '{print $2}' | tr -d \)) );
-[[ "$overwrite" = false && -s "$outf" &&
-    ( ! "$outf" -ot "$odir/interpolation-${order}gram-${voc_size}.mix" ) ]] ||
-ngram -order "${order}" \
-  -lm <(zcat "$odir/iam/lines/tr-${order}gram-${voc_size}.arpa.gz") \
-  -mix-lm <(zcat "$odir/brown-${order}gram-${voc_size}.arpa.gz") \
-  -mix-lm2 <(zcat "$odir/lob_excludealltestsets-${order}gram-${voc_size}.arpa.gz") \
-  -mix-lm3 <(zcat "$odir/wellington-${order}gram-${voc_size}.arpa.gz") \
-  -lambda "${lambdas[0]}" \
-  -mix-lambda2 "${lambdas[2]}" \
-  -mix-lambda3 "${lambdas[3]}" \
-  -write-lm - 2> /dev/null |
-gzip -9 -c > "$outf" ||
-exit 1;
-
 
 # Compute detailed perplexity of the interpolated model
 ppl=();
 oov=();
 tok=();
-for f in "$idir/iam/$ptr/tr_tokenized.txt"  \
-  "$idir/iam/$pva/va_tokenized.txt" \
-  "$idir/iam/$pva/te_tokenized.txt"; do
+for f in "$tr_txt" "$va_txt" "$te_txt"; do
   ppl+=( $(awk '{$1=""; print;}' "$f" |
       ngram -order "$order" -ppl - -lm <(zcat "$outf") 2>&1 |
       tail -n1 | sed -r 's|^.+\bppl= ([0-9.]+)\b.+$|\1|g') );
   aux=( $(awk -v VF="$vocf" '
 BEGIN{ N=0; OOV=0; while((getline < VF) > 0) V[$1]=1; }
-{ for (i=2;i<=NF;++i) { ++N; if (!($i in V)) ++OOV; } }
+{ for (i=2;i<=NF;++i) { ++N; if (!($i in V)) { ++OOV; } } }
 END{ print OOV, N; }' "$f") );
   oov+=(${aux[0]});
   tok+=(${aux[1]});
 done;
-
 
 # Print statistics
 cat <<EOF >&2

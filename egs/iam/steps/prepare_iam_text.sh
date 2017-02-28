@@ -20,22 +20,24 @@ Options:
                  Overwrite previously created files.
   --partition  : (type = string, default = \"$partition\")
                  Select the \"lines\" or \"sentences\" partition. Note: Aachen
-                 typically uses the sentences partition.
+                 typically uses the sentences partition for language modeling
+                 and evaluation.
   --wspace     : (type = string, default \"$wspace\")
                  Use this symbol to represent the whitespace character.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-#[ $# -ne 3 ] && echo "$help_message" >&2 && exit 1;
 
 # We will use pypy, if available, since it is much faster.
 tokenize_cmd="./utils/nltk_tokenize.py";
-which pypy &> /dev/null && tokenize_cmd="pypy $tokenize_cmd";
+if which pypy &> /dev/null; then tokenize_cmd="pypy $tokenize_cmd"; fi;
 
 mkdir -p data/lang/{char,word}/"$partition";
 
+if [ "$partition" = lines ]; then cutf="-f1,9-"; else cutf="-f1,10-"; fi;
+
 # Prepare word-level transcripts.
 [ "$overwrite" = false -a -s "data/lang/word/$partition/all.txt" ] ||
-awk '$1 !~ /^#/' "data/original/$partition.txt" | cut -d\  -f1,9- |
+awk '$1 !~ /^#/' "data/original/$partition.txt" | cut -d\  "$cutf" |
 awk '{ $1=$1"|"; print; }' |
 # Some words include spaces (e.g. "B B C" -> "BBC"), remove them.
 sed -r 's| +||g' |
@@ -63,7 +65,7 @@ sort -k1 > "data/lang/char/$partition/all.txt" ||
 ( echo "ERROR: Creating file data/lang/char/$partition/all.txt" >&2 && exit 1 );
 
 # Add whitespace boundaries to the character-level transcripts.
-# Note: Actually not used, so far.
+# Note: Actually not used, but could be used in the future.
 [ "$overwrite" = false -a -s "data/lang/char/$partition/all_wspace.txt" ] ||
 awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
   "data/lang/char/$partition/all.txt" \
@@ -73,8 +75,8 @@ awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
 
 # Extract characters list for training.
 mkdir -p "train/$partition";
-[ "$overwrite" = false -a -s train/$partition/syms.txt ] ||
-cut -d\  -f2- data/lang/char/$partition/all.txt | tr \  \\n | sort | uniq |
+[ "$overwrite" = false -a -s "train/$partition/syms.txt" ] ||
+cut -d\  -f2- "data/lang/char/$partition/all.txt" | tr \  \\n | sort | uniq |
 awk -v ws="$wspace" 'BEGIN{
   printf("%-12s %d\n", "<eps>", 0);
   printf("%-12s %d\n", "<ctc>", 1);
@@ -82,7 +84,7 @@ awk -v ws="$wspace" 'BEGIN{
   N = 3;
 }$1 != ws{
   printf("%-12s %d\n", $1, N++);
-}' > train/$partition/syms.txt ||
+}' > "train/$partition/syms.txt" ||
 ( echo "ERROR: Creating file train/$partition/syms.txt" >&2 && exit 1 );
 
 # Split files into different partitions (train, test, valid).
@@ -99,112 +101,21 @@ for p in "$partition/aachen"/{tr,te,va}; do
   ( echo "ERROR: Creating file data/lang/char/${p}_wspace.txt" >&2 && exit 1 );
 done;
 
-
-
-
-exit 0;
-
-# Check required files
-for f in  "$tdir/iam/"{lines,sentences,forms}.txt \
-  "$tdir/charmap"  "$ldir/te.lst" "$ldir/tr.lst" "$ldir/va.lst"; do
-  [ ! -f "$f" ] && echo "File \"$f\" not found!" >&2 && exit 1;
-done;
-
-
-
-# Create output directories.
-mkdir -p "$odir"/{char,word}/iam/{lines,sentences,forms};
-
-################################################################################
-## PREPARE WORD-LEVEL FILES
-################################################################################
-
-# NOTE: WE DO NOT need to put abbrev. like 's, 't, 'd, etc. together with their
-# word, since the original IAM transcripts where modified to according to this.
-#
 # Tokenize using NLTK-based tokenizer (Treebank tokenizer) and write the
 # information about the word boundaries. This information is useful in order to
 # create the lexicon. There are tokens that should not be preceded, in some
 # cases, by a whitespace in the lexicon. Output files of this step are:
 # $odir/${c}_tokenized.txt and $odir/${c}_boundaries.txt.
-
-tmpf="$(mktemp)";
-for p in te tr va; do
-  for c in forms lines sentences; do
-    # Get lines from the current partition: Basically, we filter by form ID
-    # since forms are mutually exclusive from the different partitions.
-    [[ "$overwrite" = false &&
-        -s "$odir/word/iam/$c/$p.txt" &&
-        -s "$odir/word/iam/$c/${p}_tokenized.txt" &&
-        -s "$odir/word/iam/$c/${p}_boundaries.txt" &&
-        ( ! "$odir/word/iam/$c/$p.txt" -ot "$tdir/iam/$c.txt" ) &&
-        ( ! "$odir/word/iam/$c/${p}_tokenized.txt" -ot "$tdir/iam/$c.txt" ) &&
-        ( ! "$odir/word/iam/$c/${p}_boundaries.txt" -ot "$tdir/iam/$c.txt" ) ]] ||
-    awk -v PF="$ldir/$p.lst" '
-function getFormID(s) {
-  return gensub(/^([a-z0-9]+-[a-z0-9]+)-.+$/, "\\1", "g", s);
-}
-BEGIN{ while((getline < PF) > 0) { P[getFormID($1)]=1; } }
-(getFormID($1) in P){ print; }' "$tdir/iam/$c.txt" > "$odir/word/iam/$c/$p.txt";
-    # Tokenize partition-specific files.
-    [[ "$overwrite" = false &&
-        -s "$odir/word/iam/$c/${p}_tokenized.txt" &&
-        -s "$odir/word/iam/$c/${p}_boundaries.txt" &&
-        ( ! "$odir/word/iam/$c/${p}_tokenized.txt" -ot "$tdir/word/iam/$c/$p.txt" ) &&
-        ( ! "$odir/word/iam/$c/${p}_boundaries.txt" -ot "$tdir/word/iam/$c/$p.txt" ) ]] ||
-    awk '{$1=""; print; }' "$odir/word/iam/$c/$p.txt" |
-    ./utils/nltk_tokenize.py \
-      --write-boundaries "$odir/word/iam/$c/${p}_boundaries.txt" > "$tmpf";
-    cut -d\  -f1 "$odir/word/iam/$c/$p.txt" | paste - "$tmpf" > \
-      "$odir/word/iam/$c/${p}_tokenized.txt" ||
-    ( echo "An error ocurred processing file \"$f\"!" >&2 && exit 1; );
-  done;
-done;
-
-
-
-################################################################################
-## PREPARE CHARACTER-LEVEL FILES
-################################################################################
-
-for p in te tr va; do
-  for c in forms lines sentences; do
-    # Get lines from the current partition: Basically, we filter by form ID
-    # since forms are mutually exclusive from the different partitions.
-    # And split characters into separate tokens.
-    [[ "$overwrite" = false &&
-        -s "$odir/char/iam/$c/$p.txt" &&
-        ( ! "$odir/char/iam/$c/$p.txt" -ot "$tdir/iam/$c.txt" ) ]] ||
-    awk -v PF="$ldir/$p.lst" -v ws="$wspace" '
-function getFormID(s) {
-  return gensub(/^([a-z0-9]+-[a-z0-9]+)-.+$/, "\\1", "g", s);
-}
-BEGIN{ while((getline < PF) > 0) { P[getFormID($1)]=1; } }
-(getFormID($1) in P){
-  printf("%s", $1);
-  for (i=2;i<=NF;++i) {
-    for (j=1;j<=length($i);++j) {
-      printf(" %s", substr($i, j, 1));
-    }
-    if (i < NF) printf(" %s", ws);
-  }
-  printf("\n");
-}' "$tdir/iam/$c.txt" > "$odir/char/iam/$c/$p.txt";
-    # Replace characters with their mapping.
-    [[ "$overwrite" = false &&
-        -s "$odir/char/iam/$c/${p}_normalized.txt" &&
-        ( ! "$odir/char/iam/$c/${p}_normalized.txt" -ot "$tdir/char/iam/$c/$p.txt" ) ]] ||
-    awk -v CMF="$tdir/charmap" -v AW="$add_border_wspace" -v ws="$wspace" '
-BEGIN {
-  while((getline < CMF) > 0) { c=$1; $1=""; gsub(/^\ +/, ""); M[c]=$0; }
-}{
-  if (AW == "true") $1=$1" "ws;
-  for (i=2; i<=NF; ++i) { if ($i in M) $i=M[$i]; }
-  if (AW == "true") $NF=$NF" "ws;
-  print;
-}' "$odir/char/iam/$c/$p.txt" |
-    sed -r 's|\ +| |g' > "$odir/char/iam/$c/${p}_normalized.txt";
-  done;
+for p in "$partition/aachen"/{tr,te,va}; do
+  tok="data/lang/word/${p}_tokenized.txt";
+  bnd="data/lang/word/${p}_boundaries.txt";
+  [[ "$overwrite" = false && -s "$tok" && -s "$bnd" &&
+    ( ! "data/lang/word/$p.txt" -nt "$tok" ) &&
+    ( ! "data/lang/word/$p.txt" -nt "$bnd" ) ]] ||
+  cut -d\  -f2- "data/lang/word/$p.txt" |
+  $tokenize_cmd --write-boundaries "$bnd" |
+  paste -d\  <(cut -d\  -f1 "data/lang/word/$p.txt") - > "$tok" ||
+  ( echo "ERROR: Creating file $tok" >&2 && exit 1 );
 done;
 
 exit 0;
