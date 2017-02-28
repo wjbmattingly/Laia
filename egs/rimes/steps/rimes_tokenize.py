@@ -14,87 +14,72 @@ import sys
 class CustomTreebankWordTokenizer:
     #starting quotes
     STARTING_QUOTES = [
-        (re.compile(r'^\"'), r'"'),              # This line changes: do not replace "
-        (re.compile(r'(``)'), r' \1 '),
-        (re.compile(r'([ (\[{<])"'), r'\1 " '),  # This line changes: do not replace "
+        (re.compile(ur'([ (\[{<])"'), ur'\1 " '),
     ]
 
     #punctuation
     PUNCTUATION = [
-        (re.compile(r'([:,])([^\d])'), r' \1 \2'),
-        (re.compile(r'([:,])$'), r' \1 '),
-        (re.compile(r'\.\.\.'), r' ... '),
-        (re.compile(r'[;@#$%&]'), r' \g<0> '),
-        (re.compile(r'([^\.])(\.)([\]\)}>"\']*)\s*$'), r'\1 \2\3 '),
-        (re.compile(r'[?!]'), r' \g<0> '),
-        (re.compile(r"([^'])' "), r"\1 ' "),
+        (re.compile(ur'[;@#$%&.,/\u20AC$-]'), ur' \g<0> '),
+        (re.compile(ur'([^\.])(\.)([\]\)}>"\']*)\s*$'), r'\1 \2\3 '),
+        (re.compile(ur'[?!]'), ur' \g<0> '),
+        (re.compile(ur"([^'])' "), ur"\1 ' "),
     ]
 
     #parens, brackets, etc.
     PARENS_BRACKETS = [
-        (re.compile(r'[\]\[\(\)\{\}\<\>]'), r' \g<0> '),
-        (re.compile(r'--'), r' -- '),
+        (re.compile(ur'[\]\[\(\)\{\}\<\>]'), ur' \g<0> '),
+        (re.compile(ur'--'), ur' -- '),
     ]
 
     #ending quotes
     ENDING_QUOTES = [
-        (re.compile(r'"'), ' " '),              # This line changes: do not replace "
-        (re.compile(r'(\S)(\'\')'), r'\1 \2 '),
-
-        (re.compile(r"([^' ])('[sS]|'[mM]|'[dD]|') "), r"\1 \2 "),
-        (re.compile(r"([^' ])('ll|'LL|'re|'RE|'ve|'VE|n't|N'T) "), r"\1 \2 "),
+        (re.compile(ur'"'), ' " '),              # This line changes: do not replace "
+        (re.compile(ur'(\S)(\'\')'), ur'\1 \2 '),
     ]
 
-    # List of contractions adapted from Robert MacIntyre's tokenizer.
-    CONTRACTIONS2 = [re.compile(r"(?i)\b(can)(not)\b"),
-                     re.compile(r"(?i)\b(d)('ye)\b"),
-                     re.compile(r"(?i)\b(gim)(me)\b"),
-                     re.compile(r"(?i)\b(gon)(na)\b"),
-                     re.compile(r"(?i)\b(got)(ta)\b"),
-                     re.compile(r"(?i)\b(lem)(me)\b"),
-                     re.compile(r"(?i)\b(mor)('n)\b"),
-                     re.compile(r"(?i)\b(wan)(na) ")]
-    CONTRACTIONS3 = [re.compile(r"(?i) ('t)(is)\b"),
-                     re.compile(r"(?i) ('t)(was)\b")]
-    CONTRACTIONS4 = [re.compile(r"(?i)\b(whad)(dd)(ya)\b"),
-                     re.compile(r"(?i)\b(wha)(t)(cha)\b")]
+    CONTRACTIONS = [
+        (re.compile(ur"([^' ]')([^' ])"), ur'\1 \2'),
+    ]
 
     def tokenize(self, text):
+        text = unicode(text)
         for regexp, substitution in self.STARTING_QUOTES:
-            text = regexp.sub(substitution, text)
+            text = regexp.sub(substitution, text, re.UNICODE)
 
         for regexp, substitution in self.PUNCTUATION:
-            text = regexp.sub(substitution, text)
+            text = regexp.sub(substitution, text, re.UNICODE)
 
         for regexp, substitution in self.PARENS_BRACKETS:
-            text = regexp.sub(substitution, text)
+            text = regexp.sub(substitution, text, re.UNICODE)
 
         #add extra space to make things easier
         text = " " + text + " "
 
         for regexp, substitution in self.ENDING_QUOTES:
-            text = regexp.sub(substitution, text)
+            text = regexp.sub(substitution, text, re.UNICODE)
 
-        for regexp in self.CONTRACTIONS2:
-            text = regexp.sub(r' \1 \2 ', text)
-        for regexp in self.CONTRACTIONS3:
-            text = regexp.sub(r' \1 \2 ', text)
+        for regexp, substitution in self.CONTRACTIONS:
+            text = regexp.sub(substitution, text, re.UNICODE)
 
-        # We are not using CONTRACTIONS4 since
-        # they are also commented out in the SED scripts
-        # for regexp in self.CONTRACTIONS4:
-        #     text = regexp.sub(r' \1 \2 \3 ', text)
+        tokens = []
+        for tok in text.split():
+            if not re.match(ur'^[A-Z0-9]+$', tok, re.UNICODE):
+                tokens.append(tok)
+            else:
+                for t in re.split(ur'([A-Z0-9])', tok, re.UNICODE):
+                    if len(t) > 0: tokens.append(t)
 
-        return text.split()
+        return tokens
 
     def span_tokens(self, text):
+        text = unicode(text)
         tokens = self.tokenize(text)
         spans = []
         i = 0
         for tok in tokens:
             spans.append((i, i + len(tok)))
             i += len(tok)
-            if i < len(text) and str.isspace(text[i]):
+            if i < len(text) and re.match(ur'^\s$', text[i], re.UNICODE):
                 i += 1
         return spans
 
@@ -118,10 +103,10 @@ if __name__ == '__main__':
     tokenizer = CustomTreebankWordTokenizer()
     lexicon = {}
     for line in args.input:
-        line = re.sub('\s+', ' ', line.strip())
+        line = re.sub(ur'\s+', ' ', line.strip().decode('utf-8'), re.UNICODE)
         spans = tokenizer.span_tokens(line)
         tokens = map(lambda x: line[x[0]:x[1]], spans)
-        args.output.write(' '.join(tokens) + '\n')
+        args.output.write((u' '.join(tokens) + u'\n').encode('utf-8'))
         if args.write_boundaries is not None:
             for i in xrange(len(tokens)):
                 pron = [args.boundary, tokens[i], args.boundary]
@@ -139,7 +124,7 @@ if __name__ == '__main__':
         lexicon.sort()
         for (token, prons) in lexicon:
             for pron, cnt in prons.iteritems():
-                args.write_boundaries.write('%s\t%d\t%s\n' % (token, cnt, ' '.join(pron)))
+                args.write_boundaries.write((u'%s\t%d\t%s\n' % (token, cnt, ' '.join(pron))).encode('utf-8'))
         args.write_boundaries.close()
 
     args.output.close()
