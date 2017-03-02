@@ -81,6 +81,16 @@ for p in va te; do
     "train/$partition/$name.t7" \
     "data/lists/$partition/${p}_h$height.lst" \
     > "decode/no_lm/char/$partition/${p}_${name}.txt";
+  # Compute log-posteriors from the network.
+  [ "$overwrite" = false -a \
+    -s "decode/no_lm/char/$partition/${p}_${name}.ark" ] ||
+  ../../laia-netout \
+    --batch_size "$batch_size" \
+    --prior "train/$partition/$name.prior" \
+    "train/$partition/$name.t7" \
+    "data/lists/$partition/${p}_h$height.lst" \
+    /dev/stdout |
+  copy-matrix ark:- "ark:decode/no_lm/char/$partition/${p}_${name}.ark";
   # Get word-level transcript hypotheses
   [ "$overwrite" = false -a \
     -s "decode/no_lm/word/$partition/${p}_${name}.txt" ] ||

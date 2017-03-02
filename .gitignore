@@ -44,6 +44,3 @@ luac.out
 
 # Ignore Python compiled files
 *.pyc
-
-# Ignore automatically generated directories
-data
