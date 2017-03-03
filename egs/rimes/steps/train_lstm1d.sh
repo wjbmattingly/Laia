@@ -26,7 +26,7 @@ rnn_num_layers=4;
 rnn_num_units=256;
 rnn_dropout=0.5;
 use_distortions=true;
-name="lstm1d_h${height}";
+model_name="lstm1d_h${height}";
 help_message="
 Usage: ${0##*/} [options]
 
@@ -54,7 +54,7 @@ done;
 num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
 
 # Create model
-[ "$continue_train" = true -a -s "train/$name.t7" ] ||
+[ "$continue_train" = true -a -s "train/$model_name.t7" ] ||
   ../../laia-create-model \
     --cnn_batch_norm $cnn_batch_norm \
     --cnn_dropout $cnn_dropout \
@@ -67,16 +67,16 @@ num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
     --rnn_num_units "$rnn_num_units" \
     --linear_dropout "$linear_dropout" \
     --log_also_to_stderr info \
-    --log_file "train/$name.log" \
+    --log_file "train/$model_name.log" \
     --log_level info \
-    1 "$height" "$num_syms" "train/$name.t7";
+    1 "$height" "$num_syms" "train/$model_name.t7";
 
 # Train model
 ../../laia-train-ctc \
   --batch_size "$batch_size" \
   --continue_train "$continue_train" \
   --use_distortions "$use_distortions" \
-  --progress_table_output "train/$name.dat" \
+  --progress_table_output "train/$model_name.dat" \
   --early_stop_epochs 50 \
   --learning_rate 0.0003 \
   --learning_rate_decay 0.98 \
@@ -84,10 +84,10 @@ num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
   --learning_rate_decay_min 0.0001 \
   --log_also_to_stderr info \
   --log_level info \
-  --log_file "train/$name.log" \
+  --log_file "train/$model_name.log" \
   --display_progress_bar true \
   --gpu "$gpu" \
-  "train/$name.t7" "train/syms.txt" \
+  "train/$model_name.t7" "train/syms.txt" \
   "data/lists/tr_h${height}.lst" "data/lang/lines/char/tr.txt" \
   "data/lists/va_h${height}.lst" "data/lang/lines/char/va.txt";
 

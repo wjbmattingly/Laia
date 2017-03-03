@@ -201,7 +201,9 @@ local rmsprop_opts = {
 if opts.continue_train then
   -- Continue training from the last epoch.
   epoch = checkpoint:Last():getEpoch()
-  rmsprop_opts = checkpoint:getRMSPropState()
+  if checkpoint:getRMSPropState() then
+    rmsprop_opts = checkpoint:getRMSPropState()
+  end
   checkpoint:setTrainConfig(opts)
 else
   -- Forget about the previous "best" model and results, if any.
