@@ -11,6 +11,7 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 eps="<eps>";
 overwrite=false;
 wspace="<space>";
+model_name="lstm1d_h128";
 help_message="
 Usage: ${0##*/} [options]
 
@@ -28,8 +29,8 @@ source utils/parse_options.inc.sh || exit 1;
 [ $# -ne 0 ] && echo "$help_message" >&2 && exit 1;
 # Expected inputs
 syms="train/lines/syms.txt";
-inp_va="decode/no_lm/char/lines/aachen/va_lstm1d_h128.ark";
-inp_te="decode/no_lm/char/lines/aachen/te_lstm1d_h128.ark";
+inp_va="decode/no_lm/char/lines/aachen/va_${model_name}.ark";
+inp_te="decode/no_lm/char/lines/aachen/te_${model_name}.ark";
 # Check that expected inputs exist
 for f in "$syms" "$inp_va" "$inp_te"; do
   [ ! -s "$f" ] && echo "ERROR: File \"$f\" was not found!" >&2 && exit 1;
@@ -37,8 +38,8 @@ done;
 # Create output directory, if it does not exist
 mkdir -p decode/no_lm/char/forms/aachen;
 # Output variables
-out_va="decode/no_lm/char/forms/aachen/va_lstm1d_h128.ark";
-out_te="decode/no_lm/char/forms/aachen/te_lstm1d_h128.ark";
+out_va="decode/no_lm/char/forms/aachen/va_${model_name}.ark";
+out_te="decode/no_lm/char/forms/aachen/te_${model_name}.ark";
 
 # Get the number of symbols (including CTC, but excluding epsilon) and
 # the ID of the whitespace symbol.

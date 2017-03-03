@@ -4,7 +4,7 @@ export LC_NUMERIC=C;
 
 # Directory where the prepare.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
-[ "$(pwd)/steps" != "$SDIR" ] && \
+[ "$(pwd)/utils" != "$SDIR" ] && \
     echo "Please, run this script from the experiment top directory!" >&2 && \
     exit 1;
 [ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
@@ -29,10 +29,10 @@ transition_scale=1;
 loop_scale=0.1;
 overwrite=false;
 help_message="
-Usage: ${0##*/} [options] laia_syms lexiconp arpa_lm output_dir
+Usage: ${0##*/} [options] syms lexiconp arpa_lm output_dir
 
 Arguments:
-  laia_syms          : File containing the mapping from string to integer IDs
+  syms               : File containing the mapping from string to integer IDs
                        of the symbols used during CTC training.
   lexiconp           : Word lexicon with probabilities.
   arpa_lm            : Word-level language model of full sentences in the ARPA
@@ -54,13 +54,13 @@ Options:
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 [ $# -ne 4 ] && echo "$help_message" >&2 && exit 1;
 
-laia_syms="$1";
+syms="$1";
 lexicon="$2";
 arpalm="$3";
 odir="$4";
 
 # Check required files.
-for f in "$laia_syms" "$lexicon" "$arpalm"; do
+for f in "$syms" "$lexicon" "$arpalm"; do
   [ ! -s "$f" ] && echo "Required file \"$f\" does not exist!" >&2 && exit 1;
 done;
 
@@ -121,7 +121,7 @@ fi;
 # Check that all the HMMs in the lexicon are in the set of Laia symbols
 # used for training!
 # This is just for safety.
-missing_hmm=( $(awk -v LSF="$laia_syms" -v dm="$dummy" '
+missing_hmm=( $(awk -v LSF="$syms" -v dm="$dummy" '
 BEGIN{
   while ((getline < LSF) > 0) C[$1]=1;
 }{
@@ -152,9 +152,9 @@ BEGIN{
 
 # Create character symbols list.
 [[ "$overwrite" = false && -s "$odir/chars.txt" &&
-    ( ! "$odir/chars.txt" -ot "$laia_syms" ) &&
+    ( ! "$odir/chars.txt" -ot "$syms" ) &&
     ( ! "$odir/chars.txt" -ot "$odir/lexiconp_disambig.txt" ) ]] ||
-sort -n -k2 "$laia_syms" |
+sort -n -k2 "$syms" |
 awk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v ND="$ndisambig" '
 BEGIN{
   printf("%-12s %d\n", eps, 0);

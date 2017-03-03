@@ -16,7 +16,8 @@ overwrite=false;
 srilm_options="-wbdiscount -interpolate";
 wspace="<space>";
 help_message="
-Usage: ${0##*/} [options] syms tr_txt va_txt te_txt [external_txt] output_dir
+Usage: ${0##*/} [options] syms tr_token_txt va_token_txt te_token_txt
+       [ext_token_txt] output_dir
 
 Description:
   Build a character-level N-gram language model using SRILM used to replace
@@ -26,10 +27,10 @@ Description:
   Other SRILM options can be modified with --srilm_options.
 
 Arguments:
-  tr_txt          : Character training text data (assumes first column is ID).
-  va_txt          : Character validation text data (assumes first column is ID).
-  te_txt          : Character test text data (assumes first column is ID).
-  external_txt    : Character external text data.
+  tr_token_txt    : Tokenized training text data (assumes first column is ID).
+  va_token_txt    : Tokenized validation text data (assumes first column is ID).
+  te_token_txt    : Tokenized test text data (assumes first column is ID).
+  ext_token_txt   : Tokenized external text data.
   output_dir      : Output directory where the language models and other
                     files will be written (e.g. \"decode/lm_backoff\").
 
@@ -88,16 +89,20 @@ function check_not_older () {
   return 0;
 }
 
-# Convert a lines of character-level transcripts sentences into words.
+# Convert a lines of word-level sentences into words.
 function sent2word () {
-  sed "s|$wspace|\n|g" $@ | sed -r 's|^\ +||g;s|\ +$||g;s|\ +| |g';
+  sed -r 's| +|\n|g;s|^\ +||g;s|\ +$||g;s|\ +| |g' $@ | awk 'NF > 0';
 }
 
 # Exclude lines present in the file $exclude_vocab
 function excludevoc () {
   awk -v VF="$exclude_vocab" '
-BEGIN{ while((getline < VF) > 0) V[$0]=1; }
+BEGIN{ if (VF != "") { while((getline < VF) > 0) V[$0]=1; } }
 !($0 in V){ print; }' $@;
+}
+
+function word2char () {
+  sed -r 's|(.)| \1|g;s|^ +||g;s| +$||g' $@;
 }
 
 # Interpolate a list of .arpa.gz files.
@@ -107,7 +112,7 @@ function interpolate_arpa_files () {
   for arpa in $@; do
     info="${arpa/.arpa.gz/.info}";
     [[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$arpa" ) ]] ||
-    awk '{$1=""; print;}' "$va_txt" | sent2word | excludevoc |
+    awk '{$1=""; print;}' "$va_txt" | sent2word | excludevoc | word2char |
     ngram -order "$order" -debug 2 -ppl - -lm <(zcat "$arpa") &> "$info" ||
     { echo "ERROR: Creating file \"$info\"!" >&2 && exit 1; }
     info_files+=("$info");
@@ -143,21 +148,9 @@ function interpolate_arpa_files () {
   return 0;
 }
 
-# Obtain the sequence of characters from the given word vocabulary that must
-# be excluded.
-if [ -n "$exclude_vocab" ]; then
-  [ ! -s "$exclude_vocab" ] &&
-  echo "ERROR: File \"$exclude_vocab\" does not exist!" >&2 && exit 1;
-  awk '{
-    for (i=1;i<=length($0);++i) { printf("%s ", substr($0, i, 1)); }
-    printf("\n");
-  }' "$exclude_vocab" |
-  sed -r 's|^\ +||g;s|\ +$||g;s|\ +| |g' > "$odir/exclude_vocab" ||
-  exit 1;
-  exclude_vocab="$odir/exclude_vocab";
-else
-  exclude_vocab="/dev/null";
-fi;
+# Check --exclude_vocab file.
+[[ -n "$exclude_vocab" && ( ! -s "$exclude_vocab" ) ]] &&
+echo "ERROR: File \"$exclude_vocab\" does not exist!" >&2 && exit 1;
 
 # Extract vocabulary (i.e. set of characters)
 vocf="$(mktemp)";
@@ -168,7 +161,7 @@ grep -v "$eps" | grep -v "$ctc" | grep -v "$wspace" > "$vocf";
 outf="$odir/$(basename "$tr_txt" .txt)-${order}gram.arpa.gz";
 [[ "$overwrite" = false && -s "$outf" &&
     ( ! "$outf" -ot "$tr_txt" ) && ( ! "$outf" -ot "$syms" ) ]] ||
-awk '{$1=""; print;}' "$tr_txt" | sent2word | excludevoc |
+awk '{$1=""; print;}' "$tr_txt" | sent2word | excludevoc | word2char |
 ngram-count -order "$order" -vocab "$vocf" $srilm_options -text - -lm - |
 gzip -9 -c > "$outf" ||
 { echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
@@ -180,7 +173,7 @@ for txtf in "${external_txt[@]}"; do
   info="$odir/$(basename "$txtf" .txt)-${order}gram.info";
   [[ "$overwrite" = false && -s "$outf" &&
       ( ! "$outf" -ot "$txtf" ) && ( ! "$outf" -ot "$syms" ) ]] ||
-  sent2word "$txtf" | excludevoc |
+  sent2word "$txtf" | excludevoc | word2char |
   ngram-count -order "$order" -vocab "$vocf" $srilm_options -text - -lm - |
   gzip -9 -c > "$outf" ||
   { echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
@@ -196,11 +189,11 @@ ppl=();
 oov=();
 oovp=();
 for f in "$tr_txt" "$va_txt" "$te_txt"; do
-  ppl+=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc |
+  ppl+=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
       ngram -order "$order" -ppl - -lm <(zcat "$outf") 2>&1 |
       tail -n1 | sed -r 's|^.+\bppl= ([0-9.]+)\b.+$|\1|g' |
       awk '{printf("%.2f", $1);}') );
-  aux=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc |
+  aux=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
       awk -v VF="$vocf" '
 BEGIN{ N=0; OOV=0; while((getline < VF) > 0) V[$1]=1; }
 { for (i=1;i<=NF;++i) { ++N; if (!($i in V)) ++OOV; } }

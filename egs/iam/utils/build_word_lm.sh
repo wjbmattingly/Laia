@@ -16,7 +16,7 @@ voc_size=50000;
 unknown=true;
 help_message="
 Usage: ${0##*/} [options] tr_token_txt va_token_txt te_token_txt
-                          [ext_token_txt ext_bound_txt ...] output_dir
+       [ext_token_txt ext_bound_txt ...] output_dir
 
 Description:
   Build a word-level N-gram language model using SRILM. You can specify the

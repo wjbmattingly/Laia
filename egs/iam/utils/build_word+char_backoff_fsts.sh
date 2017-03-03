@@ -4,11 +4,10 @@ export LC_NUMERIC=C;
 
 # Directory where the prepare.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
-[ "$(pwd)/steps" != "$SDIR" ] && \
-    echo "Please, run this script from the experiment top directory!" >&2 && \
-    exit 1;
-[ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
-    echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
+[ "$(pwd)/utils" != "$SDIR" ] &&
+echo "Please, run this script from the experiment top directory!" >&2 && exit 1;
+[ ! -f "$(pwd)/utils/parse_options.inc.sh" ] &&
+echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 function getVocFromARPA () {
   if [ "${1:(-3)}" = ".gz" ]; then zcat "$1"; else cat "$1"; fi |
@@ -31,13 +30,11 @@ transition_scale=1;
 loop_scale=0.1;
 overwrite=false;
 help_message="
-Usage: ${0##*/} [options] laia_syms charmap lexicon char_lm word_lm output_dir
+Usage: ${0##*/} [options] syms lexicon char_lm word_lm output_dir
 
 Arguments:
-  laia_syms          : File containing the mapping from string to integer IDs
+  syms               : File containing the mapping from string to integer IDs
                        of the symbols used during CTC training.
-  charmap            : File containing the mapping from characters to sequences
-                       of HMMs.
   lexicon            : File containing the word lexicon (with probabilities)
                        used to map from words to sequences of HMMs.
   char_lm            : Input character-level language model in ARPA format.
@@ -75,17 +72,16 @@ Options:
                        String representing the whitespace character.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-[ $# -ne 6 ] && echo "$help_message" >&2 && exit 1;
+[ $# -ne 5 ] && echo "$help_message" >&2 && exit 1;
 
 laia_syms="$1";
-charmap="$2";
-word_lexicon="$3";
-char_arpa="$4";
-word_arpa="$5";
-odir="$6";
+word_lexicon="$2";
+char_arpa="$3";
+word_arpa="$4";
+odir="$5";
 
 # Check required files.
-for f in "$laia_syms" "$charmap" "$word_lexicon" "$char_arpa" "$word_arpa"; do
+for f in "$laia_syms" "$word_lexicon" "$char_arpa" "$word_arpa"; do
   [ ! -s "$f" ] && echo "Required file \"$f\" does not exist!" >&2 && exit 1;
 done;
 
@@ -101,7 +97,7 @@ getVocFromARPA "$char_arpa" > "$lm_chars";
 lex_words="$(mktemp)";
 awk '{print $1}' "$word_lexicon" | sort > "$lex_words";
 lex_chars="$(mktemp)";
-awk '{print $1}' "$charmap" | sort > "$lex_chars";
+awk '{print $1}' "$laia_syms" | sort > "$lex_chars";
 
 
 # List of words present in the input lexicon, but not present in the ARPA LM.
@@ -119,7 +115,7 @@ echo "WARNING: #OOV words in the input lexicon: $num_oovw_lex" >&2;
 echo "WARNING: #OOV words in the input ARPA LM: $num_oovw_lm" >&2;
 
 
-# List of characters present in the input lexicon, but not present in the ARPA LM.
+# List of characters present in the input lexicon, but not present in the ARPA.
 oovc_lex="$(mktemp)";
 comm -13 "$lm_chars" "$lex_chars" > "$oovc_lex";
 num_oovc_lex="$(wc -l "$oovc_lex"  | cut -d\  -f1)";
@@ -133,12 +129,12 @@ echo "WARNING: #OOV chars in the input lexicon: $num_oovc_lex" >&2;
 [ "$num_oovc_lm" -gt 0 ] &&
 echo "WARNING: #OOV chars in the input ARPA LM: $num_oovc_lm" >&2;
 
-
 # Create lexicon with pronunciations for each word AND characters.
 tmpf="$(mktemp)";
 (
   # Transduce whitespace to <s>, used in the character-level backoff
   # to force a whitespace before emitting any word from the LM.
+  # Notice: This only affects when the char-backoff is applied!
   printf "%-25s    %f %s\n" "$bos" "1.0" "$wspace";
   # Dummy at the end of the sentence.
   printf "%-25s    %f %s\n" "$eos" "1.0" "$dummy";
@@ -151,11 +147,9 @@ BEGIN{
   IGNORE[eos] = 1;
   IGNORE[unk] = 1;
 }(!($1 in IGNORE)){
-  $1=sprintf("%s%s", PFX, $1);
-  printf("%-25s    %f", $1, 1.0);
-  for (i=2; i <= NF; ++i) { printf(" %s", $i); }
-  printf("\n");
-}' "$charmap";
+  w=sprintf("%s%s", PFX, $1);
+  printf("%-25s    %f %s\n", w, 1.0, $1);
+}' "$laia_syms";
   # Words.
   awk -v IGNORE_FILE="$oovw_lex" -v bos="$bos" -v eos="$eos" -v unk="$unk" '
 BEGIN{
@@ -168,7 +162,7 @@ BEGIN{
 [[ "$overwrite" = false && -s "$odir/lexiconp.txt" ]] &&
 cmp -s "$tmpf" "$odir/lexiconp.txt" ||
 mv "$tmpf" "$odir/lexiconp.txt" ||
-( echo "Error creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1 );
+{ echo "ERROR: Creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1; }
 
 
 # Add disambiguation symbols to the lexicon.
@@ -182,7 +176,6 @@ if [[ "$overwrite" = true || ! -s "$odir/lexiconp_disambig.txt" ]] ||
   ! cmp -s "$tmpf" "$odir/lexiconp_disambig.txt"; then
   mv "$tmpf" "$odir/lexiconp_disambig.txt";
 fi;
-
 
 # Check that all the HMMs in the lexicon are in the set of Laia symbols
 # used for training!
@@ -216,7 +209,7 @@ BEGIN{
   printf("%-25s %d\n", "#1", maxid++);  # Backoff in the char-lm
   printf("%-25s %d\n", "#2", maxid++);  # Disambiguate consecutive backoff
 }' "$odir/lexiconp.txt" > "$odir/words.txt" ||
-( echo "Failed $odir/words.txt creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/words.txt\"!" >&2 && exit 1; }
 
 
 # Create character symbols list.
@@ -239,7 +232,7 @@ BEGIN{
   for (n = 0; n <= ND; ++n)
     printf("%-12s %d\n", "#"n, ++maxid);
 }' > "$odir/chars.txt" ||
-( echo "Failed $odir/chars.txt creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/chars.txt\"!" && exit 1; }
 
 
 # Create integer list of disambiguation symbols.
@@ -254,20 +247,17 @@ awk '$1 ~ /^#.+/{ print $2 }' "$odir/words.txt" > "$odir/words_disambig.int";
 
 
 # Create the lexicon FST with disambiguation symbols from lexiconp.txt
+# BUT NO SELF-LOOPS TO PROPAGATE, BACKOFF.
 [[ "$overwrite" = false && -s "$odir/L.fst" &&
     ( ! "$odir/L.fst" -ot "$odir/lexiconp_disambig.txt" ) &&
     ( ! "$odir/L.fst" -ot "$odir/chars.txt" ) &&
     ( ! "$odir/L.fst" -ot "$odir/words.txt" ) ]] ||
-utils/make_lexicon_fst.pl \
-  --pron-probs "$odir/lexiconp_disambig.txt" |
+utils/make_lexicon_fst.pl --pron-probs "$odir/lexiconp_disambig.txt" |
 fstcompile --isymbols="$odir/chars.txt" --osymbols="$odir/words.txt" |
 fstdeterminizestar --use-log=true |
 fstminimizeencoded |
-fstaddselfloops \
-  <(egrep \#[01] "$odir/chars.txt" | awk '{print $2}') \
-  <(egrep \#[01] "$odir/words.txt" | awk '{print $2}') |
 fstarcsort --sort_type=ilabel > "$odir/L.fst" ||
-( echo "Failed $odir/L.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/L.fst\"!" >&2 && exit 1; }
 
 
 # Compose the context-dependent and the L transducers.
@@ -278,7 +268,7 @@ fstcomposecontext --context-size=1 --central-position=0 \
   --write-disambig-syms="$odir/ilabels_disambig.int" \
   "$odir/ilabels" "$odir/L.fst" |
 fstarcsort --sort_type=ilabel > "$odir/CL.fst" ||
-( echo "Failed $odir/CL.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/CL.fst\"!" >&2 && exit 1; }
 
 
 # Create Ha transducer
@@ -289,7 +279,7 @@ fstarcsort --sort_type=ilabel > "$odir/CL.fst" ||
 make-h-transducer --disambig-syms-out="$odir/tid_disambig.int" \
   --transition-scale="$transition_scale" "$odir/ilabels" "$odir/tree" \
   "$odir/model" > "$odir/Ha.fst" ||
-( echo "Failed $odir/Ha.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/Ha.fst\"!" >&2 && exit 1; }
 
 
 # Create HaCL transducer.
@@ -301,7 +291,7 @@ fstdeterminizestar --use-log=true |
 fstrmsymbols "$odir/tid_disambig.int" |
 fstrmepslocal |
 fstminimizeencoded > "$odir/HaCL.fst" ||
-( echo "Failed $odir/HaCL.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/HaCL.fst\"!" >&2 && exit 1; }
 
 
 # Create HCL transducer.
@@ -310,7 +300,7 @@ fstminimizeencoded > "$odir/HaCL.fst" ||
 add-self-loops --self-loop-scale="$loop_scale" --reorder=true \
   "$odir/model" "$odir/HaCL.fst" |
 fstarcsort --sort_type=olabel > "$odir/HCL.fst" ||
-( echo "Failed $odir/HCL.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/HCL.fst\"!" >&2 && exit 1; }
 
 
 # Create the word-level FST from the ARPA language model.
@@ -334,8 +324,6 @@ BEGIN{
   V[unk] = 1;
 }{
   if (NF >= 4) {
-    # Replace <eps> by #0 in the input (this is like remove_oovs.pl)
-    if ($3==eps) $3="#0";
     # Remove <s> from the input and output
     if ($3==bos) $3=eps; if ($4==bos) $4=eps;
     # Remove </s> from the output ONLY.
@@ -347,10 +335,8 @@ BEGIN{
 }' |
 fstcompile --isymbols="$odir/words.txt" --osymbols="$odir/words.txt" |
 fstconnect |
-fstdeterminizestar --use-log=false |
-fstminimizeencoded |
 fstarcsort --sort_type=ilabel > "$odir/G.word.fst" ||
-( echo "Failed $odir/G.word.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/G.word.fst\"!" >&2 && exit 1; }
 
 
 # Create the char-level FST from the ARPA language model.
@@ -373,8 +359,6 @@ BEGIN{
   V[eos] = 1;
 }{
   if (NF >= 4) {
-    # Replace <eps> by #0 in the input (this is like remove_oovs.pl)
-    if ($3==eps) $3="#0";
     # Remove <s> from the output ONLY.
     if ($4==bos) $4=eps;
     # Remove </s> from the input, replace output with #2.
@@ -391,9 +375,7 @@ BEGIN{
 }' |
 fstcompile --isymbols="$odir/words.txt" --osymbols="$odir/words.txt" |
 fstconnect |
-fstdeterminizestar --use-log=false |
-fstminimizeencoded |
 fstarcsort --sort_type=ilabel > "$odir/G.char.fst" ||
-( echo "Failed $odir/G.char.fst creation!" && exit 1; );
+{ echo "ERROR: Creating file \"$odir/G.char.fst\"!" >&2 && exit 1; }
 
 exit 0;
