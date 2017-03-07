@@ -11,7 +11,7 @@ exit 1;
 echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 acoustic_scale_max=10;
-acoustic_scale_min=0.01;
+acoustic_scale_min=0.1;
 exper_name="$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)";
 graph_scale_max=1.0
 graph_scale_min=1.0
@@ -21,7 +21,7 @@ max_finished_jobs=50;
 num_procs="$(nproc)";
 postprocess_hyps_cmd="cat";
 postprocess_refs_cmd="cat";
-spearmint_cmd="python $HOME/src/Spearmint/spearmint/main.py";
+spearmint_main="$HOME/src/Spearmint/spearmint/main.py";
 model="";
 help_message="
 Usage: ${0##*/} [options] refs symb_table wdir lat_rspec1 [lat_rspec2 ...]
@@ -49,7 +49,7 @@ Options:
   --postprocess_hyps_cmd  : (type = string, default = \"$postprocess_hyps_cmd\")
   --postprocess_refs_cmd  : (type = string, default = \"$postprocess_refs_cmd\")
 
-  --spearmint_cmd         : (type = string, default = \"${spearmint_cmd}\")
+  --spearmint_main         : (type = string, default = \"${spearmint_cmd}\")
 
 ";
 . utils/parse_options.inc.sh || exit 1;
@@ -188,6 +188,7 @@ def main(job_id, params):
   # Return WER/CER
   compute_wer_stdout = subprocess.check_output([
     'compute-wer',
+    '--mode=all',
     '--text',
     'ark:$postprocess_refs_cmd $refs |',
     'ark:$postprocess_hyps_cmd %s |' % ' '.join(output_txt)
@@ -199,4 +200,4 @@ def main(job_id, params):
   return error
 EOF
 
-$spearmint_cmd "$wdir" || exit 1;
+python "$spearmint_main" "$wdir" || exit 1;

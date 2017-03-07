@@ -59,13 +59,12 @@ lexicon="$2";
 arpalm="$3";
 odir="$4";
 
-# Check required files.
+# Check required files.ls
 for f in "$syms" "$lexicon" "$arpalm"; do
-  [ ! -s "$f" ] && echo "Required file \"$f\" does not exist!" >&2 && exit 1;
+  [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
 
 mkdir -p "$odir";
-
 
 # List of words present in the language model
 tmpd="$(mktemp -d)";
@@ -88,7 +87,8 @@ echo "WARNING: #OOV words in the input ARPA LM: $num_oovw_lm" \
 
 
 # Create lexicon with pronunciations for each word.
-awk -v IGNORE_FILE="$tmpd/lex.oov" -v bos="$bos" -v eos="$eos" -v dm="$dummy" '
+awk -v IGNORE_FILE="$tmpd/lex.oov" -v ws="$wspace" -v bos="$bos" -v eos="$eos" \
+  -v dm="$dummy" '
 BEGIN{
   while((getline < IGNORE_FILE) > 0){ IGNORE[$1]=1; }
   seen_bos = seen_eos = 0;
@@ -100,7 +100,7 @@ BEGIN{
   for (i=3; i <= NF; ++i) { printf(" %s", $i); }
   printf("\n");
 }END{
-  if (seen_eos == 0) { printf("%-25s    %f %s\n", eos, 1.0, dm); }
+  if (seen_eos == 0) { printf("%-25s    %f %s %s\n", eos, 1.0, ws, dm); }
 }' "$lexicon" > "$tmpd/lexiconp.txt" ||
 ( echo "Error creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1 );
 [[ "$overwrite" = false && -s "$odir/lexiconp.txt" ]] &&
@@ -194,9 +194,6 @@ utils/make_lexicon_fst.pl \
 fstcompile --isymbols="$odir/chars.txt" --osymbols="$odir/words.txt" |
 fstdeterminizestar --use-log=true |
 fstminimizeencoded |
-fstaddselfloops \
-  <(egrep \#0 "$odir/chars.txt" | awk '{print $2}') \
-  <(egrep \#0 "$odir/words.txt" | awk '{print $2}') |
 fstarcsort --sort_type=ilabel > "$odir/L.fst" ||
 ( echo "Failed $odir/L.fst creation!" >&2 && exit 1; );
 
@@ -284,6 +281,8 @@ fstcompile --isymbols="$odir/words.txt" --osymbols="$odir/words.txt" |
 fstconnect |
 fstdeterminizestar --use-log=true |
 fstminimizeencoded |
+fstpushspecial |
+fstrmsymbols <(awk '$1 == "#0"{ print $2 }' "$odir/words.txt") |
 fstarcsort --sort_type=ilabel > "$odir/G.fst" ||
 ( echo "Failed $odir/G.fst creation!" >&2 && exit 1; );
 

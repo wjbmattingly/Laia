@@ -324,6 +324,8 @@ BEGIN{
   V[unk] = 1;
 }{
   if (NF >= 4) {
+    # Replace backoff epsilon with #0 ONLY on the input side
+    if ($3==eps) $3="#0";
     # Remove <s> from the input and output
     if ($3==bos) $3=eps; if ($4==bos) $4=eps;
     # Remove </s> from the output ONLY.
@@ -335,6 +337,10 @@ BEGIN{
 }' |
 fstcompile --isymbols="$odir/words.txt" --osymbols="$odir/words.txt" |
 fstconnect |
+fstdeterminizestar --use-log=true |
+fstminimizeencoded |
+fstpushspecial |
+fstrmsymbols <(awk '$1 == "#0"{ print $2 }' "$odir/words.txt") |
 fstarcsort --sort_type=ilabel > "$odir/G.word.fst" ||
 { echo "ERROR: Creating file \"$odir/G.word.fst\"!" >&2 && exit 1; }
 
@@ -359,6 +365,8 @@ BEGIN{
   V[eos] = 1;
 }{
   if (NF >= 4) {
+    # Replace backoff epsilon with #0 ONLY on the input side
+    if ($3==eps) $3="#0";
     # Remove <s> from the output ONLY.
     if ($4==bos) $4=eps;
     # Remove </s> from the input, replace output with #2.
@@ -375,6 +383,10 @@ BEGIN{
 }' |
 fstcompile --isymbols="$odir/words.txt" --osymbols="$odir/words.txt" |
 fstconnect |
+fstdeterminizestar --use-log=true |
+fstminimizeencoded |
+fstpushspecial |
+fstrmsymbols <(awk '$1 == "#0"{ print $2 }' "$odir/words.txt") |
 fstarcsort --sort_type=ilabel > "$odir/G.char.fst" ||
 { echo "ERROR: Creating file \"$odir/G.char.fst\"!" >&2 && exit 1; }
 

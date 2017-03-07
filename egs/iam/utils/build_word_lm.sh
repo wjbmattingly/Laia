@@ -196,8 +196,12 @@ for tokf in "${external_tok[@]}"; do
 done;
 
 # Interpolate all language models
-interpolate_arpa_files "${arpa_files[@]}";
-outf="$odir/interpolation-${order}gram-${voc_size}.arpa.gz";
+if [ ${#arpa_files[@]} -gt 1 ]; then
+  interpolate_arpa_files "${arpa_files[@]}";
+  outf="$odir/interpolation-${order}gram-${voc_size}.arpa.gz";
+else
+  outf="${arpa_files[0]}";
+fi;
 
 # Compute detailed perplexity of the interpolated model
 ppl=();
