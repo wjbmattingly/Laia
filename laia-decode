@@ -24,7 +24,7 @@ parser:argument('image_list',
 
 parser:option(
   '--seed -s', 'Seed for random numbers generation.',
-  0x012345, laia.toint)
+  0, laia.toint)
 parser:option(
   '--gpu', 'If gpu>0, uses the specified GPU, otherwise uses the CPU.',
   1, laia.toint)
@@ -81,7 +81,9 @@ if opts.auto_width_factor then
 		width_factor)
 end
 batcher:load(opts.image_list)
-batcher:epochReset()
+if opts.seed > 0 then
+  batcher:epochReset()
+end
 
 local n = 0
 for batch=1,batcher:numSamples(),opts.batch_size do
