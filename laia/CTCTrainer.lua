@@ -35,6 +35,8 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
     grad_clip = 0,
     check_nan = false,
     check_inf = false,
+    normalize_loss = true,
+    shuffle_valid = false,
   })
   self._model = model
   self._train_batcher = train_batcher
@@ -170,6 +172,16 @@ function CTCTrainer:registerOptions(parser, advanced)
     '--check_inf', 'If true, check for infinity values during training.',
     self._opt.check_inf, laia.toboolean)
     :bind(self._opt, 'check_inf')
+    :advanced(advanced)
+  parser:option(
+    '--normalize_loss', 'If true, normalize the loss among the batch size and the length of the samples.',
+    self._opt.normalize_loss, laia.toboolean)
+    :bind(self._opt, 'normalize_loss')
+    :advanced(advanced)
+  parser:option(
+    '--shuffle-valid', 'If true, shuffle the validation data on each epoch.',
+    self._opt.shuffle_valid, laia.toboolean)
+    :bind(self._opt, 'shuffle_valid')
     :advanced(advanced)
 end
 
@@ -479,7 +491,9 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   end
 
   -- Make gradients independent of the batch size and sequence length
-  self._gradParameters:div(self._gradOutput:size(1))
+  if self._opt.normalize_loss then
+    self._gradParameters:div(self._gradOutput:size(1))
+  end
 
   -- Return, for each sample in the batch, the total loss (including
   -- regularization terms, adversarial, etc), the posterior probability
