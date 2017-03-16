@@ -19,10 +19,10 @@ f <- function(data, indices) {
 	  sum_ins / sum_len * 100))
 }
 results <- boot(data=df, statistic=f, R=1000)
-ci1 <- boot.ci(results, type='perc', index=1)
-ci2 <- boot.ci(results, type='perc', index=2)
-ci3 <- boot.ci(results, type='perc', index=3)
-ci4 <- boot.ci(results, type='perc', index=4)
+ci1 <- boot.ci(results, type='bca', index=1)
+ci2 <- boot.ci(results, type='bca', index=2)
+ci3 <- boot.ci(results, type='bca', index=3)
+ci4 <- boot.ci(results, type='bca', index=4)
 
 cat(sprintf('%%ERR %.2f [%.2f -- %.2f]\n',
             ci1['t0'], ci1['percent'][[1]][4], ci1['percent'][[1]][5]))

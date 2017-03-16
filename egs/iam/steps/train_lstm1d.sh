@@ -43,6 +43,7 @@ Options:
                   to use (\"aachen\", \"original\" or \"kws\").
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
+[ $# -ne 0 ] && echo "$help_message" >&2 && exit 1;
 
 # Get "lines" or "sentences" from the full partition string (e.g. lines/aachen)
 ptype="${partition%%/*}";
@@ -82,24 +83,23 @@ mkdir -p "train/$partition";
   1 "$height" "$num_syms" "train/$partition/$model_name.t7";
 
 # Train model
-[ "$overwrite" = false -a "train/$partition/$model_name.t7" ] ||
 ../../laia-train-ctc \
   --batch_size "$batch_size" \
+  --normalize_loss false \
   --continue_train "$continue_train" \
   --use_distortions "$use_distortions" \
   --progress_table_output "train/$partition/$model_name.dat" \
-  --early_stop_epochs 50 \
+  --early_stop_epochs 20 \
   --learning_rate 0.0003 \
-  --learning_rate_decay 0.98 \
-  --learning_rate_decay_after 100 \
-  --learning_rate_decay_min 0.0001 \
   --log_also_to_stderr info \
   --log_level info \
   --log_file "train/$partition/$model_name.log" \
   --display_progress_bar true \
   --gpu "$gpu" \
   "train/$partition/$model_name.t7" "train/$ptype/syms.txt" \
-  "data/lists/$partition/tr_h${height}.lst" "data/lang/char/$partition/tr.txt" \
-  "data/lists/$partition/va_h${height}.lst" "data/lang/char/$partition/va.txt";
+  "data/lists/$partition/tr_h${height}.lst" \
+  "data/lang/char/$partition/tr.txt" \
+  "data/lists/$partition/va_h${height}.lst" \
+  "data/lang/char/$partition/va.txt";
 
 exit 0;

@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
-library(boot);
-library(equivalence);
+library(boot)
+set.seed(12345)
 
 args = commandArgs(trailingOnly=TRUE)
 if(length(args) != 2) {
@@ -28,26 +28,21 @@ f <- function(data, indices) {
   cer2 = sum_err2 / sum_len * 100
 
   return (c(cer1 - cer2, cer1, cer2))
-
 }
 
+ttest_less <- function(mean, std, n, mu, alternative = 'less') {
+  tstat <- (mean - mu) / (std / sqrt(n))
+  if (alternative == 'less') {
+    pval <- pt(tstat, n - 1, lower.tail = TRUE)
+  } else {
+    pval <- pt(tstat, n - 1, lower.tail = FALSE)
+  }
+  rval <- list(statistic = tstat, pvalue = pval)
+  return (rval)
+}
 results <- boot(data=df, statistic=f, R=1000)
-ci1 <- boot.ci(results, type = 'perc', conf = 0.90, index = 1)
-ci2 <- boot.ci(results, type = 'perc', conf = 0.95, index = 2)
-ci3 <- boot.ci(results, type = 'perc', conf = 0.95, index = 3)
 
+results$t0[2]
+results$t0[3]
 
-sd(results$t[,1])
-mean(results$t[,2])
-results$t0
-ci1$t0
-
-ptte.stat(ci1$t0, sd(results$t[,1]), nrow(results$t), alpha = 0.05, Epsilon = 0.9)
-
-
-cat(sprintf('%%ERR %.2f [%.2f -- %.2f]\n',
-            ci1['t0'], ci1['percent'][[1]][4], ci1['percent'][[1]][5]))
-cat(sprintf('%%ERR %.2f [%.2f -- %.2f]\n',
-            ci2['t0'], ci2['percent'][[1]][4], ci2['percent'][[1]][5]))
-cat(sprintf('%%ERR %.2f [%.2f -- %.2f]\n',
-            ci3['t0'], ci3['percent'][[1]][4], ci3['percent'][[1]][5]))
+t.test(results$t[,1], mu=0.05 * results$t0[3], alternative='less')
