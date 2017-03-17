@@ -51,7 +51,6 @@ require('laia.WeightDecayRegularizer')
 wrequire('laia.ImageDistorter')
 
 laia.nn = {}
-require('laia.nn.MDRNN')
 require('laia.nn.ImageColumnSequence')
 
 -- Determine whether stdout/stderr are terminals or not. If term package

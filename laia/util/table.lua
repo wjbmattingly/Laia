@@ -213,3 +213,18 @@ function table.weighted_choice(t, z)
     end
   end
 end
+
+function table.subrange(t, first, last)
+  local sub = {}
+  for i=first,math.min(last,#t) do
+    sub[#sub + 1] = t[i]
+  end
+  return sub
+end
+
+function table.extend(t1, t2)
+  for i=1,#t2 do
+    table.insert(t1, t2[i])
+  end
+  return t1
+end

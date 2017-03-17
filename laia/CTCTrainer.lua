@@ -37,6 +37,7 @@ function CTCTrainer:__init(model, train_batcher, valid_batcher, optimizer)
     check_inf = false,
     normalize_loss = true,
     shuffle_valid = false,
+    batchChunkSize = 0,
   })
   self._model = model
   self._train_batcher = train_batcher
@@ -179,9 +180,15 @@ function CTCTrainer:registerOptions(parser, advanced)
     :bind(self._opt, 'normalize_loss')
     :advanced(advanced)
   parser:option(
-    '--shuffle-valid', 'If true, shuffle the validation data on each epoch.',
+    '--shuffle_valid', 'If true, shuffle the validation data on each epoch.',
     self._opt.shuffle_valid, laia.toboolean)
     :bind(self._opt, 'shuffle_valid')
+    :advanced(advanced)
+  parser:option(
+    '--batch_chunk_size', 'If >0, split the batch in chunks of this size (in' ..
+    ' MB). Useful to perform constant batch size updates with scarce memory.',
+    self._opt.batchChunkSize, laia.toint)
+    :bind(self._opt, 'batchChunkSize')
     :advanced(advanced)
 end
 
@@ -398,101 +405,133 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
     self._model:evaluate()
   end
   self._model:clearState()
-  local batch_size = batch_img:size(1)
-  assert(batch_size == #batch_gt,
+  local batchSize = batch_img:size(1)
+  assert(batchSize == #batch_gt,
 	 ('The number of transcripts is not equal to the number of images '..
-	  '(expected = %d, actual = %d)'):format(batch_size, #batch_gt))
-
-  -- Forward pass
-  self._model:forward(batch_img)
-  local output = self._model.output
-  -- Check output size
-  assert(self._train_batcher:numSymbols() == output:size(2),
-         ('Expected model output to have %d dimensions and got %d'):format(
-           self._train_batcher:numSymbols(), output:size(2)))
-  -- Check NaNs
-  if self._opt.check_nan then
-    local n = check_nan(output)
-    local p = n / output:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) NaN values during forward!', n, p)
+          '(expected = %d, actual = %d)'):format(batchSize, #batch_gt))
+  -- If the batch is too big to fill in memory, split the batch in chunks
+  -- but perform a single model update (gradients are accumulated)
+  local numChunks, numChunkSamples = 1, batchSize
+  local batchSizeMB =
+    batch_img:nElement() * batch_img:elementSize() / 1048576
+  local sampleSizeMB =
+    batch_img[1]:nElement() * batch_img:elementSize() / 1048576
+  if not self.warnSampleSize and self._opt.batchChunkSize > 0 and
+  sampleSizeMB > self._opt.batchChunkSize then
+    laia.log.warn(
+      ('Your maximum batch chunk size is smaller than the size ' ..
+       'of one sample (%.2fMB vs. %.2fMB). If memory is scarce, Laia ' ..
+       'might crash soon. This message won\'t be shown again.')
+	:format(self._opt.batchChunkSize, sampleSizeMB))
+    self.warnSampleSize = true
   end
-  -- Check NaNs
-  if self._opt.check_inf then
-    local n = check_inf(output)
-    local p = n / output:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) inf values during forward!', n, p)
-  end
-  -- Set _gradOutput to have the same size as the output and fill it with zeros
-  self._gradOutput = self._gradOutput:typeAs(output):resizeAs(output):zero()
-
-  -- TODO(jpuigcerver): This assumes that all sequences have the same number
-  -- of frames, which should not be the case, since padding should be ignored!
-  local sizes = {}
-  local seq_len = output:size()[1] / batch_size
-  for i=1,batch_size do table.insert(sizes, seq_len) end
-
-  -- Compute loss function and gradients w.r.t. the output
-  local batch_losses = nil
-  if self._model:type() == 'torch.CudaTensor' then
-    batch_losses = gpu_ctc(output, self._gradOutput, batch_gt, sizes)
-  elseif self._model:type() == 'torch.FloatTensor' then
-    batch_losses = cpu_ctc(output, self._gradOutput, batch_gt, sizes)
-  else
-    laia.log.fatal(
-      ('CTC is not implemented for tensors of type %q'):format(output:type()))
-  end
-  -- Check NaNs
-  if self._opt.check_nan then
-    local n = check_nan(self._gradOutput)
-    local p = n / self._gradOutput:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) NaN values during CTC!', n, p)
-  end
-  -- Check NaNs
-  if self._opt.check_inf then
-    local n = check_inf(self._gradOutput)
-    local p = n / self._gradOutput:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) inf values during CTC!', n, p)
+  if self._opt.batchChunkSize > 0 then
+    numChunks = math.min(math.ceil(batchSizeMB / self._opt.batchChunkSize), batchSize)
+    numChunkSamples = math.ceil(batchSize / numChunks)
   end
 
-  -- Perform framewise decoding to estimate CER
-  local batch_decode = laia.framewise_decode(batch_size, output)
+  local numFrames = 0
+  local batch_losses = {}
   local batch_dc_trim, batch_gt_trim = {}, {}
   local batch_num_ins_ops, batch_num_del_ops, batch_num_sub_ops = {}, {}, {}
-  for i=1,#batch_decode do
-    local dc_i = batch_decode[i]
-    local gt_i = batch_gt[i]
-    if self._opt.cer_trim > 0 then
-      dc_i = laia.symbol_trim(dc_i, self._opt.cer_trim)
-      gt_i = laia.symbol_trim(gt_i, self._opt.cer_trim)
+  for chunkStart=1,batchSize,numChunkSamples do
+    if chunkStart + numChunkSamples - 1 > batchSize then
+      numChunkSamples = batchSize - chunkStart + 1
     end
-    local _, edit_ops = laia.levenshtein(gt_i, dc_i)
-    table.insert(batch_num_ins_ops, edit_ops.ins)
-    table.insert(batch_num_del_ops, edit_ops.del)
-    table.insert(batch_num_sub_ops, edit_ops.sub)
-    table.insert(batch_dc_trim, dc_i)
-    table.insert(batch_gt_trim, gt_i)
-  end
+    local chunkImg   = batch_img:narrow(1, chunkStart, numChunkSamples)
+    local chunkGt    = table.subrange(batch_gt, chunkStart, chunkStart + numChunkSamples - 1)
 
-  -- Compute gradients of the loss function w.r.t parameters
-  if do_backprop then
-    self._model:backward(batch_img, self._gradOutput)
-  end
-  -- Check NaNs
-  if self._opt.check_nan then
-    local n = check_nan(self._gradParameters)
-    local p = n / self._gradParameters:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) NaN values during backward!', n, p)
-  end
-  -- Check NaNs
-  if self._opt.check_inf then
-    local n = check_inf(self._gradParameters)
-    local p = n / self._gradParameters:nElement() * 100
-    assert(n == 0, 'Found %d (%.2f%%) inf values during backward!', n, p)
+    -- Forward pass
+    self._model:forward(chunkImg)
+    local output = self._model.output
+    numFrames = numFrames + output:size(1)
+    -- Check output size
+    assert(self._train_batcher:numSymbols() == output:size(2),
+	   ('Expected model output to have %d dimensions and got %d'):format(
+	     self._train_batcher:numSymbols(), output:size(2)))
+    -- Check NaNs
+    if self._opt.check_nan then
+      local n = check_nan(output)
+      local p = n / output:nElement() * 100
+      assert(n == 0, 'Found %d (%.2f%%) NaN values during forward!', n, p)
+    end
+    -- Check NaNs
+    if self._opt.check_inf then
+      local n = check_inf(output)
+      local p = n / output:nElement() * 100
+      assert(n == 0, 'Found %d (%.2f%%) inf values during forward!', n, p)
+    end
+    -- Set _gradOutput to have the same size as the output and fill it with zeros
+    self._gradOutput = self._gradOutput:typeAs(output):resizeAs(output):zero()
+
+    -- TODO(jpuigcerver): This assumes that all sequences have the same number
+    -- of frames, which should not be the case, since padding should be ignored!
+    local sizes = {}
+    local seq_len = output:size(1) / chunkImg:size(1)
+    for i=1,chunkImg:size(1) do table.insert(sizes, seq_len) end
+
+    -- Compute loss function and gradients w.r.t. the output
+    if self._model:type() == 'torch.CudaTensor' then
+      local chunkLosses = gpu_ctc(output, self._gradOutput, chunkGt, sizes)
+      table.extend(batch_losses, chunkLosses)
+    elseif self._model:type() == 'torch.FloatTensor' then
+      local chunkLosses = cpu_ctc(output, self._gradOutput, chunkGt, sizes)
+      table.extend(batch_losses, chunkLosses)
+    else
+      laia.log.fatal(
+	('CTC is not implemented for tensors of type %q'):format(output:type()))
+    end
+    -- Check NaNs
+    if self._opt.check_nan then
+      local n = check_nan(self._gradOutput)
+      local p = n / self._gradOutput:nElement() * 100
+      assert(n == 0, 'Found %d (%.2f%%) NaN values during CTC!', n, p)
+    end
+    -- Check NaNs
+    if self._opt.check_inf then
+      local n = check_inf(self._gradOutput)
+      local p = n / self._gradOutput:nElement() * 100
+      assert(n == 0, 'Found %d (%.2f%%) inf values during CTC!', n, p)
+    end
+
+    -- Compute gradients of the loss function w.r.t parameters
+    if do_backprop then
+      self._model:backward(chunkImg, self._gradOutput)
+      -- Check NaNs
+      if self._opt.check_nan then
+	local n = check_nan(self._gradParameters)
+	local p = n / self._gradParameters:nElement() * 100
+	assert(n == 0, 'Found %d (%.2f%%) NaN values during backward!', n, p)
+      end
+      -- Check NaNs
+      if self._opt.check_inf then
+	local n = check_inf(self._gradParameters)
+	local p = n / self._gradParameters:nElement() * 100
+	assert(n == 0, 'Found %d (%.2f%%) inf values during backward!', n, p)
+      end
+    end
+
+    -- Perform framewise decoding to estimate CER
+    local chunkDecode = laia.framewise_decode(chunkImg:size(1), output)
+    for i=1,#chunkDecode do
+      local dc_i = chunkDecode[i]
+      local gt_i = chunkGt[i]
+      if self._opt.cer_trim > 0 then
+	dc_i = laia.symbol_trim(dc_i, self._opt.cer_trim)
+	gt_i = laia.symbol_trim(gt_i, self._opt.cer_trim)
+      end
+      local _, edit_ops = laia.levenshtein(gt_i, dc_i)
+      table.insert(batch_num_ins_ops, edit_ops.ins)
+      table.insert(batch_num_del_ops, edit_ops.del)
+      table.insert(batch_num_sub_ops, edit_ops.sub)
+      table.insert(batch_dc_trim, dc_i)
+      table.insert(batch_gt_trim, gt_i)
+    end
   end
 
   -- Make gradients independent of the batch size and sequence length
-  if self._opt.normalize_loss then
-    self._gradParameters:div(self._gradOutput:size(1))
+  if do_backprop and self._opt.normalize_loss then
+    self._gradParameters:div(numFrames)
   end
 
   -- Return, for each sample in the batch, the total loss (including
@@ -502,7 +541,8 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   return {
     -- Sum individual batch losses
     loss        = table.reduce(batch_losses, operator.add, 0),
-    num_frames  = self._gradOutput:size(1),  -- Batch Size x Length of samples
+    -- Batch Size x Length of samples
+    num_frames  = numFrames,
     -- Convert losses to (log-)posteriors, i.e loss = -log p(y|x), per sample!
     posteriors  = table.map(batch_losses, function(x) return -x end),
     -- Number of insertion operations (after trimming), for each sample!
