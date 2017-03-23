@@ -25,13 +25,6 @@ parser:option(
   :ge(0)            -- Number of features must be >= 0
 
 parser:option(
-  '--batch_norm',
-  'Batch normalization before the activation in each conv layer.',
-  {false}, laia.toboolean)
-  :argname('<bool>')  -- Placeholder
-  :args('+')          -- Option with >= 1 arguments
-
-parser:option(
   '--cnn_dropout',
   'Dropout probability at the input of each conv layer, 0 <= p < 1.',
   {0, 0.25, 0.25, 0.25, 0.25}, tonumber)
@@ -53,13 +46,6 @@ parser:option(
   0, tonumber)
   :argname('<p>')
   :ge(0.0):lt(1.0)
-
-parser:option(
-  '--spatial_dropout',
-  'Use spatial dropout instead of the regular dropout.',
-  {false}, laia.toboolean)
-  :argname('<bool>')
-  :args('+')
 
 parser:option(
   '--maxpool_size', 'Max pooling size after each conv layer. Separate ' ..
@@ -139,9 +125,7 @@ assert(cnn_layers == rnn_layers,
 -- copied to extend the list until a size of cnn_layers is achieved.
 table.append_last(opt.cnn_kernel_size, cnn_layers - #opt.cnn_kernel_size)
 table.append_last(opt.maxpool_size, cnn_layers - #opt.maxpool_size)
-table.append_last(opt.batch_norm, cnn_layers - #opt.batch_norm)
 table.append_last(opt.cnn_type, cnn_layers - #opt.cnn_type)
-table.append_last(opt.spatial_dropout, cnn_layers - #opt.spatial_dropout)
 table.append_last(opt.cnn_dropout, cnn_layers - #opt.cnn_dropout)
 table.append_last(opt.rnn_dropout, rnn_layers - #opt.rnn_dropout)
 
@@ -165,13 +149,12 @@ local function addBlock(
     -- Size of the pooling windows
     pool_w, pool_h,
     -- Dropout at the beginning of the cnn and LSTM2D layers
-    cnn_dropout, rnn_dropout, spatial_dropout,
-    activation, batch_norm)
+    cnn_dropout, rnn_dropout,
+    -- Activation function
+    activation)
   activation = activation or 'tanh'
-  batch_norm = batch_norm or false
   cnn_dropout = cnn_dropout or 0
   rnn_dropout = rnn_dropout or 0
-  spatial_dropout = spatial_dropout or false
   assert(cnn_size > 0 or rnn_size > 0,
 	 'Each block must include either a CNN or a RNN layer.')
 
@@ -181,29 +164,20 @@ local function addBlock(
   if cnn_size > 0 then
     -- Spatial dropout to the input of the convolutional layer
     if cnn_dropout > 0 then
-      if spatial_dropout then
-	block:add(nn.SpatialDropout(cnn_dropout))
-      else
-	block:add(nn.Dropout(cnn_dropout))
-      end
+      block:add(nn.Dropout(cnn_dropout))
     end
 
     -- Spatial 2D convolution. Image is padded with zeroes so that the output
     -- has the same size as the input.
-    block:add(nn.SpatialConvolution(
+    block:add(laia.cudnn.SpatialConvolutionHWNC(
 		depth_in, cnn_size,
 		kernel_w, kernel_h,
 		1, 1,
 		(kernel_w - 1) / 2, (kernel_h - 1) / 2))
 
-    -- Batch normalization
-    if batch_norm then
-      block:add(nn.SpatialBatchNormalization(depth_out))
-    end
-
     -- Max pooling
     if pool_w > 0 and pool_h > 0 then
-      block:add(nn.SpatialMaxPooling(pool_w, pool_h, pool_w, pool_h))
+      block:add(laia.cudnn.SpatialMaxPoolingHWNC(pool_w, pool_h, pool_w, pool_h))
     end
 
     -- Activation function
@@ -231,21 +205,13 @@ local function addBlock(
   if rnn_size > 0 then
     -- Spatial dropout to the input of the LSTM-2D layer
     if rnn_dropout > 0 then
-      if spatial_dropout then
-	block:add(nn.SpatialDropout(rnn_dropout))
-      else
-	block:add(nn.Dropout(rnn_dropout))
-      end
+      block:add(nn.Dropout(rnn_dropout))
     end
 
-    -- NxCxHxW -> HxCxNxW -> HxWxNxC, which is the format that the LSTM-2D expects
-    block:add(nn.Transpose({1, 3}, {2, 4}))
     -- Note that the output depth is actually rnn_size x 4
-    block:add(rnn2d.LSTM(depth_in, rnn_size))  -- shape: HxWxNx(4*C)
+    block:add(rnn2d.LSTM(depth_in, rnn_size))  -- shape: Nx(4*D)xHxW
     -- Average the outputs from each of the directions
     block:add(rnn2d.Collapse('mean', 4, rnn_size))
-    -- HxWxNxC -> HxCxNxW -> NxCxHxW, bring the shape of the data back to what the conv nets expect
-    block:add(nn.Transpose({1, 3}, {2, 4}))
   end
 
   return block
@@ -255,14 +221,15 @@ end
 local model = nn.Sequential()
 local curr_c = opt.input_channels
 
+-- NxCxHxW -> HxCxNxW -> HxWxNxC
+model:add(nn.Transpose({1, 3}, {2, 4}))
+
 -- Append cnn + rnn blocks
 for i=1,cnn_layers do
   model:add(addBlock(curr_c, opt.cnn_num_units[i], opt.rnn_num_units[i],
 		     opt.cnn_kernel_size[i][1], opt.cnn_kernel_size[i][2],
 		     opt.maxpool_size[i][1], opt.maxpool_size[i][2],
-		     opt.cnn_dropout[i], opt.rnn_dropout[i],
-		     opt.spatial_dropout[i], opt.cnn_type[i],
-		     opt.batch_norm[i]))
+		     opt.cnn_dropout[i], opt.rnn_dropout[i], opt.cnn_type[i]))
   if opt.rnn_num_units[i] > 0 then
     curr_c = opt.rnn_num_units[i]
   else
@@ -281,8 +248,8 @@ else
   error(string.format('Unknown collapse type %s', opt.collapse_type))
 end
 
--- Linear projection of each timestep and batch sample (WxNxC -> (W*N)xC)
-model:add(nn.View(-1, curr_c))
+-- Linear projection of each timestep and batch sample
+model:add(nn.View(-1, curr_c))          -- output shape: (W*N) x C
 if opt.linear_dropout > 0 then
   model:add(nn.Dropout(opt.linear_dropout))
 end

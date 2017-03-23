@@ -53,6 +53,9 @@ wrequire('laia.ImageDistorter')
 laia.nn = {}
 require('laia.nn.ImageColumnSequence')
 
+laia.cudnn = {}
+wrequire('laia.cudnn')
+
 -- Determine whether stdout/stderr are terminals or not. If term package
 -- cannot be loaded, assume they ARE NOT terminals (i.e. no colors shown).
 local term = wrequire('term')
