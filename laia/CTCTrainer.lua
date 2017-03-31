@@ -280,7 +280,9 @@ function CTCTrainer:trainEpoch(optimizer_params, batcher_reset_params)
     hyp_trim    = {},
     ref_trim    = {},
     time_start  = os.time(),
-    time_end    = nil
+    time_end    = nil,
+    numChunks   = {},
+    numChunkSamples = {},
   }
   for b=1,self._train_num_samples,self._opt.batch_size do
     -- If exit signal was captured, terminate
@@ -332,7 +334,9 @@ function CTCTrainer:validEpoch(batcher_reset_params)
     hyp_trim    = {},
     ref_trim    = {},
     time_start  = os.time(),
-    time_end    = nil
+    time_end    = nil,
+    numChunks   = {},
+    numChunkSamples = {},
   }
   for b=1,self._valid_num_samples,self._opt.batch_size do
     -- If exit signal was captured, terminate
@@ -398,9 +402,13 @@ end
 -- code used for both training and evaluation of the model.
 function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
   do_backprop = do_backprop or false
+  local gradParamAcc = nil
   if do_backprop then
     self._model:training()
-    self._model:zeroGradParameters()
+    -- TOOD(jpuigcerver): We should not need this copy, since model:backward()
+    -- should accumulate the gradients unless model:zeroGradParameters() is
+    -- called, however this does not seem to work properly.
+    gradParamAcc = self._gradParameters:clone():zero()
   else
     self._model:evaluate()
   end
@@ -496,6 +504,7 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
 
     -- Compute gradients of the loss function w.r.t parameters
     if do_backprop then
+      self._model:zeroGradParameters()
       self._model:backward(chunkImg, self._gradOutput)
       -- Check NaNs
       if self._opt.check_nan then
@@ -509,6 +518,7 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
 	local p = n / self._gradParameters:nElement() * 100
 	assert(n == 0, 'Found %d (%.2f%%) inf values during backward!', n, p)
       end
+      gradParamAcc:add(self._gradParameters)
     end
 
     -- Perform framewise decoding to estimate CER
@@ -529,9 +539,13 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
     end
   end
 
-  -- Make gradients independent of the batch size and sequence length
-  if do_backprop and self._opt.normalize_loss then
-    self._gradParameters:div(numFrames)
+  if do_backprop then
+    -- Copy accumulated gradients back to
+    self._gradParameters:copy(gradParamAcc)
+    -- Make gradients independent of the batch size and sequence length
+    if self._opt.normalize_loss then
+      self._gradParameters:div(numFrames)
+    end
   end
 
   -- Return, for each sample in the batch, the total loss (including
@@ -554,7 +568,13 @@ function CTCTrainer:_fbPass(batch_img, batch_gt, do_backprop)
     -- Hypothesis transcript (after trimming), for each sample!
     hyp_trim    = batch_dc_trim,
     -- Reference transcript (after trimming), for each sample!
-    ref_trim    = batch_gt_trim
+    ref_trim    = batch_gt_trim,
+    --
+    --
+    -- These are not costs, but are useful information to monitor.
+    -- Number of chunks in which the batch was divided
+    numChunks   = {numChunks},
+    numChunkSamples = {numChunkSamples},
   }
 end
 

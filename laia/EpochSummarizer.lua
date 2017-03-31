@@ -101,15 +101,32 @@ function EpochSummarizer:summarize(info)
       lower = err_lower, upper = err_upper, alpha = self._opt.bootstrap_alpha
     }
   end
+
+  summary.num_batches = #info.numChunks
+  summary.max_chunks_batch = table.reduce(info.numChunks,
+					  function(y, x) return math.max(y, x) end,
+					  0)
+  summary.min_chunks_batch = table.reduce(info.numChunks,
+					  function(y, x) return math.min(y, x) end,
+					  summary.max_chunks_batch)
+  summary.avg_chunks_batch =
+    table.reduce(info.numChunks, operator.add, 0) / summary.num_batches
+
   return summary
 end
 
 function EpochSummarizer.ToString(summary)
-  local format = 'duration = %6s ; loss = %8.6f ; cer = %6.2f%% ; ' ..
+  local format = 'duration = %6s ; batches = %d ; ' ..
+    'min./max./avg. chunks/batch = %d/%d/%.1f ; ' ..
+    'loss = %8.6f ; cer = %6.2f%% ; ' ..
     'del = %6.2f%% ; ins = %6.2f%% ; sub = %6.2f%%'
   if summary.cer_ci then
     format = format .. ' ; cer_ci = [%6.2f%%,%6.2f%%] ; ci_alpha = %6.3f%%'
     return format:format(laia.sec_to_dhms(summary.duration),
+			 summary.num_batches,
+			 summary.min_chunks_batch,
+			 summary.max_chunks_batch,
+			 summary.avg_chunks_batch,
 			 summary.loss,
 			 summary.cer * 100,
 			 summary.del_ops * 100,
@@ -120,6 +137,10 @@ function EpochSummarizer.ToString(summary)
 			 summary.cer_ci.alpha * 100)
   else
     return format:format(laia.sec_to_dhms(summary.duration),
+			 summary.num_batches,
+			 summary.min_chunks_batch,
+			 summary.max_chunks_batch,
+			 summary.avg_chunks_batch,
 			 summary.loss,
 			 summary.cer * 100,
 			 summary.del_ops * 100,

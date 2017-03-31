@@ -12,10 +12,10 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 
 function getVocFromARPA () {
   if [ "${1:(-3)}" = ".gz" ]; then zcat "$1"; else cat "$1"; fi |
-  awk -v unk="$unk" -v bos="$bos" -v eos="$eos" 'BEGIN{ og=0; }{
+  awk -v bos="$bos" -v eos="$eos" 'BEGIN{ og=0; }{
     if ($0 == "\\1-grams:") og=1;
     else if ($0 == "\\2-grams:") { og=0; exit; }
-    else if (og == 1 && NF > 1 && $2 != bos && $2 != eos && $2 != unk) print $2;
+    else if (og == 1 && NF > 1 && $2 != bos && $2 != eos) print $2;
   }' | sort | uniq
 }
 
@@ -29,85 +29,78 @@ transition_scale=1;
 loop_scale=0.1;
 overwrite=false;
 help_message="
-Usage: ${0##*/} [options] syms lexiconp arpa_lm output_dir
+Usage: ${0##*/} [options] syms arpa_lm output_dir
 
 Arguments:
   syms               : File containing the mapping from string to integer IDs
                        of the symbols used during CTC training.
-  lexiconp           : Word lexicon with probabilities.
-  arpa_lm            : Word-level language model of full sentences in the ARPA
-                       format.
+  arpa_lm            : Character-level language model of full sentences in the
+                       ARPA format.
   output_dir         : Output directory containing all the FSTs needed for
                        decoding and other files.
 
 Options:
+  --bos              : (type = string, default = \"$bos\")
   --ctc              : (type = string, default = \"$ctc\")
+  --eos              : (type = string, default = \"$eos\")
   --eps              : (type = string, default = \"$eps\")
   --dummy            : (type = string, default = \"$dummy\")
-  --loop_scale       : (type = float, default = $loop_scale)
   --overwrite        : (type = boolean, default = $overwrite)
-  --bos              : (type = string, default = \"$bos\")
-  --eos              : (type = string, default = \"$eos\")
   --transition_scale : (type = float, default = $transition_scale)
-  --wspace           : (type = string, default = \"$wspace\")
+  --loop_scale       : (type = float, default = $loop_scale)
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-[ $# -ne 4 ] && echo "$help_message" >&2 && exit 1;
+[ $# -ne 3 ] && echo "$help_message" >&2 && exit 1;
 
 syms="$1";
-lexicon="$2";
-arpalm="$3";
-odir="$4";
+arpalm="$2";
+odir="$3";
 
-# Check required files.ls
-for f in "$syms" "$lexicon" "$arpalm"; do
-  [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
+# Check required files.
+for f in "$syms" "$arpalm"; do
+  [ ! -s "$f" ] && echo "Required file \"$f\" does not exist!" >&2 && exit 1;
 done;
 
 mkdir -p "$odir";
 
-# List of words present in the language model
 tmpd="$(mktemp -d)";
-getVocFromARPA "$arpalm" > "$tmpd/lm.words";
-# List of words present in the input lexicon
-awk '{print $1}' "$lexicon" | sort | uniq > "$tmpd/lex.words";
-# List of words present in the input lexicon, but not present in the ARPA LM.
-comm -13 "$tmpd/lm.words" "$tmpd/lex.words" > "$tmpd/lex.oov";
-num_oovw_lex="$(wc -l "$tmpd/lex.oov"  | cut -d\  -f1)";
-# List of words present in the ARPA LM, but not present in the input lexicon.
-comm -23 "$tmpd/lm.words" "$tmpd/lex.words" > "$tmpd/lm.oov";
-num_oovw_lm="$(wc -l "$tmpd/lm.oov"  | cut -d\  -f1)";
+# List of characters present in the language model
+getVocFromARPA "$arpalm" > "$tmpd/lm.chars";
+# List of characters present in the symbols list,
+# excluding CTC blank and epsilon symbols.
+awk '{print $1}' "$syms" | grep -v "$ctc" | grep -v "$eps" |
+sort | uniq > "$tmpd/syms.chars";
+# List of chars present in the symbols list, but not present in the ARPA LM.
+comm -13 "$tmpd/lm.chars" "$tmpd/syms.chars" > "$tmpd/syms.oov";
+num_oovc_syms="$(wc -l "$tmpd/syms.oov"  | cut -d\  -f1)";
+# List of chars present in the ARPA LM, but not present in the symbols list.
+comm -23 "$tmpd/lm.chars" "$tmpd/syms.chars" > "$tmpd/lm.oov";
+num_oovc_lm="$(wc -l "$tmpd/lm.oov"  | cut -d\  -f1)";
 # Show message, just for information.
-[ "$num_oovw_lex" -gt 0 ] &&
-echo "WARNING: #OOV words in the input lexicon: $num_oovw_lex" \
-  "(see file $tmpd/lex.oov)" >&2;
-[ "$num_oovw_lm" -gt 0 ] &&
-echo "WARNING: #OOV words in the input ARPA LM: $num_oovw_lm" \
+[ "$num_oovc_syms" -gt 0 ] &&
+echo "WARNING: #OOV chars in the input symbols: $num_oovc_syms" \
+  "(see file $tmpd/syms.oov)" >&2;
+[ "$num_oovc_lm" -gt 0 ] &&
+echo "WARNING: #OOV chars in the input ARPA LM: $num_oovc_lm" \
   "(see file $tmpd/lm.oov)" >&2;
 
-
-# Create lexicon with pronunciations for each word.
-awk -v IGNORE_FILE="$tmpd/lex.oov" -v ws="$wspace" -v bos="$bos" -v eos="$eos" \
-  -v dm="$dummy" '
+# Create lexicon with pronunciations for each character.
+awk -v IGNORE_FILE="$tmpd/syms.oov" -v bos="$bos" -v eos="$eos" \
+  -v dm="$dummy" -v ws="$wspace" -v ctc="$ctc" -v eps="$eps" '
 BEGIN{
   while((getline < IGNORE_FILE) > 0){ IGNORE[$1]=1; }
-  seen_bos = seen_eos = 0;
+  IGNORE[eps] = 1; IGNORE[ctc] = 1;
+  printf("%-12s    %f %s\n", bos, 1.0, ws);
+  printf("%-12s    %f %s %s\n", eos, 1.0, ws, dm);
 }(!($1 in IGNORE)){
-  if ($1 == bos) seen_bos = 1;
-  else if ($1 == eos) seen_eos = 1;
-
-  printf("%-25s    %f", $1, $2);
-  for (i=3; i <= NF; ++i) { printf(" %s", $i); }
-  printf("\n");
-}END{
-  if (seen_eos == 0) { printf("%-25s    %f %s %s\n", eos, 1.0, ws, dm); }
-}' "$lexicon" > "$tmpd/lexiconp.txt" ||
+  if ($1 == bos || $1 == eos) next;
+  printf("%-12s    %f %s\n", $1, 1.0, $1);
+}' "$syms" > "$tmpd/lexiconp.txt" ||
 ( echo "Error creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1 );
 [[ "$overwrite" = false && -s "$odir/lexiconp.txt" ]] &&
 cmp -s "$tmpd/lexiconp.txt" "$odir/lexiconp.txt" ||
 mv "$tmpd/lexiconp.txt" "$odir/lexiconp.txt" ||
 ( echo "Error creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1 );
-
 
 # Add disambiguation symbols to the lexicon.
 ndisambig=$(utils/add_lex_disambig.pl --pron-probs "$odir/lexiconp.txt" \
@@ -117,10 +110,8 @@ if [[ "$overwrite" = true || ! -s "$odir/lexiconp_disambig.txt" ]] ||
   mv "$tmpd/lexiconp_disambig.txt" "$odir/lexiconp_disambig.txt";
 fi;
 
-
 # Check that all the HMMs in the lexicon are in the set of Laia symbols
-# used for training!
-# This is just for safety.
+# used for training! This is just for safety.
 missing_hmm=( $(awk -v LSF="$syms" -v dm="$dummy" '
 BEGIN{
   while ((getline < LSF) > 0) C[$1]=1;
@@ -132,25 +123,26 @@ echo "FATAL: The following HMMs in the lexicon are missing!" >&2 &&
 echo "${missing_hmm[@]}" >&2 && exit 1;
 
 
-# Create word symbols list.
+# Create character symbols list for the G fst.
 [[ "$overwrite" = false && -s "$odir/words.txt" &&
+    ( ! "$odir/words.txt" -ot "$syms" ) &&
     ( ! "$odir/words.txt" -ot "$odir/lexiconp.txt" ) ]] ||
 awk '{print $1}' "$odir/lexiconp.txt" | sort | uniq |
 awk -v eps="$eps" -v bos="$bos" -v eos="$eos" '
 BEGIN{
   maxid = 0;
-  printf("%-25s %d\n", eps, maxid++);
-  printf("%-25s %d\n", bos, maxid++);
-  printf("%-25s %d\n", eos, maxid++);
+  printf("%-12s %d\n", eps, maxid++);
+  printf("%-12s %d\n", bos, maxid++);
+  printf("%-12s %d\n", eos, maxid++);
 }($1 != eps && $1 != bos && $1 != eos){
-  printf("%-25s %d\n", $1, maxid++);
+  printf("%-12s %d\n", $1, maxid++);
 }END{
-  printf("%-25s %d\n", "#0", maxid++);  # Backoff in the word-lm
+  printf("%-12s %d\n", "#0", maxid++);  # Backoff in the word-lm
 }' > "$odir/words.txt" ||
 ( echo "Failed $odir/words.txt creation!" && exit 1; );
 
 
-# Create character symbols list.
+# Create character symbols list for the HMMs fst.
 [[ "$overwrite" = false && -s "$odir/chars.txt" &&
     ( ! "$odir/chars.txt" -ot "$syms" ) &&
     ( ! "$odir/chars.txt" -ot "$odir/lexiconp_disambig.txt" ) ]] ||
@@ -172,17 +164,14 @@ BEGIN{
 }' > "$odir/chars.txt" ||
 ( echo "Failed $odir/chars.txt creation!" && exit 1; );
 
-
 # Create integer list of disambiguation symbols.
 awk '$1 ~ /^#.+/{ print $2 }' "$odir/chars.txt" > "$odir/chars_disambig.int";
 # Create integer list of disambiguation symbols.
 awk '$1 ~ /^#.+/{ print $2 }' "$odir/words.txt" > "$odir/words_disambig.int";
 
-
 # Create HMM model and tree
 ./utils/create_ctc_hmm_model.sh --eps "$eps" --ctc "$ctc" --dummy "$dummy" \
   --overwrite "$overwrite" "$odir/chars.txt" "$odir/model" "$odir/tree";
-
 
 # Create the lexicon FST with disambiguation symbols from lexiconp.txt
 [[ "$overwrite" = false && -s "$odir/L.fst" &&
@@ -269,7 +258,7 @@ BEGIN{
       if (!lex_has_eos) i = eps;
       o = eps;
     }
-    # Remove arcs with excluded words.
+    # Remove arcs with excluded characters.
     else if (!($3 in W)) { next; }
 
     print s, t, i, o, w;
@@ -282,8 +271,8 @@ fstconnect |
 fstdeterminizestar --use-log=true |
 fstminimizeencoded |
 fstpushspecial |
-fstrmsymbols <(awk '$1 == "#0"{ print $2 }' "$odir/words.txt") |
+fstrmsymbols <(awk '$1 == "#0"{ print $2 }' "$odir/chars.txt") |
 fstarcsort --sort_type=ilabel > "$odir/G.fst" ||
-( echo "Failed $odir/G.fst creation!" >&2 && exit 1; );
+{ echo "Failed $odir/G.fst creation!" >&2 && exit 1; }
 
 exit 0;

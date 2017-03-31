@@ -11,54 +11,76 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
+batch_chunk_size=0;
 batch_size=16;
+continue_train=false;
+gpu=1;
+linear_dropout=0.5;
 overwrite=false;
+partition="lines/aachen";
+use_distortions=false;
+model_name="lstm2d";
 help_message="
-Usage: ${0##*/} [options] partition
-
-Arguments:
-  partition           : Id of the partition: \"aachen\" or \"original\".
+Usage: ${0##*/} [options]
 
 Options:
-  --batch_size        : (type = integer, default = $batch_size)
-                        Batch size for training.
-  --overwrite         : (type = boolean, default = $overwrite)
-                        Overwrite previously created files.
+  --batch_size  : (type = integer, default = $batch_size)
+                  Batch size for training.
+  --overwrite   : (type = boolean, default = $overwrite)
+                  Overwrite previously created files.
+  --partition   : (type = string, default = \"$partition\")
+                  Select the \"lines\" or \"sentences\" partition and the lists
+                  to use (\"aachen\", \"original\" or \"kws\").
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
-[ $# -ne 1 ] && echo "$help_message" >&2 && exit 1;
+[ $# -ne 0 ] && echo "$help_message" >&2 && exit 1;
 
-for f in "data/part/$1/te.lst" "data/part/$1/tr.lst" "data/part/$1/va.lst" \
-  "data/lists/$1/te.lst" "data/lists/$1/tr.lst" "data/lists/$1/va.lst" \
-  train/syms.txt; do
+# Get "lines" or "sentences" from the full partition string (e.g. lines/aachen)
+ptype="${partition%%/*}";
+
+for f in  "data/lists/$partition/tr_150dpi.lst" \
+	  "data/lists/$partition/va_150dpi.lst" \
+	  "data/lang/char/$partition/tr.txt" \
+	  "data/lang/char/$partition/va.txt" \
+	  "train/$ptype/syms.txt"; do
   [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
 
-num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
+# Get number of symbols
+num_syms="$(tail -n1 train/$ptype/syms.txt | awk '{ print $2 }')";
 
-mkdir -p "train/$1";
+# Create directory
+mkdir -p "train/$partition";
 
-./create-model-aachen.lua --log_level info 1 "$num_syms" "train/$1/mdlstm.t7";
+# Create model
+[ "$overwrite" = false -a "$continue_train" = true -a \
+  -s "train/$partition/$model_name.t7" ] ||
+./create-model-aachen.lua \
+  --maxpool_size 2 2 0 0 0 \
+  --log_also_to_stderr info \
+  --log_file "train/$partition/$model_name.log" \
+  --log_level info \
+  1 "$num_syms" "train/$partition/$model_name.t7";
 
+# Train model
 ../../laia-train-ctc \
-  --use_distortions true \
+  --batch_chunk_size "$batch_chunk_size" \
   --batch_size "$batch_size" \
-  --progress_table_output "train/$1/mdlstm.dat" \
-  --early_stop_epochs 25 \
-  --early_stop_threshold 0.05 \
-  --learning_rate 0.0005 \
+  --normalize_loss false \
+  --continue_train "$continue_train" \
+  --use_distortions "$use_distortions" \
+  --progress_table_output "train/$partition/$model_name.dat" \
+  --early_stop_epochs 20 \
+  --learning_rate 0.0003 \
   --log_also_to_stderr info \
   --log_level info \
-  --log_file "train/$1/mdlstm.log" \
-  --check_nan true \
-  --check_inf true \
-  "train/$1/mdlstm.t7" train/syms.txt \
-  mini1.lst  "data/lang/char/$1/tr.txt" \
-  mini1.lst  "data/lang/char/$1/tr.txt";
-
-:<<EOF
-  "data/lists/$1/tr.lst" "data/lang/char/$1/tr.txt" \
-  "data/lists/$1/va.lst" "data/lang/char/$1/va.txt";
-EOF
+  --log_file "train/$partition/$model_name.log" \
+  --display_progress_bar true \
+  --gpu "$gpu" \
+  "train/$partition/$model_name.t7" "train/$ptype/syms.txt" \
+  "data/lists/$partition/tr_150dpi.lst" \
+  "data/lang/char/$partition/tr.txt" \
+  "data/lists/$partition/va_150dpi.lst" \
+  "data/lang/char/$partition/va.txt";
 
 exit 0;

@@ -46,6 +46,7 @@ require('laia.RandomBatcher')
 require('laia.SignalHandler')
 require('laia.Statistics')
 require('laia.WeightDecayRegularizer')
+require('laia.WidthBatcher')
 
 -- Optional Laia classes
 wrequire('laia.ImageDistorter')

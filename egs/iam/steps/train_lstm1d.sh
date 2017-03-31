@@ -11,19 +11,22 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
+batch_chunk_size=0;
 batch_size=16;
 cnn_batch_norm=true;
 cnn_dropout=0;
-cnn_maxpool_size="2,2 2,2 2,2 0";
-cnn_num_features="12 24 48 96";
+cnn_maxpool_size="2,2 2,2 2,2 0 0";
+cnn_num_features="16 32 48 64 80";
 cnn_type=leakyrelu;
 continue_train=false;
+early_stop_epochs=20;
 gpu=1;
 height=128;
+learning_rate=0.0003;
 linear_dropout=0.5;
 overwrite=false;
 partition="lines/aachen";
-rnn_num_layers=4;
+rnn_num_layers=5;
 rnn_num_units=256;
 rnn_dropout=0.5;
 use_distortions=true;
@@ -63,43 +66,46 @@ num_syms="$(tail -n1 train/$ptype/syms.txt | awk '{ print $2 }')";
 # Create directory
 mkdir -p "train/$partition";
 
-# Create model
-[ "$overwrite" = false -a "$continue_train" = true -a \
-  -s "train/$partition/$model_name.t7" ] ||
-../../laia-create-model \
-  --cnn_batch_norm $cnn_batch_norm \
-  --cnn_dropout $cnn_dropout \
-  --cnn_kernel_size 3 \
-  --cnn_maxpool_size $cnn_maxpool_size \
-  --cnn_num_features $cnn_num_features \
-  --cnn_type $cnn_type \
-  --rnn_dropout "$rnn_dropout" \
-  --rnn_num_layers "$rnn_num_layers" \
-  --rnn_num_units "$rnn_num_units" \
-  --linear_dropout "$linear_dropout" \
-  --log_also_to_stderr info \
-  --log_file "train/$partition/$model_name.log" \
-  --log_level info \
-  1 "$height" "$num_syms" "train/$partition/$model_name.t7";
 
-# Train model
-../../laia-train-ctc \
-  --batch_size "$batch_size" \
-  --normalize_loss false \
-  --continue_train "$continue_train" \
-  --use_distortions "$use_distortions" \
-  --progress_table_output "train/$partition/$model_name.dat" \
-  --early_stop_epochs 20 \
-  --learning_rate 0.0003 \
-  --log_also_to_stderr info \
-  --log_level info \
-  --log_file "train/$partition/$model_name.log" \
-  --display_progress_bar true \
-  --gpu "$gpu" \
-  "train/$partition/$model_name.t7" "train/$ptype/syms.txt" \
-  "data/lists/$partition/tr_h${height}.lst" \
-  "data/lang/char/$partition/tr.txt" \
-  "data/lists/$partition/va_h${height}.lst" \
-  "data/lang/char/$partition/va.txt";
+if [[ "$overwrite" = true || ( ! -s "train/$partition/$model_name.t7" ) ]]; then
+  # Create model
+  [ "$continue_train" = true -a -s "train/$partition/$model_name.t7" ] ||
+  ../../laia-create-model \
+    --cnn_batch_norm $cnn_batch_norm \
+    --cnn_dropout $cnn_dropout \
+    --cnn_kernel_size 3 \
+    --cnn_maxpool_size $cnn_maxpool_size \
+    --cnn_num_features $cnn_num_features \
+    --cnn_type $cnn_type \
+    --rnn_dropout "$rnn_dropout" \
+    --rnn_num_layers "$rnn_num_layers" \
+    --rnn_num_units "$rnn_num_units" \
+    --linear_dropout "$linear_dropout" \
+    --log_also_to_stderr info \
+    --log_file "train/$partition/$model_name.log" \
+    --log_level info \
+    1 "$height" "$num_syms" "train/$partition/$model_name.t7";
+
+  # Train model
+  ../../laia-train-ctc \
+    --batch_chunk_size "$batch_chunk_size" \
+    --batch_size "$batch_size" \
+    --normalize_loss false \
+    --continue_train "$continue_train" \
+    --use_distortions "$use_distortions" \
+    --progress_table_output "train/$partition/$model_name.dat" \
+    --early_stop_epochs "$early_stop_epochs" \
+    --learning_rate "$learning_rate" \
+    --log_also_to_stderr info \
+    --log_level info \
+    --log_file "train/$partition/$model_name.log" \
+    --display_progress_bar true \
+    --gpu "$gpu" \
+    "train/$partition/$model_name.t7" "train/$ptype/syms.txt" \
+    "data/lists/$partition/tr_h${height}.lst" \
+    "data/lang/char/$partition/tr.txt" \
+    "data/lists/$partition/va_h${height}.lst" \
+    "data/lang/char/$partition/va.txt";
+fi;
 
 exit 0;

@@ -175,7 +175,7 @@ cat(sprintf('P-value = %f\n', d[['p.value']]))
 cat(sprintf('Estimate = %f [%f -- %f]\n\n',
             d[['estimate']], d[['conf.int']][1], d[['conf.int']][2]))
 
-for (m in c(0.05, 0.10, 0.15)) {
+for (m in c(0.01, 0.05, 0.10, 0.15)) {
     cat('\n===========================================================\n')
     cat(sprintf(
         '=== TESTING NON-INFERIORITY, H0 : %%ERR1 >= %.2f * %%ERR2 ===\n',
