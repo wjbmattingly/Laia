@@ -105,7 +105,7 @@ else
   feas=("scp:$data_scp");
 fi;
 
-if [ -z "$qsub_tasks" ]; then
+if [ -z "$tasks" ]; then
   # Check previous results, in order to avoid re-doing work.
   pending_tasks=();
   for i in $(seq 1 ${#feas[@]}); do
@@ -127,17 +127,17 @@ if [ -z "$qsub_tasks" ]; then
     # SGE only admits continuous ranges, so relaunch all tasks between the
     # first pending and the latest. Notice that later, some code is added to the
     # tasks' script so that completed tasks do not re-do the job again.
-    qsub_tasks="${pending_tasks[0]}-${pending_tasks[@]:(-1)}";
+    tasks="${pending_tasks[0]}-${pending_tasks[@]:(-1)}";
   fi;
 else
-  range=( $(echo "$qsub_tasks" | sed -r 's|^([0-9]+)(-([0-9]+))?$|\1 \3|g') );
+  range=( $(echo "$tasks" | sed -r 's|^([0-9]+)(-([0-9]+))?$|\1 \3|g') );
   if [ ${#range[@]} -eq 1 ]; then
     pending_tasks=( ${range[0]} );
   else
     pending_tasks=( $(seq ${range[0]} ${range[1]}) );
   fi;
   [ -z "$pending_tasks" ] &&
-  echo "You did not specified a valid task range: \"$qsub_tasks\"!" >&2 &&
+  echo "You did not specified a valid task range: \"$tasks\"!" >&2 &&
   exit 1;
 fi;
 
@@ -145,7 +145,7 @@ task_script="$(mktemp)";
 cat <<EOF > "$task_script";
 #!/bin/bash
 #$ -cwd
-#$ -t ${qsub_tasks}
+#$ -t $tasks
 #$ ${qsub_opts}
 set -e;
 export LC_NUMERIC=C;

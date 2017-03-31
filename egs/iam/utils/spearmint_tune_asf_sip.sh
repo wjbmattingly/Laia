@@ -19,8 +19,8 @@ insertion_penalty_max=0.0;
 insertion_penalty_min=0.0;
 max_finished_jobs=50;
 num_procs="$(nproc)";
-postprocess_hyps_cmd="cat";
-postprocess_refs_cmd="cat";
+postprocess_hyps_cmd="";
+postprocess_refs_cmd="";
 spearmint_main="$HOME/src/Spearmint/spearmint/main.py";
 model="";
 help_message="
@@ -49,7 +49,7 @@ Options:
   --postprocess_hyps_cmd  : (type = string, default = \"$postprocess_hyps_cmd\")
   --postprocess_refs_cmd  : (type = string, default = \"$postprocess_refs_cmd\")
 
-  --spearmint_main         : (type = string, default = \"${spearmint_cmd}\")
+  --spearmint_main         : (type = string, default = \"${spearmint_main}\")
 
 ";
 . utils/parse_options.inc.sh || exit 1;
@@ -190,8 +190,8 @@ def main(job_id, params):
     'compute-wer',
     '--mode=all',
     '--text',
-    'ark:$postprocess_refs_cmd $refs |',
-    'ark:$postprocess_hyps_cmd %s |' % ' '.join(output_txt)
+    'ark:cat $refs |$postprocess_refs_cmd',
+    'ark:cat %s |$postprocess_hyps_cmd' % ' '.join(output_txt)
   ])
   error = float(re.search(r'%WER ([0-9.]+)', compute_wer_stdout).group(1))
   # Remove temporal files
