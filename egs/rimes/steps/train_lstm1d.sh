@@ -14,12 +14,12 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 batch_chunk_size=0;
 batch_size=16;
 cnn_batch_norm=true;
-cnn_dropout=0;
+cnn_dropout="0 0 0.2 0.2 0.2";
 cnn_maxpool_size="2,2 2,2 2,2 0 0";
 cnn_num_features="16 32 48 64 80";
 cnn_type=leakyrelu;
 continue_train=false;
-early_stop_epochs=20;
+early_stop_epochs=80;
 gpu=1;
 height=128;
 learning_rate=0.0003;
@@ -74,7 +74,7 @@ if [[ "$overwrite" = true || ( ! -s "train/$model_name.t7" ) ]]; then
       --log_also_to_stderr info \
       --log_file "train/$model_name.log" \
       --log_level info \
-      1 "$height" "$num_syms" "train/$model_name.t7";    
+      1 "$height" "$num_syms" "train/$model_name.t7";
 
     # Train model
     ../../laia-train-ctc \
