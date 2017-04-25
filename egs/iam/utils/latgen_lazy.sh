@@ -118,7 +118,7 @@ if [ -z "$tasks" ]; then
   done;
   if [ ${#pending_tasks[@]} -eq 0 ]; then
     # No pending features to process. Exit normally.
-    msg "Avoiding lattice re-generation: found all lattices in \"$wdir\"";
+    echo "INFO: Avoiding lattice re-generation: found all lattices in \"$wdir\"" >&2;
     exit 0;
   else
     # SGE only admits continuous ranges, so relaunch all tasks between the

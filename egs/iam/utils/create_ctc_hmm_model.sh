@@ -88,8 +88,9 @@ for i in $(seq 0 $max_id); do sym2pdf[$i]=-1; done; # Initialize array
 for i in ${!pdf2sym[@]}; do sym2pdf[${pdf2sym[i]}]=$i; done;
 sym2pdf[$dummy_id]=${sym2pdf[$ctc_id]};
 
-pnctc="$(echo "1.0 - $pctc" | bc -l)";
-pnloop="$(echo "1.0 - $ploop" | bc -l)";
+pnloop="$(printf "%g" "$(echo "1.0 - $ploop" | bc -l)")";
+ptctc="$(printf "%g" "$(echo "$pctc * (1.0 - $ploop)" | bc -l)")";
+ptfin="$(printf "%g" "$(echo "(1.0 - $pctc) * (1.0 - $ploop)" | bc -l)")";
 
 tmpdir="$(mktemp -d)";
 cat <<EOF > "$tmpdir/topo"
@@ -98,10 +99,9 @@ cat <<EOF > "$tmpdir/topo"
 <ForPhones>
 ${char_ids[@]}
 </ForPhones>
-  <State> 0 <Transition> 1 $pctc <Transition> 2 $pnctc </State>
-  <State> 1 <PdfClass> 0 <Transition> 1 $ploop <Transition> 2 $pnloop </State>
-  <State> 2 <PdfClass> 1 <Transition> 2 $ploop <Transition> 3 $pnloop </State>
-  <State> 3 </State>
+  <State> 0 <PdfClass> 0 <Transition> 0 $ploop <Transition> 1 $ptctc <Transition> 2 $ptfin </State>
+  <State> 1 <PdfClass> 1 <Transition> 1 $ploop <Transition> 2 $pnloop </State>
+  <State> 2 </State>
 </TopologyEntry>
 <TopologyEntry>
 <ForPhones>
@@ -112,6 +112,7 @@ $dummy_id
 </TopologyEntry>
 </Topology>
 EOF
+
 
 # Initialize LogProbs and acoustic parameters. Acoustic parameters don't matter
 # since they are not used in practice.
@@ -124,8 +125,8 @@ cat <<EOF > "$tmpdir/model"
 $(cat $tmpdir/topo)
 <Triples> $[2 * ${#char_ids[@]} + 1]
 $(for c in ${char_ids[@]}; do
+  echo $c 0 ${sym2pdf[c]}
   echo $c 1 ${sym2pdf[ctc_id]}
-  echo $c 2 ${sym2pdf[c]}
 done)
 $dummy_id 0 ${sym2pdf[ctc_id]}
 </Triples>
@@ -157,7 +158,7 @@ $(for s in $(seq 1 ${#sym2pdf[@]}); do
   elif [[ $s -eq $dummy_id ]]; then
     echo "TE -1 1 ( CE $p )";  ## Dummy HMM.
   else
-    echo "TE -1 2 ( CE ${sym2pdf[$ctc_id]} CE $p )";
+    echo "TE -1 2 ( CE $p CE ${sym2pdf[$ctc_id]} )";
   fi;
 done)
 )

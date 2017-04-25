@@ -100,7 +100,9 @@ BEGIN{
   for (i=3; i <= NF; ++i) { printf(" %s", $i); }
   printf("\n");
 }END{
-  if (seen_eos == 0) { printf("%-25s    %f %s %s\n", eos, 1.0, ws, dm); }
+  if (seen_eos == 0) {
+    printf("%-25s    %f %s\n", eos, 1.0, ws);
+  }
 }' "$lexicon" > "$tmpd/lexiconp.txt" ||
 ( echo "Error creating file \"$odir/lexiconp.txt\"!" >&2 && exit 1 );
 [[ "$overwrite" = false && -s "$odir/lexiconp.txt" ]] &&

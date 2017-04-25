@@ -21,7 +21,7 @@ Usage: ${0##*/} [options] model
 
 Options:
   --batch_size  : (type = integer, default = $batch_size)
-                  Batch size for training.
+                  Batch size for decoding.
   --height      : (type = integer, default = $height)
                   Use images rescaled to this height.
   --overwrite   : (type = boolean, default = $overwrite)

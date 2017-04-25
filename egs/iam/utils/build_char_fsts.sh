@@ -90,8 +90,9 @@ awk -v IGNORE_FILE="$tmpd/syms.oov" -v bos="$bos" -v eos="$eos" \
 BEGIN{
   while((getline < IGNORE_FILE) > 0){ IGNORE[$1]=1; }
   IGNORE[eps] = 1; IGNORE[ctc] = 1;
-  printf("%-12s    %f %s\n", bos, 1.0, ws);
-  printf("%-12s    %f %s %s\n", eos, 1.0, ws, dm);
+  printf("%-12s    %f %s\n", bos, 0.5, ws);
+  printf("%-12s    %f %s %s\n", bos, 0.5, dm, ws);
+  printf("%-12s    %f %s\n", eos, 1.0, ws);
 }(!($1 in IGNORE)){
   if ($1 == bos || $1 == eos) next;
   printf("%-12s    %f %s\n", $1, 1.0, $1);

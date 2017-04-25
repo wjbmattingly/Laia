@@ -140,3 +140,4 @@ for p in va te; do
     awk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
   fi;
 done;
+rm -f "$tmpf";

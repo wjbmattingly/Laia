@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
 done;
 
 # We will use pypy, if available, since it is much faster.
-tokenize_cmd="./utils/nltk_tokenize.py";
+tokenize_cmd="./steps/iam_tokenize.py";
 if which pypy &> /dev/null; then tokenize_cmd="pypy $tokenize_cmd"; fi;
 
 mkdir -p data/lang/{char,word}/external;
