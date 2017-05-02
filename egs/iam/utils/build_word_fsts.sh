@@ -135,8 +135,7 @@ echo "${missing_hmm[@]}" >&2 && exit 1;
 
 
 # Create word symbols list.
-[[ "$overwrite" = false && -s "$odir/words.txt" &&
-    ( ! "$odir/words.txt" -ot "$odir/lexiconp.txt" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/words.txt" ]] ||
 awk '{print $1}' "$odir/lexiconp.txt" | sort | uniq |
 awk -v eps="$eps" -v bos="$bos" -v eos="$eos" '
 BEGIN{
@@ -153,9 +152,7 @@ BEGIN{
 
 
 # Create character symbols list.
-[[ "$overwrite" = false && -s "$odir/chars.txt" &&
-    ( ! "$odir/chars.txt" -ot "$syms" ) &&
-    ( ! "$odir/chars.txt" -ot "$odir/lexiconp_disambig.txt" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/chars.txt" ]] ||
 sort -n -k2 "$syms" |
 awk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v ND="$ndisambig" '
 BEGIN{
@@ -187,10 +184,7 @@ awk '$1 ~ /^#.+/{ print $2 }' "$odir/words.txt" > "$odir/words_disambig.int";
 
 
 # Create the lexicon FST with disambiguation symbols from lexiconp.txt
-[[ "$overwrite" = false && -s "$odir/L.fst" &&
-    ( ! "$odir/L.fst" -ot "$odir/lexiconp_disambig.txt" ) &&
-    ( ! "$odir/L.fst" -ot "$odir/chars.txt" ) &&
-    ( ! "$odir/L.fst" -ot "$odir/words.txt" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/L.fst" ]] ||
 utils/make_lexicon_fst.pl \
   --pron-probs "$odir/lexiconp_disambig.txt" |
 fstcompile --isymbols="$odir/chars.txt" --osymbols="$odir/words.txt" |
@@ -201,8 +195,7 @@ fstarcsort --sort_type=ilabel > "$odir/L.fst" ||
 
 
 # Compose the context-dependent and the L transducers.
-[[ "$overwrite" = false && -s "$odir/CL.fst" &&
-    ( ! "$odir/CL.fst" -ot "$odir/L.fst" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/CL.fst" ]] ||
 fstcomposecontext --context-size=1 --central-position=0 \
   --read-disambig-syms="$odir/chars_disambig.int" \
   --write-disambig-syms="$odir/ilabels_disambig.int" \
@@ -212,10 +205,7 @@ fstarcsort --sort_type=ilabel > "$odir/CL.fst" ||
 
 
 # Create Ha transducer
-[[ "$overwrite" = false && -s "$odir/Ha.fst" &&
-    ( ! "$odir/Ha.fst" -ot "$odir/model" ) &&
-    ( ! "$odir/Ha.fst" -ot "$odir/tree" ) &&
-    ( ! "$odir/Ha.fst" -ot "$odir/ilabels" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/Ha.fst" ]] ||
 make-h-transducer --disambig-syms-out="$odir/tid_disambig.int" \
   --transition-scale="$transition_scale" "$odir/ilabels" "$odir/tree" \
   "$odir/model" > "$odir/Ha.fst" ||
@@ -223,9 +213,7 @@ make-h-transducer --disambig-syms-out="$odir/tid_disambig.int" \
 
 
 # Create HaCL transducer.
-[[ "$overwrite" = false && -s "$odir/HCL.fst" &&
-    ( ! "$odir/HaCL.fst" -ot "$odir/Ha.fst" ) &&
-    ( ! "$odir/HCL.fst" -ot "$odir/CL.fst" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/HCL.fst" ]] ||
 fsttablecompose "$odir/Ha.fst" "$odir/CL.fst" |
 fstdeterminizestar --use-log=true |
 fstrmsymbols "$odir/tid_disambig.int" |
@@ -235,8 +223,7 @@ fstminimizeencoded > "$odir/HaCL.fst" ||
 
 
 # Create HCL transducer.
-[[ "$overwrite" = false && -s "$odir/HCL.fst" &&
-    ( ! "$odir/HCL.fst" -ot "$odir/HaCL.fst" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/HCL.fst" ]] ||
 add-self-loops --self-loop-scale="$loop_scale" --reorder=true \
   "$odir/model" "$odir/HaCL.fst" |
 fstarcsort --sort_type=olabel > "$odir/HCL.fst" ||
@@ -244,9 +231,7 @@ fstarcsort --sort_type=olabel > "$odir/HCL.fst" ||
 
 
 # Create the grammar FST from the ARPA language model.
-[[ "$overwrite" = false && -s "$odir/G.fst" &&
-    ( ! "$odir/G.fst" -ot "$arpalm" ) &&
-    ( ! "$odir/G.fst" -ot "$odir/lexiconp.txt" ) ]] ||
+[[ "$overwrite" = false && -s "$odir/G.fst" ]] ||
 if [[ "${arpalm##*.}" = gz ]]; then zcat "$arpalm" ; else cat "$arpalm"; fi |
 grep -v "$bos $bos" | grep -v "$eos $bos" | grep -v "$eos $eos" |
 arpa2fst - 2> /dev/null | fstprint --acceptor |

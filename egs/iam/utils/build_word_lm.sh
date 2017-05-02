@@ -109,25 +109,13 @@ function get_vocab_count () {
   }' | sort -nr
 }
 
-# Check that $1 is not newer than $2...$#.
-function check_not_newer () {
-  for i in $(seq 2 $#); do [[ "${!i}" -ot "$1" ]] && return 1; done;
-  return 0;
-}
-
-# Check that $1 is not older than $2...$#
-function check_not_older () {
-  for i in $(seq 2 $#); do [[ "${!i}" -nt "$1" ]] && return 1; done;
-  return 0;
-}
-
 # Interpolate a list of .arpa.gz files.
 function interpolate_arpa_files () {
   # Compute detailed perplexity on the validation data
   info_files=();
   for arpa in $@; do
     info="${arpa/.arpa.gz/.info}";
-    [[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$arpa" ) ]] ||
+    [[ "$overwrite" = false && -s "$info" ]] ||
     awk '{$1=""; print;}' "$va_tok" |
     ngram -order "$order" $unk -debug 2 -ppl - -lm <(zcat "$arpa") &> "$info" ||
     { echo "ERROR: Creating file \"$info\"!" >&2 && exit 1; }
@@ -135,8 +123,7 @@ function interpolate_arpa_files () {
   done;
   # Compute interpolation weights
   mixf="$odir/interpolation-${order}gram-${voc_size}.mix";
-  ( [[ "$overwrite" = false && -s "$mixf" ]] &&
-    check_not_older "$mixf" "${info_files[@]}" ) ||
+  [[ "$overwrite" = false && -s "$mixf" ]] ||
   compute-best-mix "${info_files[@]}" &> "$mixf" ||
   { echo "ERROR: Creating file \"$mixf\"!" >&2 && exit 1; }
   lambdas=( $(grep "best lambda" "$mixf" | awk -F\( '{print $2}' | tr -d \)) );
@@ -156,7 +143,7 @@ function interpolate_arpa_files () {
     fi;
   done;
   outf="$odir/interpolation-${order}gram-${voc_size}.arpa.gz";
-  [[ "$overwrite" = false && -s "$outf" && ( ! "$outf" -ot "$mixf" ) ]] ||
+  [[ "$overwrite" = false && -s "$outf" ]] ||
   ngram -order "${order}" $unk "${args[@]}" -write-lm - |
   gzip -9 -c  > "$outf" ||
   { echo "ERROR: Creating file \"$outf\"!" >&2 && exit 1; }
@@ -166,18 +153,14 @@ function interpolate_arpa_files () {
 
 # Create vocabulary file.
 vocf="$odir/voc-${voc_size}";
-( [[ "$overwrite" = false && -s "$vocf" ]] &&
-  check_not_older "$vocf" \
-    "$tr_tok" "$va_tok" "$te_tok" "${external_tok[@]}" \
-    "$tr_bnd" "$va_bnd" "$te_bnd" "${external_bnd[@]}" ) ||
+[[ "$overwrite" = false && -s "$vocf" ]] ||
 get_vocab_count "$syms" "$tr_bnd" "${external_bnd[@]}" |
 head -n "$voc_size" | awk '{print $2}' | sort > "$vocf" ||
 { echo "ERROR: Creating file \"$vocf\"!" >&2 && exit 1; }
 
 # Train N-gram on the training partition
 outf="$odir/$(basename "$tr_tok" .txt)-${order}gram-${voc_size}.arpa.gz";
-[[ "$overwrite" = false && -s "$outf" &&
-    ( ! "$outf" -ot "$tr_tok" ) && ( ! "$outf" -ot "$vocf" ) ]] ||
+[[ "$overwrite" = false && -s "$outf" ]] ||
 awk '{$1=""; print;}' "$tr_tok" |
 ngram-count -order "$order" -vocab "$vocf" $unk $srilm_options -text - -lm - |
 gzip -9 -c > "$outf" ||
@@ -188,8 +171,7 @@ arpa_files=( "$outf" );
 for tokf in "${external_tok[@]}"; do
   outf="$odir/$(basename "$tokf" .txt)-${order}gram-${voc_size}.arpa.gz";
   info="$odir/$(basename "$tokf" .txt)-${order}gram-${voc_size}.info";
-  [[ "$overwrite" = false && -s "$outf" &&
-      ( ! "$outf" -ot "$tokf" ) && ( ! "$outf" -ot "$vocf" ) ]] ||
+  [[ "$overwrite" = false && -s "$outf" ]] ||
   ngram-count -order "$order" -vocab "$vocf" $unk $srilm_options -text "$tokf" \
     -lm - | gzip -9 -c > "$outf" ||
   { echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
