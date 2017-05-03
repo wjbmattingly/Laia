@@ -28,7 +28,9 @@ require('laia.util.types')   -- type check/converstion utilities
 cutorch = wrequire('cutorch')
 cunn = wrequire('cunn')
 cudnn = wrequire('laia.util.cudnn')   -- cudnn with extensions
-rnn2d = wrequire('rnn2d')             -- rnn2d layers
+
+-- rnn2d is not mature enough to be included in Laia by default
+--rnn2d = wrequire('rnn2d')             -- rnn2d layers
 
 -- Mandatory Laia classes
 require('laia.Version')
@@ -54,8 +56,9 @@ wrequire('laia.ImageDistorter')
 laia.nn = {}
 require('laia.nn.ImageColumnSequence')
 
-laia.cudnn = {}
-wrequire('laia.cudnn')
+-- Extensions to cudnn used with rnn2d
+-- laia.cudnn = {}
+-- wrequire('laia.cudnn')
 
 -- Determine whether stdout/stderr are terminals or not. If term package
 -- cannot be loaded, assume they ARE NOT terminals (i.e. no colors shown).
