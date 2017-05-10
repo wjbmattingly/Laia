@@ -43,6 +43,8 @@ awk 'BEGIN{
       printf(" '\''");
     } else if ($i == "<dquote>") {
       printf(" \"");
+    } else if ($i == "^") {
+      // omit this symbol
     } else {
       printf(" %s", $i);
     }
