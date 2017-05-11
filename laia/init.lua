@@ -27,7 +27,6 @@ require('laia.util.types')   -- type check/converstion utilities
 cutorch = wrequire('cutorch')
 cunn = wrequire('cunn')
 cudnn = wrequire('laia.util.cudnn')   -- cudnn with extensions
-rnn2d = wrequire('rnn2d')             -- rnn2d layers
 
 -- Mandatory Laia classes
 require('laia.Version')
