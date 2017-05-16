@@ -9,10 +9,11 @@ MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 ### Install pre-requisits ###
 RUN apt-get update --fix-missing \
  && apt-get install -y --no-install-recommends \
-      git \
-      cmake \
-      libssl-dev \
       ca-certificates \
+      cmake \
+      git \
+      libssl-dev \
+      sudo \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

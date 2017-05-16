@@ -9,8 +9,6 @@ MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 ### Install pre-requisits ###
 RUN apt-get update --fix-missing \
  && apt-get install -y --no-install-recommends \
-      cmake \
-      libssl-dev \
       libgoogle-glog-dev \
       libgtest-dev \
  && apt-get clean \
@@ -28,3 +26,9 @@ RUN luarocks install http://raw.githubusercontent.com/baidu-research/warp-ctc/ma
 ### Install Laia ###
 RUN LIBRARY_PATH=$(echo "$LIBRARY_PATH" | sed 's|^:||; s|:$||; s|::|:|g;') \
  && luarocks install http://raw.githubusercontent.com/jpuigcerver/Laia/master/rocks/laia-scm-1.rockspec
+
+### Remove temporal files ###
+RUN rm -fr /tmp/* \
+ && cd ~/torch \
+ && sed 's| -o -name install||' -i clean.sh \
+ && ./clean.sh
