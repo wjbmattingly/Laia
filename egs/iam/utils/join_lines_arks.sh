@@ -9,20 +9,31 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ ! -f "$(pwd)/utils/parse_options.inc.sh" ] && \
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
+add_dummy_ctc_end=false;
 add_wspace_border=true;
 eps="<eps>";
+regex="^([^ ]+)-[0-9]+$";
 wspace="<space>";
 help_message="
-Usage: ${0##*/} [options] syms lkh_ark lkh_ark
+Usage: ${0##*/} [options] syms input_lkh_ark output_lkh_ark
 
 Description:
+  Join log-likelihoods in a Kaldi archive file into a single block
+  (e.g. form/page/paragraph) based on their ID (see --regex).
+  IMPORTANT: All the lines in the same block of text must be in the correct
+  order in the input archive file.
 
 Options:
+  --add_dummy_ctc_end : (type = boolean, default = $add_dummy_ctc_end)
+                        Add a fake ctc symbol frame at the end of each form.
   --add_wspace_border : (type = boolean, default = $add_wspace_border)
                         Add fake whitespace frame at the beginning and at the
                         end of each form.
   --eps               : (type = string, default = \"$eps\")
                         Token representing the epsilon symbol.
+  --regex             : (type = regex, default = \"$regex\")
+                        RegEx used to extract the form ID fromt the line ID.
+                        Parenthesis must be used to group the form ID.
   --wspace            : (type = string, default \"$wspace\")
                         Token representing the whitespace character.
 ";
@@ -49,7 +60,8 @@ info=( $(awk -v eps="$eps" -v ws="$wspace" '{
 }END{ print N, wss }' "$syms") );
 
 copy-matrix "ark:$inpf" ark,t:- | awk -v AW="$add_wspace_border" \
-  -v ND="${info[0]}" -v WSS="${info[1]}" '
+  -v AD="$add_dummy_ctc_end" -v ND="${info[0]}" -v WSS="${info[1]}" \
+  -v RE="$regex" '
   function add_dummy_frame(n) {
     printf("%s", n);
     infv=-3.4 * 10^38;
@@ -69,15 +81,17 @@ copy-matrix "ark:$inpf" ark,t:- | awk -v AW="$add_wspace_border" \
     form_id="";
   }{
     S = 1; F = NF;
-    if ($2 == "[" && match($1, /^([^ ]+)-([0-9]+)$/, A)) {
+    if ($2 == "[" && match($1, RE, A)) {
       if (form_id == A[1]) {
         add_wspace_frame(form_id);
-      } else if (AW == "true") {
-        if(form_id != "") {
-          add_wspace_frame(form_id);
-          add_dummy_frame(form_id);
+      } else {
+        if (AW == "true") {
+          if(form_id != "") { add_wspace_frame(form_id); }
+          add_wspace_frame(A[1]);
         }
-        add_wspace_frame(A[1]);
+        if (AD == "true") {
+          if (form_id != "") { add_dummy_frame(form_id); }
+        }
       }
       form_id = A[1];
       S += 2;
@@ -94,6 +108,8 @@ copy-matrix "ark:$inpf" ark,t:- | awk -v AW="$add_wspace_border" \
   }END{
     if (AW == "true" && form_id != "") {
       add_wspace_frame(form_id);
+    }
+    if (AD == "true" && form_id != "") {
       add_dummy_frame(form_id);
     }
   }' | awk '

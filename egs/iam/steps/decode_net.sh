@@ -22,6 +22,8 @@ Usage: ${0##*/} [options] model
 Options:
   --batch_size  : (type = integer, default = $batch_size)
                   Batch size for decoding.
+  --gpu         : (type = integer, default = $gpu)
+                  Select the GPU to use, index starts from 1.
   --height      : (type = integer, default = $height)
                   Use images rescaled to this height.
   --overwrite   : (type = boolean, default = $overwrite)
@@ -36,11 +38,11 @@ model_name="$(basename "$1" .t7)";
 
 for f in "data/lists/lines/$partition/te_h$height.lst" \
 	 "data/lists/lines/$partition/va_h$height.lst" \
-	 "data/lang/char/lines/$partition/te.txt" \
-	 "data/lang/char/lines/$partition/va.txt" \
-	 "data/lang/word/lines/$partition/te.txt" \
-	 "data/lang/word/lines/$partition/va.txt" \
-         "train/lines/syms.txt" \
+	 "data/lang/lines/char/$partition/te.txt" \
+	 "data/lang/lines/char/$partition/va.txt" \
+	 "data/lang/lines/word/$partition/te.txt" \
+	 "data/lang/lines/word/$partition/va.txt" \
+         "train/syms.txt" \
          "$model"; do
   [ ! -s "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
@@ -53,19 +55,19 @@ if which compute-wer &> /dev/null; then hasComputeWer=1; fi;
 [ $hasR -ne 0 -o $hasComputeWer -ne 0 ] ||
 echo "WARNING: Neither Rscript or compute-wer were found, so CER/WER won't be computed!" >&2;
 
-mkdir -p "decode/no_lm/$partition"/{forms,lines}/{char,word};
+mkdir -p "decode/no_lm/"{forms,lines}/{char,word}"/$partition";
 
 tmpf="$(mktemp)";
 for p in va te; do
-  lines_char="decode/no_lm/$partition/lines/char/${p}_${model_name}.txt";
-  lines_word="decode/no_lm/$partition/lines/word/${p}_${model_name}.txt";
-  forms_char="decode/no_lm/$partition/forms/char/${p}_${model_name}.txt";
-  forms_word="decode/no_lm/$partition/forms/word/${p}_${model_name}.txt";
+  lines_char="decode/no_lm/lines/char/$partition/${p}_${model_name}.txt";
+  lines_word="decode/no_lm/lines/word/$partition/${p}_${model_name}.txt";
+  forms_char="decode/no_lm/forms/char/$partition/${p}_${model_name}.txt";
+  forms_word="decode/no_lm/forms/word/$partition/${p}_${model_name}.txt";
   # Decode lines
   [ "$overwrite" = false -a -s "$lines_char" ] ||
   ../../laia-decode \
     --batch_size "$batch_size" \
-    --symbols_table "train/lines/syms.txt" \
+    --symbols_table "train/syms.txt" \
     "$model" "data/lists/lines/$partition/${p}_h$height.lst" > "$lines_char";
   # Get word-level transcript hypotheses for lines
   [ "$overwrite" = false -a -s "$lines_word" ] ||
@@ -109,26 +111,34 @@ for p in va te; do
   }' "$lines_word" > "$forms_word";
   if [ $hasR -eq 1 ]; then
     # Compute CER and WER with Confidence Intervals using R
-    ./utils/compute-errors.py "data/lang/char/lines/$partition/${p}.txt" "$lines_char" > "$tmpf";
+    ./utils/compute-errors.py \
+      "data/lang/lines/char/$partition/${p}.txt" "$lines_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{ printf("%CER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
-    ./utils/compute-errors.py "data/lang/word/lines/$partition/${p}.txt" "$lines_word" > "$tmpf";
+    awk -v p="$p" '$1 == "%ERR"{
+      printf("%CER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
+    ./utils/compute-errors.py \
+      "data/lang/lines/word/$partition/${p}.txt" "$lines_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{ printf("%WER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
-    ./utils/compute-errors.py "data/lang/char/forms/$partition/${p}.txt" "$forms_char" > "$tmpf";
+    awk -v p="$p" '$1 == "%ERR"{
+      printf("%WER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
+    ./utils/compute-errors.py \
+      "data/lang/forms/char/$partition/${p}.txt" "$forms_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{ printf("%CER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
-    ./utils/compute-errors.py "data/lang/word/forms/$partition/${p}.txt" "$forms_word" > "$tmpf";
+    awk -v p="$p" '$1 == "%ERR"{
+      printf("%CER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
+    ./utils/compute-errors.py \
+      "data/lang/forms/word/$partition/${p}.txt" "$forms_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{ printf("%WER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
+    awk -v p="$p" '$1 == "%ERR"{
+      printf("%WER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
   elif [ $hasComputeWer -eq 1 ]; then
     # Compute CER and WER using Kaldi's compute-wer
     compute-wer --text --mode=strict \
-      "ark:data/lang/char/lines/$partition/${p}.txt" "ark:$lines_char" \
+      "ark:data/lang/lines/char/$partition/${p}.txt" "ark:$lines_char" \
       2>/dev/null |
     awk -v p="$p" '$1 == "%WER"{ printf("%CER %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
-      "ark:data/lang/word/lines/$partition/${p}.txt" "ark:$lines_word" \
+      "ark:data/lang/lines/word/$partition/${p}.txt" "ark:$lines_word" \
       2>/dev/null |
     awk -v p="$p" '$1 == "%WER"{ printf("%WER %s: %.2f\n", p, $2); }';
   fi;
