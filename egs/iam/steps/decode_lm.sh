@@ -1,9 +1,8 @@
 #!/bin/bash
 set -e;
 export LC_NUMERIC=C;
-export LUA_PATH="$(pwd)/../../?/init.lua;$(pwd)/../../?.lua;$LUA_PATH";
 
-# Directory where the prepare.sh script is placed.
+# Directory where this script is located.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 [ "$(pwd)/steps" != "$SDIR" ] && \
     echo "Please, run this script from the experiment top directory!" >&2 && \
@@ -54,9 +53,9 @@ height=128;
 max_active=5000000;
 order=3;
 overwrite=false;
-overwrite_lexicon=false;
 overwrite_decode=false;
 overwrite_fst=false;
+overwrite_lexicon=false;
 overwrite_lm=false;
 partition="aachen";
 qsub_opts="";
@@ -80,12 +79,12 @@ Options:
                         Order of the n-gram word LM. Use -1 to disable this.
   --overwrite         : (type = boolean, default = $overwrite)
                         Overwrite ALL steps.
-  --overwrite_lexicon : (type = boolean, default = $overwrite_lexicon)
-                        Overwrite lexicon (and all dependent steps).
   --overwrite_decode  : (type = boolean, default = $overwrite_decode)
                         Overwrite decoding (and all dependent steps).
   --overwrite_fst     : (type = boolean, default = $overwrite_fst)
                         Overwrite transducers (and all dependent steps).
+  --overwrite_lexicon : (type = boolean, default = $overwrite_lexicon)
+                        Overwrite lexicon (and all dependent steps).
   --overwrite_lm      : (type = boolean, default = $overwrite_lm)
                         Overwrite ARPA language model (and all dependent steps).
   --partition         : (type = string, default = \"$partition\")
@@ -118,7 +117,8 @@ hasComputeWer=0;
 if which compute-wer &> /dev/null; then hasComputeWer=1; fi;
 
 [ $hasR -ne 0 -o $hasComputeWer -ne 0 ] ||
-echo "WARNING: Neither Rscript or compute-wer were found, so CER/WER won't be computed!" >&2;
+echo "WARNING: Neither Rscript or compute-wer were found, so CER/WER" \
+  "won't be computed!" >&2;
 
 mkdir -p "decode/lm/$partition" "decode/lkh/$partition"/{lines,forms};
 
@@ -205,7 +205,7 @@ for lkh_scp in "$va_lkh_scp" "$te_lkh_scp"; do
   word_txt="decode/lm/$partition/word/$bn.txt";
   mkdir -p "$(dirname "$char_txt")";
   mkdir -p "$(dirname "$word_txt")";
-  # Obtain char-level transcript for the forms.
+  # Obtain char-level transcript for the forms, needed to compute CER.
   # The character sequence is produced by going through the HMM sequences
   # and then removing the dummy HMM boundaries (inc. whitespaces).
   [ "$overwrite_decode" = false -a -s "$char_txt" ] ||
@@ -214,12 +214,13 @@ for lkh_scp in "$va_lkh_scp" "$te_lkh_scp"; do
   done |
   ./utils/int2sym.pl -f 2- "${fst_dir}/chars.txt" |
   ./utils/remove_transcript_dummy_boundaries.sh > "$char_txt";
-  # Obtain the word-level transcript for the forms.
+  # Obtain the word-level transcript for the forms, needed to compute WER.
   # We just put together all characters that are not <space> to form words.
   [ "$overwrite_decode" = false -a -s "$word_txt" ] ||
   ./utils/remove_transcript_dummy_boundaries.sh --to-words "$char_txt" \
     > "$word_txt";
-  # Compute errors
+  # Compute errors (both CER and WER). $p is used in the compute_errors()
+  # function.
   p="${bn:0:2}"; compute_errors "$char_txt" "$word_txt";
 done;
 
