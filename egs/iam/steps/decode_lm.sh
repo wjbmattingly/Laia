@@ -52,6 +52,7 @@ acoustic_scale=1.79;
 beam=65;
 height=128;
 max_active=5000000;
+num_procs="$(nproc)";
 order=3;
 overwrite=false;
 overwrite_lexicon=false;
@@ -60,6 +61,7 @@ overwrite_fst=false;
 overwrite_lm=false;
 partition="aachen";
 qsub_opts="";
+tasks="";
 voc_size=50000;
 help_message="
 Usage: ${0##*/} [options] va_lkh_scp te_lkh_scp
@@ -76,6 +78,9 @@ Options:
   --max_active        : (type = integer, default = $max_active)
                         Max. number of tokens during Viterbi decoding
                         (a.k.a. histogram prunning).
+  --num_procs         : (integer, default = $num_procs)
+                        Maximum number of tasks to run in parallel in the host
+                        computer (this maximum does not apply when using qsub).
   --order             : (type = integer, default = $order)
                         Order of the n-gram word LM. Use -1 to disable this.
   --overwrite         : (type = boolean, default = $overwrite)
@@ -93,6 +98,9 @@ Options:
   --qsub_opts         : (type = string, default = \"$qsub_opts\")
                         If any option is given, will parallelize the decoding
                         using qsub. THIS IS HIGHLY RECOMMENDED.
+  --tasks             : (string, default = \"$tasks\")
+                        Range of tasks to execute. If not given, the range is
+                        set automatically.
   --voc_size          : (type = integer, default = $voc_size)
                         Vocabulary size for the word n-gram LM.
 ";
@@ -180,9 +188,11 @@ for lkh_scp in "$va_lkh_scp" "$te_lkh_scp"; do
       --acoustic_scale "$acoustic_scale" \
       --beam "$beam" \
       --max_active "$max_active" \
+      --num_procs "$num_procs" \
       --num_tasks 350 \
       --overwrite "$overwrite_decode" \
       --qsub_opts "$qsub_opts" \
+      --tasks "$tasks" \
       "${fst_dir}/"{model,HCL.fst,G.fst} \
       "$lkh_scp" \
       "$fst_dir/$bn") );
