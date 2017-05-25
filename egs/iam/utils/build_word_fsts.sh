@@ -128,7 +128,7 @@ BEGIN{
   while ((getline < LSF) > 0) C[$1]=1;
 }{
   for (i=3; i <= NF; ++i) if (!($i in C) && $i != dm) print $i;
-}' "$odir/lexiconp.txt" | sort) );
+}' "$odir/lexiconp.txt" | sort | uniq) );
 [ ${#missing_hmm[@]} -gt 0 ] &&
 echo "FATAL: The following HMMs in the lexicon are missing!" >&2 &&
 echo "${missing_hmm[@]}" >&2 && exit 1;
