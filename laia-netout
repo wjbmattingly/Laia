@@ -59,6 +59,10 @@ parser:option(
   :argname('<alpha>')
   :gt(0.0)
 parser:option(
+  '--prior_smooth', 'Add this smoothing constant to all priors.', 1e-9, tonumber)
+  :argname('<smooth>')
+  :ge(0.0)
+parser:option(
   '--output_hpad', 'If given, write the horizontal padding applied to each ' ..
     'image to this file.', '')
   :argname('<file>')
@@ -136,8 +140,9 @@ local sampSize = torch.ShortStorage(1);
 local parmKind = torch.ShortStorage(1); parmKind[1] = 9; -- PARMKIND=USER
 
 -- Function used to load the priors file
-local function load_priors(fpriors, alpha)
+local function load_priors(fpriors, alpha, smooth)
   alpha = alpha or 1
+  smooth = smooth or 0.0
   local logprior = {}
   local zeroprior = {}
   local f = io.open(fpriors, 'r')
@@ -147,10 +152,17 @@ local function load_priors(fpriors, alpha)
     local line = f:read('*line')
     if line == nil then break end
     ln = ln+1
-    line = line:match('^%s*(.-)%s*$'):gsub('.*%s','')
-    local prior = tonumber(line)
-    zeroprior[ln] = prior == 0 and true or false
-    logprior[ln] = torch.log(prior) * alpha
+    line = laia.strsplit(line)
+    assert(#line == 4, string.format('Unexpected number of fields in file: %q, line %d',
+                                     fpriors, ln))
+    local counts = tonumber(line[2])
+    zeroprior[ln] = counts == 0 and true or false
+    logprior[ln] = counts + smooth
+    --logprior[ln] = torch.log(tonumber(line[4])) * alpha
+  end
+  local z = torch.log(table.reduce(logprior, function(acc, x) return acc + x end, 0))
+  for i=1,#logprior do
+    logprior[i] = (torch.log(logprior[i]) - z) * alpha
   end
   f:close()
   return torch.Tensor(logprior):float(), zeroprior
@@ -158,7 +170,10 @@ end
 
 local logprior, zeroprior
 if opts.prior ~= '' then
-  logprior, zeroprior = load_priors(opts.prior, opts.prior_alpha)
+  logprior, zeroprior = load_priors(opts.prior, opts.prior_alpha, opts.prior_smooth)
+  if table.any(zeroprior) then
+    laia.log.warn('There are symbols with prior equal to 0.')
+  end
   logprior = logprior:view(1, 1, logprior:size(1))
 end
 
