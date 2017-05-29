@@ -17,4 +17,4 @@ RUN luarocks install torch \
  && luarocks install cudnn
 
 ### Remove temporal files ###
-RUN rm -fr /tmp/*
+RUN rm -fr /tmp/* ~/torch

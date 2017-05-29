@@ -21,3 +21,6 @@ RUN apt-get update --fix-missing \
 RUN git clone https://github.com/torch/distro.git ~/torch --recursive \
  && cd ~/torch \
  && bash install-deps
+
+### Remove temporal files ###
+RUN rm -fr /tmp/*
