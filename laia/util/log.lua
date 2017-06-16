@@ -115,11 +115,12 @@ local tostring = function(...)
   return table.concat(t, " ")
 end
 
+local _warn_logfile_cannot_be_created = true
+
 
 for i, x in ipairs(modes) do
   local nameupper = x.name:upper()
   log[x.name] = function(msg, ...)
-
     -- Return early if we're below the log level
     if i < levels[log.loglevel] then
       return
@@ -157,14 +158,20 @@ for i, x in ipairs(modes) do
     -- Output to log file
     if log.logfile and log.logfile ~= '' then
       local fp = io.open(log.logfile, "a")
-      fp:write(string.format("[%s%6s] %s: %s\n",
-			     os.date("%Y-%m-%d %H:%M:%S"),
-			     nameupper,
-			     lineinfo, msg))
-      if nameupper == 'FATAL' then
-	fp:write(debug.traceback('', getinfo_level) .. '\n')
+      if fp ~= nil then
+	fp:write(string.format("[%s%6s] %s: %s\n",
+			       os.date("%Y-%m-%d %H:%M:%S"),
+			       nameupper,
+			       lineinfo, msg))
+	if nameupper == 'FATAL' then
+	  fp:write(debug.traceback('', getinfo_level) .. '\n')
+	end
+	fp:close()
+      elseif _warn_logfile_cannot_be_created then
+	_warn_logfile_cannot_be_created = false
+	log.error('Log file %q cannot be open for writing. This message ' ..
+                  'will only be shown once.', log.logfile)
       end
-      fp:close()
     end
 
     -- If level was FATAL, terminate program and show traceback

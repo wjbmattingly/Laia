@@ -26,9 +26,11 @@ assert = function(test, msg, ...)
 end
 
 -- Overload error to use Laia's own logging system
-error = function(msg, ...)
-  laia.log.fatal{fmt = msg, arg = {...}, level = 3}
-end
+-- TODO(jpuigcerver): If we overload this, wrequire (due to pcall)
+-- does not work properly (it crashes anyway).
+--error = function(msg, ...)
+--  laia.log.fatal{fmt = msg, arg = {...}, level = 3}
+--end
 
 -- Require with graceful warning, for optional modules
 function wrequire(name)
