@@ -45,8 +45,32 @@ awk '{
   gsub(/\|/, " <space> ", y);
   print x, y;
 }' data/washingtondb-v1.0/ground_truth/transcription.txt \
-  > data/lang/char/transcript.txt ||
-exit 1;
+  > data/lang/char/transcript.txt;
+
+# Obtain lexicon.
+[[ "$overwrite" = false && -s data/lang/lexiconp.txt ]] ||
+cut -d\  -f2- data/washingtondb-v1.0/ground_truth/transcription.txt |
+tr \|  \\n | tr \- \  | sort | uniq |
+awk '{
+  w = "";
+  for (i=1;i<=NF;++i) {
+    if ($i == "s_bl")      w = sprintf("%s(", w);
+    else if ($i == "s_br") w = sprintf("%s)", w);
+    else if ($i == "s_cm") w = sprintf("%s,", w);
+    else if ($i == "s_et") w = sprintf("%sV", w);
+    else if ($i == "s_lb") w = sprintf("%sL", w);
+    else if ($i == "s_mi") w = sprintf("%s-", w);
+    else if ($i == "s_pt") w = sprintf("%s.", w);
+    else if ($i == "s_qo") w = sprintf("%s:", w);
+    else if ($i == "s_qt") w = sprintf("%s'\''", w);
+    else if ($i == "s_s")  w = sprintf("%ss", w);
+    else if ($i == "s_sl") w = sprintf("%ssl", w);
+    else if ($i == "s_sq") w = sprintf("%s;", w);
+    else if (match($i, /^s_(.+)$/, A)) w = sprintf("%s%s", w, A[1]);
+    else w = sprintf("%s%s", w, $i);
+  }
+  printf("%-20s 1.0    <space> %s\n", w, $0);
+}' | sort > data/lang/lexiconp.txt;
 
 # Get list of characters
 [[ "$overwrite" = false && -s data/lang/char/syms.txt ]] ||
