@@ -5,9 +5,9 @@ export LUA_PATH="$(pwd)/../../?/init.lua;$(pwd)/../../?.lua;$LUA_PATH";
 
 # Directory where the run.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
-[ "$(pwd)" != "$SDIR" ] && \
-    echo "Please, run this script from the experiment top directory!" >&2 && \
-    exit 1;
+[ "$(pwd)" != "$SDIR" ] &&
+echo "Please, run this script from the experiment top directory!" >&2 &&
+exit 1;
 
 # Step 1. Download data.
 ./steps/download.sh;

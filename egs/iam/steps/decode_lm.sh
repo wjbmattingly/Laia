@@ -54,6 +54,7 @@ max_active=5000000;
 num_procs="$(nproc)";
 order=3;
 overwrite=false;
+overwrite_ext=false;
 overwrite_decode=false;
 overwrite_fst=false;
 overwrite_lexicon=false;
@@ -86,6 +87,9 @@ Options:
                         Overwrite ALL steps.
   --overwrite_decode  : (type = boolean, default = $overwrite_decode)
                         Overwrite decoding (and all dependent steps).
+  --overwrite_ext     : (type = boolean, default = $overwrite_ext)
+                        Overwrite processing of external data (and all
+                        dependent steps).
   --overwrite_fst     : (type = boolean, default = $overwrite_fst)
                         Overwrite transducers (and all dependent steps).
   --overwrite_lexicon : (type = boolean, default = $overwrite_lexicon)
@@ -131,6 +135,7 @@ echo "WARNING: Neither Rscript or compute-wer were found, so CER/WER" \
 mkdir -p "decode/lm/$partition" "decode/lkh/$partition"/{lines,forms};
 
 if [ "$overwrite" = true ]; then
+  overwrite_ext=true;
   overwrite_align=true;
   overwrite_lexicon=true;
   overwrite_lm=true;
@@ -138,19 +143,59 @@ if [ "$overwrite" = true ]; then
   overwrite_decode=true;
 fi;
 
+has_external=false;
+if [[ -s data/external/brown.txt &&
+      -s data/external/lob_excludealltestsets.txt &&
+      -s data/external/wellington.txt ]]; then
+  has_external=true;
+  [[ "$overwrite_ext" = false && \
+     -s "data/lang/external/word/brown.txt" && \
+     -s "data/lang/external/word/brown_boundaries.txt" && \
+     -s "data/lang/external/word/brown_tokenized.txt" && \
+     -s "data/lang/external/word/lob_excludealltestsets.txt" && \
+     -s "data/lang/external/word/lob_excludealltestsets_boundaries.txt" && \
+     -s "data/lang/external/word/lob_excludealltestsets_tokenized.txt" && \
+     -s "data/lang/external/word/wellington.txt" && \
+     -s "data/lang/external/word/wellington_boundaries.txt" && \
+     -s "data/lang/external/word/wellington_tokenized.txt" ]] || {
+    overwrite_lexicon=true;
+    overwrite_lm=true;
+    ./steps/prepare_external_text.sh \
+      --overwrite "$overwrite_ext" data/external/*.txt;
+  }
+else
+  cat <<EOF >&2
+WARNING: You are not using the Brown, LOB and Wellington datasets to Build
+the n-gram language model and lexicon. This makes the results not compatible
+with the published results in the paper.
+EOF
+fi;
+
 # Build lexicon from the boundaries files.
 lexiconp=data/lang/forms/word/lexiconp.txt;
 [ "$overwrite_lexicon" = false -a -s "$lexiconp" ] || {
   overwrite_fst=true;
-  ./utils/build_word_lexicon.sh \
-    data/lang/forms/word/$partition/tr_boundaries.txt \
-    data/lang/external/word/*_boundaries.txt > "$lexiconp"
+  if [ "$has_external" = true ]; then
+    ./utils/build_word_lexicon.sh \
+      data/lang/forms/word/$partition/tr_boundaries.txt \
+      data/lang/external/word/*_boundaries.txt > "$lexiconp";
+  else
+    ./utils/build_word_lexicon.sh \
+      data/lang/forms/word/$partition/tr_boundaries.txt > "$lexiconp";
+  fi;
 } ||
 { echo "ERROR: Creating file \"$lexiconp\"!" >&2 && exit 1; }
 
 # Build word-level language model WITHOUT the unknown token
+external_args_for_build_word_lm=();
+if [ "$has_external" = true ]; then
+  external_args_for_build_word_lm=(
+    data/lang/external/word/lob_excludealltestsets_{tokenized,boundaries}.txt \
+    data/lang/external/word/brown_{tokenized,boundaries}.txt \
+    data/lang/external/word/wellington_{tokenized,boundaries}.txt);
+fi;
+
 [ "$overwrite_lm" = true ] && overwrite_fst=true;
-[ "$order" -gt 0 ] &&
 ./utils/build_word_lm.sh \
   --order "$order" --voc_size "$voc_size" \
   --unknown false --srilm_options "-kndiscount -interpolate" \
@@ -159,14 +204,11 @@ lexiconp=data/lang/forms/word/lexiconp.txt;
   data/lang/forms/word/$partition/tr_{tokenized,boundaries}.txt \
   data/lang/forms/word/$partition/va_{tokenized,boundaries}.txt \
   data/lang/forms/word/$partition/te_{tokenized,boundaries}.txt \
-  data/lang/external/word/lob_excludealltestsets_{tokenized,boundaries}.txt \
-  data/lang/external/word/brown_{tokenized,boundaries}.txt \
-  data/lang/external/word/wellington_{tokenized,boundaries}.txt \
+  "${external_args_for_build_word_lm[@]}" \
   "decode/lm/$partition/word_lm";
 
 # Build transducers for the word LM.
 [ "$overwrite_fst" = true ] && overwrite_decode=true;
-[ "$order" -gt 0 ] &&
 ./utils/build_word_fsts.sh --overwrite "$overwrite_fst" \
   train/syms.txt data/lang/forms/word/lexiconp.txt \
   "decode/lm/$partition/word_lm/interpolation-${order}gram-${voc_size}.arpa.gz" \

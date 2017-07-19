@@ -10,6 +10,7 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 overwrite=false;
+partition=aachen;
 wspace="<space>";
 help_message="
 Usage: ${0##*/} [options]
@@ -17,7 +18,9 @@ Usage: ${0##*/} [options]
 Options:
   --overwrite  : (type = boolean, default = $overwrite)
                  Overwrite previously created files.
-  --wspace     : (type = string, default \"$wspace\")
+  --partition  : (type = string, default = \"$partition\")
+                 Select the the lists to use: \"aachen\" or \"kws\".
+  --wspace     : (type = string, default = \"$wspace\")
                  Use this symbol to represent the whitespace character.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
@@ -81,8 +84,8 @@ awk -v ws="$wspace" 'BEGIN{
 { echo "ERROR: Creating file train/lines/syms.txt" >&2 && exit 1; }
 
 # Split files into different partitions (train, test, valid).
-mkdir -p data/lang/lines/{char,word}/aachen;
-for p in aachen/{tr,te,va}; do
+mkdir -p data/lang/lines/{char,word}/"$partition";
+for p in "$partition"/{tr,te,va}; do
   join -1 1 "data/part/lines/$p.lst" "data/lang/lines/char/all.txt" \
     > "data/lang/lines/char/$p.txt" ||
   { echo "ERROR: Creating file data/lang/lines/char/$p.txt" >&2 && exit 1; }
@@ -100,7 +103,7 @@ done;
 # create the lexicon. There are tokens that should not be preceded, in some
 # cases, by a whitespace in the lexicon. Output files of this step are:
 # $odir/${c}_tokenized.txt and $odir/${c}_boundaries.txt.
-for p in aachen/{tr,te,va}; do
+for p in "$partition"/{tr,te,va}; do
   tok="data/lang/lines/word/${p}_tokenized.txt";
   bnd="data/lang/lines/word/${p}_boundaries.txt";
   [[ "$overwrite" = false && -s "$tok" && -s "$bnd" &&
@@ -112,15 +115,15 @@ for p in aachen/{tr,te,va}; do
   { echo "ERROR: Creating file $tok" >&2 && exit 1; }
 done;
 
-mkdir -p data/lang/forms/{char,word}/aachen;
+mkdir -p data/lang/forms/{char,word}/"$partition";
 for p in tr te va; do
-  txtw="data/lang/forms/word/aachen/$p.txt";
-  txtc="data/lang/forms/char/aachen/$p.txt";
-  tok="data/lang/forms/word/aachen/${p}_tokenized.txt";
-  bnd="data/lang/forms/word/aachen/${p}_boundaries.txt";
+  txtw="data/lang/forms/word/$partition/$p.txt";
+  txtc="data/lang/forms/char/$partition/$p.txt";
+  tok="data/lang/forms/word/$partition/${p}_tokenized.txt";
+  bnd="data/lang/forms/word/$partition/${p}_boundaries.txt";
   # Get the word-level transcript of the whole form.
   [[ "$overwrite" = false && -s "$txtw" &&
-      ( ! "$txtw" -ot "data/lang/lines/word/aachen/$p.txt" ) ]] ||
+      ( ! "$txtw" -ot "data/lang/lines/word/$partition/$p.txt" ) ]] ||
   awk 'BEGIN{ sent_id=""; }{
     if (match($0, /^([^ ]+)-[0-9]+ (.+)$/, A)) {
       if (A[1] != sent_id) {
@@ -132,7 +135,7 @@ for p in tr te va; do
       }
     }
   }END{ if (sent_id != "") printf("\n"); }' \
-    "data/lang/lines/word/aachen/$p.txt" > "$txtw" ||
+    "data/lang/lines/word/$partition/$p.txt" > "$txtw" ||
   { echo "ERROR: Creating file \"$txtw\"!" >&2 && exit 1; }
   # Tokenize the joint sentences.
   [[ "$overwrite" = false && -s "$tok" && -s "$bnd" &&

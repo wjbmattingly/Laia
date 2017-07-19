@@ -25,8 +25,8 @@ Options:
   --overwrite  : (type = boolean, default = $overwrite)
                  Overwrite previously created files.
   --partition  : (type = string, default = \"$partition\")
-                 Select the \"lines\" or \"sentences\" partition. Note: Aachen
-                 typically uses the sentences partition.
+                 Select the \"lines\" or \"sentences\" partition.
+                 Note: Typically the \"lines\" partition is used.
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 

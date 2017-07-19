@@ -136,10 +136,18 @@ for p in va te; do
     compute-wer --text --mode=strict \
       "ark:data/lang/lines/char/$partition/${p}.txt" "ark:$lines_char" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%CER %s: %.2f\n", p, $2); }';
+    awk -v p="$p" '$1 == "%WER"{ printf("%CER lines %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
       "ark:data/lang/lines/word/$partition/${p}.txt" "ark:$lines_word" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%WER %s: %.2f\n", p, $2); }';
+    awk -v p="$p" '$1 == "%WER"{ printf("%WER lines %s: %.2f\n", p, $2); }';
+    compute-wer --text --mode=strict \
+      "ark:data/lang/forms/char/$partition/${p}.txt" "ark:$forms_char" \
+      2>/dev/null |
+    awk -v p="$p" '$1 == "%WER"{ printf("%CER forms %s: %.2f\n", p, $2); }';
+    compute-wer --text --mode=strict \
+      "ark:data/lang/forms/word/$partition/${p}.txt" "ark:$forms_word" \
+      2>/dev/null |
+    awk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
   fi;
 done;
