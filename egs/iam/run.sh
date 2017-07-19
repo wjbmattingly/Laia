@@ -10,17 +10,17 @@ experiments=(htr);
 
 # Directory where the run.sh script is placed.
 SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
-[ "$(pwd)" != "$SDIR" ] && \
-    echo "Please, run this script from the experiment top directory!" >&2 && \
-    exit 1;
+[ "$(pwd)" != "$SDIR" ] &&
+echo "Please, run this script from the experiment top directory!" >&2 &&
+exit 1;
 
 mkdir -p data;
 
 ## Download lines images from FKI.
 [ -f data/lines.tgz -o -f data/imgs/a02-000-00.png ] || {
-  [ -z "$FKI_USER" -o -z "$FKI_PASSWORD" ] && \
-    echo "Please, set the FKI_USER and FKI_PASSWORD variables to download the" \
-    "IAM database from the FKI servers." >&2 && exit 1;
+  [ -z "$FKI_USER" -o -z "$FKI_PASSWORD" ] &&
+  echo "Please, set the FKI_USER and FKI_PASSWORD variables to download the" \
+       "IAM database from the FKI servers." >&2 && exit 1;
   wget -P data --user="$FKI_USER" --password="$FKI_PASSWORD" \
     http://www.fki.inf.unibe.ch/DBs/iamDB/data/lines/lines.tgz;
 }

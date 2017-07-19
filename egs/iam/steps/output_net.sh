@@ -68,7 +68,8 @@ for p in va te; do
   copy-matrix ark:- "ark,scp:$ark,$scp";
   # FORMS log-likelihoods
   [ "$overwrite" = false -a -s "${ark/lines/forms}" ] ||
-  ./utils/join_lines_arks.sh "train/syms.txt" "$ark" "${ark/lines/forms}";
+  ./utils/join_lines_arks.sh --add_wspace_border true \
+    "train/syms.txt" "$ark" "${ark/lines/forms}";
 done;
 
 exit 0;

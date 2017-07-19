@@ -80,7 +80,7 @@ broadly speaking:
   features in each block is 16, 32, 48, 64, and 80, respectively.
 - 5 bidirectional LSTM recurrent layers with 256 hidden units and dropout with
   probability 0.5.
-- A final linear layer with 99 output units (98 characters + CTC blank symbol).
+- A final linear layer with 100 output units (99 characters + CTC blank symbol).
 - Training stops after 80 epochs without any improvement on the validation
   CER.
 
@@ -88,13 +88,73 @@ broadly speaking:
 ./steps/train_lstm1d.sh
 ```
 
+This script will create the file `train/lstm1d_h128.t7', where
+`lstm_h${height}' is the default model name used by the training script.
+If you change your height, or you change the model name with `--model_name',
+keep that in mind during the next steps.
+
 __IMPORTANT:__ Be aware that this script may take a considerable amount of time
 to run (46h on a NVIDIA Titan X) and GPU memory (10.3GB). If this is not
-feasible to you, to reduce the batch size (the default is 16) by passing
+feasible for you, reduce the batch size (the default is 16) by passing
 `--batch_size $your_batch_size` to the script, and/or reduce the early stop
 epochs with `--early_stop_epochs $your_max_stop_epochs` (the default is 80).
 
+### Step 4. Simple decoding from the neural network
 
-### Step 4. Simple decoding
+Once the training is finished, you can obtain the transcript directly from
+the neural network, using the CTC decoding algorithm. This algorithm simply
+obtains the most likely label on each frame independently and then removes
+repetitions of labels, and finally it removes the instances of the CTC blank
+symbol.
+
+The script `steps/decode_net.sh' will use Laia to decode the validation and
+test lines. Just type in your console the following command:
+
+```bash
+./steps/decode_net.sh train/lstm1d_h128.t7
+```
+
+The CER (on the test set) at this point should be 2.3%, and the WER should be
+9.6%, as reported in Table IV.b) of the paper.
 
 ### Step 5. Decoding with word n-gram LM
+
+These results can be improved (specially the WER) by using an external n-gram
+language model. The script `steps/decode_lm.sh' will use the raw label
+posteriors output by the neural network in order to create a pseudo
+log-likelihood matrix. These are then combined with a word 4-gram LM, trained
+on the tokenized pages from the training partition. The LM was created using
+SRILM and uses modified Kneser-Ney discounting and interpolation.
+
+The decoding is performed using a special decoder that we built on top of
+Kaldi: `decode-lazylm-faster-mapped'. This decoder is similar to Kaldi's
+`decode-faster-mapped', but instead of asking for the complete decoding
+transducer _HCLG_, you pass the _HCL_ and _G_ transducers separately and the
+composition is done dynamically during decoding. During decoding, a beam
+prunning threshold of 65 was used reduce the decoding time
+(which is already very high).
+
+All the work is done by the `steps/decode_lm.sh' script, so you just need
+to execute the following command on your shell:
+
+```bash
+./steps/decode_lm.sh train/lstm1d_h128.t7
+```
+
+__IMPORTANT__: This step is very slow, if you have access to a Sun Grid Engine
+(SGE) cluster, we encourage you to use `qsub' to speed up the decoding.
+Please use the `--qsub_opts' option to costumize the options passed to `qsub'
+(options regarding the number of tasks are automatically set).
+
+```bash
+./steps/decode_lm.sh --qsub_opts "-l h_vmem=32G,h_rt=8:00:00" train/lstm1d_h128.t7
+```
+
+Once the decoding is completed, the CER and WER on the validation and test
+partitions will be computed. The CER on the test should be 2.5% and the WER
+should be 9.0%.
+
+### Problems?
+
+If you have any issue reproducing the results of the paper, please contact the
+author at joapuipe@prhlt.upv.es.
