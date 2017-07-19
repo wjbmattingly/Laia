@@ -154,7 +154,7 @@ Once the decoding is completed, the CER and WER on the validation and test
 partitions will be computed. The CER on the test should be 2.5% and the WER
 should be 9.0%.
 
-### Problems?
+## Any problem?
 
 If you have any issue reproducing the results of the paper, please contact the
 author at joapuipe@prhlt.upv.es.
