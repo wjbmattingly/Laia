@@ -234,6 +234,15 @@ composition is done dynamically during decoding. During decoding, a beam
 prunning threshold of 65 was used reduce the decoding time
 (which is already very high).
 
+__IMPORTANT__: This step is very slow, if you have access to a Sun Grid Engine
+(SGE) cluster, we encourage you to use `qsub` to speed up the decoding.
+Please use the `--qsub_opts` option to costumize the options passed to `qsub`
+(options regarding the number of tasks are automatically set).
+
+```bash
+./steps/decode_lm.sh --qsub_opts "-l h_vmem=32G,h_rt=8:00:00" train/lstm1d_h128.t7
+```
+
 The expected results at this point are:
 
 | Set    | CER (%) | WER (%) |
