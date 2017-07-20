@@ -1,7 +1,14 @@
-# Rimes dataset
+# Rimes Database
 
-This folder contains experiments using the [Rimes](http://www.a2ialab.com/doku.php?id=rimes_database:start) dataset.
-In particular, it contains the scripts to reproduce the results from the paper
+The RIMES database (_Reconnaissance et Indexation de données Manuscrites et de_
+_fac similÉS_ / Recognition and Indexing of handwritten documents and faxes) was
+created to evaluate automatic systems of recognition and indexing of handwritten
+letters. Of particular interest are cases such as those sent by postal mail or fax
+by individuals to companies or administrations.
+
+![Example](train2011-2-03.jpg)
+
+This folder contains the scripts to reproduce the results from the paper
 "Are Multidimensional Recurrent Layers Really Necessary for Handwritten Text Recognition?", by Joan Puigcerver.
 
 ## Requirements
@@ -114,8 +121,15 @@ test lines. Just type in your console the following command:
 ./steps/decode_net.sh train/lstm1d_h128.t7
 ```
 
-The CER (on the test set) at this point should be 2.3%, and the WER should be
-9.6%, as reported in Table IV.b) of the paper.
+The expected results at this point on the validation and test sets are:
+
+| Set    | CER (%) | WER (%) |
+|:------ | -------:| -------:|
+| Valid. | 2.2     | 9.6     |
+| Test   | 2.3     | 9.6     |
+
+In order to obtain the word-level transcripts to compute the WER, the script
+simply merges into one word everything in between the whitespace symbol.
 
 ### Step 5. Decoding with word n-gram LM
 
@@ -150,9 +164,17 @@ Please use the `--qsub_opts` option to costumize the options passed to `qsub`
 ./steps/decode_lm.sh --qsub_opts "-l h_vmem=32G,h_rt=8:00:00" train/lstm1d_h128.t7
 ```
 
-Once the decoding is completed, the CER and WER on the validation and test
-partitions will be computed. The CER on the test should be 2.5% and the WER
-should be 9.0%.
+The expected results at this point are:
+
+| Set    | CER (%) | WER (%) |
+|:------ | -------:| -------:|
+| Valid. | 2.3     | 8.9     |
+| Test   | 2.5     | 9.0     |
+
+In order to compute the WER, we obtain the character-level alignment from
+the decoding and put all characters between whitespaces together. We can
+recover from tokenization, since kept this information in the lexicon
+(notice that the output of the LM are _tokens_, not original _words_).
 
 ## Any problem?
 

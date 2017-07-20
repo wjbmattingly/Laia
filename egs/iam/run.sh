@@ -22,7 +22,7 @@ exit 1;
 ./steps/train_lstm1d.sh --partition aachen --model_name "lstm1d_h128";
 
 # Step 5. Decode using only the neural network.
-./steps/decode_net.sh "train/aachen/lstm1d_h128.t7";
+./steps/decode_net.sh --partition aachen "train/aachen/lstm1d_h128.t7";
 
 # Step 6. Output raw network label pseudo log-likelihoods.
 ./steps/output_net.sh --partition aachen "train/aachen/lstm1d_h128.t7";
