@@ -1,9 +1,9 @@
 ### Input arguments (https://github.com/moby/moby/pull/31352) ###
-#ARG CUDA=7.5
-#ARG OS=ubuntu14.04
+#ARG CUDA=8.0
+#ARG OS=ubuntu16.04
 
 ### Start with CUDA Torch ###
-FROM cuda-torch:7.5-ubuntu14.04
+FROM mauvilsa/torch-cuda:8.0-ubuntu16.04
 
 MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 
@@ -32,4 +32,6 @@ RUN add-apt-repository -y ppa:george-edison55/cmake-3.x \
 
 ### Install Laia ###
  && LIBRARY_PATH=$(echo "$LIBRARY_PATH" | sed 's|^:||; s|:$||; s|::|:|g;') \
- && luarocks install http://raw.githubusercontent.com/jpuigcerver/Laia/master/rocks/laia-scm-1.rockspec
+ && luarocks install http://raw.githubusercontent.com/jpuigcerver/Laia/master/rocks/laia-scm-1.rockspec \
+ && curl -o /usr/local/bin/laia-docker https://raw.githubusercontent.com/jpuigcerver/Laia/master/dockerfiles/laia-docker \
+ && chmod +x /usr/local/bin/laia-docker
