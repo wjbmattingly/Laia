@@ -37,7 +37,7 @@ And execute `luarocks install https://raw.githubusercontent.com/jpuigcerver/Laia
 
 ## Installation via docker
 
-To ease the installation, there is a public [docker image for Laia](https://hub.docker.com/r/mauvilsa/laia/). To use it first install docker and nvidia-docker, and configure docker so that it can be executed without requiring sudo, see [docker linux postinstall](https://docs.docker.com/engine/installation/linux/linux-postinstall/). Then the installation of Laia consists of first pulling the image and tagging it as laia:active.
+To ease the installation, there is a public [docker image for Laia](https://hub.docker.com/r/mauvilsa/laia/). To use it first install [docker](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/#install-docker-ce) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker/releases), and configure docker so that it can be executed without requiring sudo, see [docker linux postinstall](https://docs.docker.com/engine/installation/linux/linux-postinstall/). Then the installation of Laia consists of first pulling the image and tagging it as laia:active.
 
     docker pull mauvilsa/laia:[SOME_TAG]
     docker tag mauvilsa/laia:[SOME_TAG] laia:active
