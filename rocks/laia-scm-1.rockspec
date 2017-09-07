@@ -76,6 +76,7 @@ build = {
       "laia-decode",
       "laia-force-align",
       "laia-netout",
+      "laia-reuse-model",
       "laia-train-ctc"
     }
   }

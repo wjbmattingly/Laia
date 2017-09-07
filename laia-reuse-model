@@ -1,0 +1,57 @@
+#!/usr/bin/env th
+
+require 'laia'
+
+local parser = laia.argparse(){
+  name = 'laia-reuse-model',
+  description = 'Loads an existing model, replaces the last fully connected ' ..
+    'layer with a new one with the given number of output symbols and saves ' ..
+    'the model to disk.'
+}
+
+parser:option(
+  '--seed -s', 'Seed for random numbers generation.',
+  0x012345, laia.toint)
+
+-- Arguments
+parser:argument('input_file', 'File containing the model to reuse.')
+parser:argument(
+  'output_size',
+  'Number of output symbols. If you are going to use the CTC ' ..
+  'loss include one additional element!')
+  :convert(laia.toint)
+  :gt(0)
+parser:argument(
+  'output_file', 'Output file to store the model')
+
+-- Register laia.Version options
+laia.Version():registerOptions(parser)
+-- Register logging options
+laia.log.registerOptions(parser)
+
+local opt = parser:parse()
+
+-- Load *BEST* model from the input checkpoint.
+local model = laia.Checkpoint():load(opt.input_file):Best():getModel()
+assert(model ~= nil, 'No model was found in input file!')
+
+-- Initialize random seeds
+laia.manualSeed(opt.seed)
+
+local rnn_units = model:get(model:size()):parameters()[1]:size(2)
+--print('rnn_units: ', rnn_units)
+
+model:remove(model:size())
+model:add(nn.Linear(rnn_units, opt.output_size))
+model:float()
+
+-- Save model to disk
+local checkpoint = laia.Checkpoint()
+checkpoint:Best():setModel(model)
+checkpoint:Last():setModel(model)
+checkpoint:save(opt.output_file)
+
+local p, _ = model:getParameters()
+laia.log.info('\n' .. model:__tostring__())
+laia.log.info('Saved model with %d parameters to %q',
+	      p:nElement(), opt.output_file)
