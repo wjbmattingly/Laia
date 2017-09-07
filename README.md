@@ -61,7 +61,8 @@ laia-create-model \
     "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
 ```
 Or if installed via docker:
-```laia-docker create-model \
+```bash
+laia-docker create-model \
     "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
 ```
 Positional arguments:
@@ -80,7 +81,8 @@ laia-train-ctc \
     "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
 ```
 Or if installed via docker:
-```laia-docker train-ctc \
+```bash
+laia-docker train-ctc \
     "$MODEL_DIR/model.t7" \
     "$SYMBOLS_TABLE" \
     "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
@@ -101,7 +103,8 @@ For optional arguments check `laia-train-ctc -h` or `laia-create-model -H`.
 laia-decode "$MODEL_DIR/model.t7" "$TEST_LST";
 ```
 Or if installed via docker:
-```laia-docker decode "$MODEL_DIR/model.t7" "$TEST_LST";
+```bash
+laia-docker decode "$MODEL_DIR/model.t7" "$TEST_LST";
 ```
 Positional arguments:
 - `$MODEL_DIR/model.t7` is the path to the model.
