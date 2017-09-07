@@ -44,7 +44,7 @@ To ease the installation, there is a public [docker image for Laia](https://hub.
 
 Then copy the command line interface script to some directory in your path for easily use from the host.
 
-    docker run --rm -it -u $(id -u):$(id -g) -v $HOME:$HOME mauvilsa/Laia bash -c "cp /usr/local/bin/laia-docker $HOME/bin"
+    docker run --rm -it -u $(id -u):$(id -g) -v $HOME:$HOME laia:active bash -c "cp /usr/local/bin/laia-docker $HOME/bin"
 
 After this, all Laia commands can be executed by using the laia-docker command. For further details run.
 
@@ -60,6 +60,10 @@ Create an "empty" model using:
 laia-create-model \
     "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
 ```
+Or if installed via docker:
+```laia-docker create-model \
+    "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
+```
 Positional arguments:
 - `$CHANNELS`: number of channels of the input images.
 - `$INPUT_HEIGHT`: height of the input images. Note: **ALL** image must have the same height.
@@ -71,6 +75,12 @@ For optional arguments check `laia-create-model -h` or `laia-create-model -H`.
 Train the model using:
 ```bash
 laia-train-ctc \
+    "$MODEL_DIR/model.t7" \
+    "$SYMBOLS_TABLE" \
+    "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
+```
+Or if installed via docker:
+```laia-docker train-ctc \
     "$MODEL_DIR/model.t7" \
     "$SYMBOLS_TABLE" \
     "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
@@ -89,6 +99,9 @@ For optional arguments check `laia-train-ctc -h` or `laia-create-model -H`.
 
 ```bash
 laia-decode "$MODEL_DIR/model.t7" "$TEST_LST";
+```
+Or if installed via docker:
+```laia-docker decode "$MODEL_DIR/model.t7" "$TEST_LST";
 ```
 Positional arguments:
 - `$MODEL_DIR/model.t7` is the path to the model.
