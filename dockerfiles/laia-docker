@@ -6,7 +6,7 @@ DESCRIPTION
   Command line interface to the Laia handwritten text recognition (HTR)
   toolkit installed as a docker image. It assumes that docker is installed,
   that it can be executed without sudo and that the corresponding image is
-  tagged as laia:selected. It will only work if the arguments do not contain
+  tagged as laia:active. It will only work if the arguments do not contain
   spaces or bash special characters and is executed from and referencing only
   files in the host's /home, /mnt, /media or /tmp directories.
 

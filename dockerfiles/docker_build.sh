@@ -21,6 +21,6 @@ mkdir -p logs;
 ### Laia ###
 REV=$(sed -rn '/^Version.DATE/{ s|.*Date: *([0-9]+)-([0-9]+)-([0-9]+).*|\1.\2.\3|; p; }' ../laia/Version.lua);
 { DS=$(date +%s);
-  nvidia-docker build -t mauvilsa/laia:${REV}-cuda$CUDA-$OS --build-arg CUDA=$CUDA .;
+  nvidia-docker build --no-cache -t mauvilsa/laia:${REV}-cuda$CUDA-$OS --build-arg CUDA=$CUDA .;
   echo "time: $(( $(date +%s) - DS )) seconds";
 } 2>logs/laia-cuda$CUDA-$OS.err >logs/laia-cuda$CUDA-$OS.log;
