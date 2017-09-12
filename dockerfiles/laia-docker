@@ -10,6 +10,13 @@ DESCRIPTION
   spaces or bash special characters and is executed from and referencing only
   files in the host's /home, /mnt, /media or /tmp directories.
 
+  The interface can also be used to execute custom scripts inside the
+  container, e.g. to create a model with a different architecture than the
+  ones provided by laia-create-model. For this to work, the name of the
+  custom script must start with laia- and it must be located either in your
+  current directory or in \$PATH though restricted to the directories
+  accessible to the container.
+
 SYNOPSIS
   laia-docker COMMAND ARGUMENTS
 
@@ -30,4 +37,4 @@ OPTS=( -u $(id -u):$(id -g) );
 [ -d "/tmp" ]   && OPTS+=( -v /tmp:/tmp );
 
 nvidia-docker run --rm -t "${OPTS[@]}" laia:active \
-  bash -c "cd $(pwd) && laia-$COMMAND $*";
+  bash -c "cd $(pwd) && PATH=\".:$PATH:\$PATH\" laia-$COMMAND $*";
