@@ -34,6 +34,11 @@ parser:option(
   '--gpu', 'If gpu>0, uses the specified GPU, otherwise uses the CPU.',
   1, laia.toint)
 parser:option(
+  '--smoothing_additive', 'If > 0, adds this amount to all symbols for prior ' ..
+    'computation.',
+  0, tonumber)
+  :argname('<float>')
+parser:option(
   '--auto_width_factor', 'If true, sets the width factor for the batchers ' ..
     'automatically, from the size of the pooling layers.',
   false, laia.toboolean)
@@ -162,9 +167,16 @@ end
 -- Output priors and total counts
 if output_prior and prior_count then
   local prior_total = prior_count:sum()
-  for n=1,prior_count:size(1) do
-    output_prior:write(('%d\t%d\t%d\t%.10e\n'):format(
-	n, prior_count[n], prior_total, prior_count[n]/prior_total))
+  if opts.smoothing_additive > 0 then
+    for n=1,prior_count:size(1) do
+      output_prior:write(('%d\t%d\t%d\t%.10e\n'):format(
+        n, prior_count[n], prior_total, (opts.smoothing_additive+prior_count[n])/(prior_count:size(1)*opts.smoothing_additive+prior_total)))
+    end
+  else
+    for n=1,prior_count:size(1) do
+      output_prior:write(('%d\t%d\t%d\t%.10e\n'):format(
+        n, prior_count[n], prior_total, prior_count[n]/prior_total))
+    end
   end
   output_prior:close()
 end
