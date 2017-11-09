@@ -1,8 +1,8 @@
 ### Input arguments (https://github.com/moby/moby/pull/31352) ###
-#ARG CUDA=7.5
+#ARG CUDA=8.0
 
 ### Start with NVIDIA cuDNN base image ###
-FROM nvidia/cuda:7.5-cudnn5-devel-ubuntu14.04
+FROM nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04
 
 MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 

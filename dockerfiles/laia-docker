@@ -1,0 +1,40 @@
+#!/bin/bash
+
+if ( [ "$#" = 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] ); then
+  echo "
+DESCRIPTION
+  Command line interface to the Laia handwritten text recognition (HTR)
+  toolkit installed as a docker image. It assumes that docker is installed,
+  that it can be executed without sudo and that the corresponding image is
+  tagged as laia:active. It will only work if the arguments do not contain
+  spaces or bash special characters and is executed from and referencing only
+  files in the host's /home, /mnt, /media or /tmp directories.
+
+  The interface can also be used to execute custom scripts inside the
+  container, e.g. to create a model with a different architecture than the
+  ones provided by laia-create-model. For this to work, the name of the
+  custom script must start with laia- and it must be located either in your
+  current directory or in \$PATH though restricted to the directories
+  accessible to the container.
+
+SYNOPSIS
+  laia-docker COMMAND ARGUMENTS
+
+  COMMAND is any of the Laia command line tools excluding the laia- prefix,
+  e.g. create-model, train-ctc, decode. To see the detailed help of a command,
+  just provide --help as argument, e.g. laia-docker decode --help.
+";
+  exit 0;
+fi
+
+COMMAND="$1";
+shift;
+
+OPTS=( -u $(id -u):$(id -g) );
+[ -d "/home" ]  && OPTS+=( -v /home:/home );
+[ -d "/mnt" ]   && OPTS+=( -v /mnt:/mnt );
+[ -d "/media" ] && OPTS+=( -v /media:/media );
+[ -d "/tmp" ]   && OPTS+=( -v /tmp:/tmp );
+
+nvidia-docker run --rm -t "${OPTS[@]}" laia:active \
+  bash -c "cd $(pwd) && PATH=\".:$PATH:\$PATH\" laia-$COMMAND $*";

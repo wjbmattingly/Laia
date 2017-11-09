@@ -34,6 +34,23 @@ Once Torch is installed the following luarocks are required:
 
 And execute `luarocks install https://raw.githubusercontent.com/jpuigcerver/Laia/master/rocks/laia-scm-1.rockspec`.
 
+
+## Installation via docker
+
+To ease the installation, there is a public [docker image for Laia](https://hub.docker.com/r/mauvilsa/laia/). To use it first install [docker](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/#install-docker-ce) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker/releases), and configure docker so that it can be executed without requiring sudo, see [docker linux postinstall](https://docs.docker.com/engine/installation/linux/linux-postinstall/). Then the installation of Laia consists of first pulling the image and tagging it as laia:active.
+
+    docker pull mauvilsa/laia:[SOME_TAG]
+    docker tag mauvilsa/laia:[SOME_TAG] laia:active
+
+Then copy the command line interface script to some directory in your path for easily use from the host.
+
+    docker run --rm -it -u $(id -u):$(id -g) -v $HOME:$HOME laia:active bash -c "cp /usr/local/bin/laia-docker $HOME/bin"
+
+After this, all Laia commands can be executed by using the laia-docker command. For further details run.
+
+    laia-docker --help
+
+
 ## Usage
 
 ### Training a Laia model using CTC:
@@ -41,6 +58,11 @@ And execute `luarocks install https://raw.githubusercontent.com/jpuigcerver/Laia
 Create an "empty" model using:
 ```bash
 laia-create-model \
+    "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
+```
+Or if installed via docker:
+```bash
+laia-docker create-model \
     "$CHANNELS" "$INPUT_HEIGHT" "$((NUM_SYMB+1))" "$MODEL_DIR/model.t7";
 ```
 Positional arguments:
@@ -54,6 +76,13 @@ For optional arguments check `laia-create-model -h` or `laia-create-model -H`.
 Train the model using:
 ```bash
 laia-train-ctc \
+    "$MODEL_DIR/model.t7" \
+    "$SYMBOLS_TABLE" \
+    "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
+```
+Or if installed via docker:
+```bash
+laia-docker train-ctc \
     "$MODEL_DIR/model.t7" \
     "$SYMBOLS_TABLE" \
     "$TRAIN_LST" "$TRAIN_GT" "$VALID_LST" "$VALID_GT";
@@ -72,6 +101,10 @@ For optional arguments check `laia-train-ctc -h` or `laia-create-model -H`.
 
 ```bash
 laia-decode "$MODEL_DIR/model.t7" "$TEST_LST";
+```
+Or if installed via docker:
+```bash
+laia-docker decode "$MODEL_DIR/model.t7" "$TEST_LST";
 ```
 Positional arguments:
 - `$MODEL_DIR/model.t7` is the path to the model.
