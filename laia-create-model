@@ -187,7 +187,7 @@ local function convBlock(
 	      depth_in, depth_out,
 	      kernel_w, kernel_h,
 	      1, 1,
-	      (kernel_w - 1) / 2, (kernel_h - 1) / 2))
+	      math.ceil((kernel_w - 1) / 2), math.ceil((kernel_h - 1) / 2)))
   -- Batch normalization
   if batch_norm then
     block:add(nn.SpatialBatchNormalization(depth_out))
