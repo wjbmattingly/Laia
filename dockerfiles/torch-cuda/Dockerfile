@@ -35,11 +35,5 @@ RUN git clone https://github.com/torch/distro.git ~/torch --recursive \
  && mkdir -p $PREFIX \
  && ./install.sh -b \
 
-### Install CUDA libraries ###
- && luarocks install torch \
- && luarocks install cutorch \
- && luarocks install cunn \
- && luarocks install cudnn \
-
 ### Remove temporal files ###
  && rm -fr /tmp/* ~/torch
