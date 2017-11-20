@@ -55,7 +55,6 @@ build = {
     ["laia.Version"] = "laia/Version.lua",
     ["laia.WeightDecayRegularizer"] = "laia/WeightDecayRegularizer.lua",
     ["laia.nn.ImageColumnSequence"] = "laia/nn/ImageColumnSequence.lua",
-    ["laia.nn.MDRNN"] = "laia/nn/MDRNN.lua",
     ["laia.util.argparse"] = "laia/util/argparse.lua",
     ["laia.util.base"] = "laia/util/base.lua",
     ["laia.util.cudnn"] = "laia/util/cudnn.lua",
