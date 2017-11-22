@@ -38,7 +38,7 @@ tar -xvzf data/Spanish_Number_DB.tgz -C data/;
 ```bash
 ../../laia-train-ctc \
   --adversarial_weight 0.5 \
-  --batch_size "$batch_size" \
+  --batch_size 16 \
   --log_also_to_stderr info \
   --log_level info \
   --log_file laia.log \
