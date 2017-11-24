@@ -46,7 +46,7 @@ sort -k1 > "data/lang/lines/word/all.txt" ||
 { echo "ERROR: Creating file data/lang/lines/word/all.txt" >&2 && exit 1; }
 
 # Prepare character-level transcripts.
-[ "$overwrite" = false -a -s "data/lang/lines/word/all.txt" ] ||
+[ "$overwrite" = false -a -s "data/lang/lines/char/all.txt" ] ||
 awk -v ws="$wspace" '{
   printf("%s", $1);
   for(i=2;i<=NF;++i) {
@@ -71,6 +71,7 @@ awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
 
 # Extract characters list for training.
 mkdir -p "train";
+mkdir -p "train/lines";
 [ "$overwrite" = false -a -s "train/syms.txt" ] ||
 cut -d\  -f2- "data/lang/lines/char/all.txt" | tr \  \\n | sort | uniq |
 awk -v ws="$wspace" 'BEGIN{
