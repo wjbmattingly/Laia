@@ -46,7 +46,7 @@ sort -k1 > "data/lang/lines/word/all.txt" ||
 { echo "ERROR: Creating file data/lang/lines/word/all.txt" >&2 && exit 1; }
 
 # Prepare character-level transcripts.
-[ "$overwrite" = false -a -s "data/lang/lines/word/all.txt" ] ||
+[ "$overwrite" = false -a -s "data/lang/lines/char/all.txt" ] ||
 awk -v ws="$wspace" '{
   printf("%s", $1);
   for(i=2;i<=NF;++i) {
@@ -80,8 +80,8 @@ awk -v ws="$wspace" 'BEGIN{
   N = 3;
 }$1 != ws{
   printf("%-12s %d\n", $1, N++);
-}' > "train/lines/syms.txt" ||
-{ echo "ERROR: Creating file train/lines/syms.txt" >&2 && exit 1; }
+}' > "train/syms.txt" ||
+{ echo "ERROR: Creating file train/syms.txt" >&2 && exit 1; }
 
 # Split files into different partitions (train, test, valid).
 mkdir -p data/lang/lines/{char,word}/"$partition";
