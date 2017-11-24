@@ -71,7 +71,6 @@ awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
 
 # Extract characters list for training.
 mkdir -p "train";
-mkdir -p "train/lines";
 [ "$overwrite" = false -a -s "train/syms.txt" ] ||
 cut -d\  -f2- "data/lang/lines/char/all.txt" | tr \  \\n | sort | uniq |
 awk -v ws="$wspace" 'BEGIN{
@@ -81,8 +80,8 @@ awk -v ws="$wspace" 'BEGIN{
   N = 3;
 }$1 != ws{
   printf("%-12s %d\n", $1, N++);
-}' > "train/lines/syms.txt" ||
-{ echo "ERROR: Creating file train/lines/syms.txt" >&2 && exit 1; }
+}' > "train/syms.txt" ||
+{ echo "ERROR: Creating file train/syms.txt" >&2 && exit 1; }
 
 # Split files into different partitions (train, test, valid).
 mkdir -p data/lang/lines/{char,word}/"$partition";
