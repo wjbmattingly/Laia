@@ -54,10 +54,10 @@ done;
 }
 
 # Compute log-likelihoods from the network.
-mkdir -p decode/lkh;
+mkdir -p decode/lkh/$partition/{lines,forms};
 for p in va te; do
-  ark="decode/lkh/lines/$partition/${p}_${model_name}_ps${prior_scale}.ark";
-  scp="decode/lkh/lines/$partition/${p}_${model_name}_ps${prior_scale}.scp";
+  ark="decode/lkh/$partition/lines/${p}_${model_name}_ps${prior_scale}.ark";
+  scp="decode/lkh/$partition/lines/${p}_${model_name}_ps${prior_scale}.scp";
   # LINES log-likelihoods
   [ "$overwrite" = false -a -s "$ark" -a -s "$scp" ] ||
   ../../laia-netout \

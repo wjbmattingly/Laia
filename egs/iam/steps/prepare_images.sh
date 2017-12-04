@@ -41,7 +41,7 @@ function process_image () {
   local bn="$(basename "$1" .png)";
   # Process image
   [ "$overwrite" = false -a -s "data/imgs/$partition/$bn.jpg" ] ||
-  imgtxtenh -u mm -d 118.110 "$1" png:- |
+  imgtxtenh -d 118.110 "$1" png:- |
   convert png:- -deskew 40% \
     -bordercolor white -border 5 -trim \
     -bordercolor white -border 20x0 +repage \

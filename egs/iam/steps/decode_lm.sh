@@ -132,7 +132,7 @@ if which compute-wer &> /dev/null; then hasComputeWer=1; fi;
 echo "WARNING: Neither Rscript or compute-wer were found, so CER/WER" \
   "won't be computed!" >&2;
 
-mkdir -p "decode/lm/$partition" "decode/lkh/$partition"/{lines,forms};
+mkdir -p "decode/lm/$partition";
 
 if [ "$overwrite" = true ]; then
   overwrite_ext=true;
@@ -216,7 +216,7 @@ fi;
 
 # Perform decoding using the word LM
 qsub_jobs=();
-lkh_dir="decode/lkh/forms/$partition";
+lkh_dir="decode/lkh/$partition/forms";
 fst_dir="decode/lm/$partition/word_fst-${order}gram-${voc_size}";
 for lkh_scp in "$va_lkh_scp" "$te_lkh_scp"; do
   bn="$(basename "$lkh_scp" .scp)";
