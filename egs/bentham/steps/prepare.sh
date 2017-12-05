@@ -78,7 +78,7 @@ function wait_jobs () {
 function process_job () {
   local bn="$(basename "$1" .png)";
   [[ "$overwrite" = false && -s "data/imgs/lines/$bn.jpg" ]] && return 0;
-  imgtxtenh -u mm -d 118.110 "$1" png:- |
+  imgtxtenh -d 118.110 "$1" png:- |
   convert png:- -deskew 40% \
     -bordercolor white -border 5 -trim \
     -bordercolor white -border 20x0 +repage \

@@ -95,7 +95,7 @@ for f in $(awk '{print $1}' data/lang/char/train.txt \
   [ ! -f "$finp" ] && echo "Image $finp is not available!">&2 && exit 1;
   (
     echo "File $finp..." >&2;
-    imgtxtenh -u mm -d 118.1102362205 -k0.1 -S20  "$finp" "${fout}";
+    imgtxtenh -d 118.1102362205 -k0.1 -S20  "$finp" "${fout}";
     trim1="$(convert "${fout}" +repage -fuzz 5% -trim \
             -print '%@' +repage "${fout}")";
     blackb="$(python $SDIR/remove_black_border.py "${fout}")";
