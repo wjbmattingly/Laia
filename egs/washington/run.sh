@@ -31,7 +31,7 @@ exit 1;
 ./steps/prepare.sh --height "$height" --overwrite "$overwrite" || exit 1;
 
 ## This is the number of output symbols of the NN, including the <ctc> symbol.
-num_symbols="$(tail -n1 data/lang/char/syms.txt | awk '{print $2}')";
+num_symbols="$(tail -n1 data/lang/char/syms.txt | gawk '{print $2}')";
 
 ## Train on each partition.
 mkdir -p train/{cv1,cv2,cv3,cv4};

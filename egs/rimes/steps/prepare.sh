@@ -130,7 +130,7 @@ wait_jobs "${bkg_pids[@]}" || exit 1;
 
 # Get character-level transcription from the lines
 [[ "$overwrite" = false && -s data/lang/lines/char/all.txt ]] ||
-awk '{
+gawk '{
   printf("%s", $1);
   for (i=2; i<=NF; ++i) {
     for (j=1; j<=length($i); ++j) {
@@ -145,28 +145,28 @@ exit 1;
 # Extract FORM IDs for validation, training and test.
 # Validation ...
 [ "$overwrite" = false -a -s "data/part/forms/va.lst" ] ||
-awk '$1 ~ /train/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
+gawk '$1 ~ /train/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
   data/lang/lines/word/all.txt | sort -V | uniq |
 shuf --random-source=data/lang/lines/word/all.txt |
 head -n150 | sort -V > "data/part/forms/va.lst" ||
 { echo "ERROR: Creating file \"data/part/forms/va.lst\"!" >&2 && exit 1; }
 # Training ...
 [ "$overwrite" = false -a -s "data/part/forms/tr.lst" ] ||
-awk '$1 ~ /train/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
+gawk '$1 ~ /train/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
   data/lang/lines/word/all.txt | sort -V | uniq |
 shuf --random-source=data/lang/lines/word/all.txt |
 tail -n+151 | sort -V > "data/part/forms/tr.lst" ||
 { echo "ERROR: Creating file \"data/part/forms/tr.lst\"!" >&2 && exit 1; }
 # Test ...
 [ "$overwrite" = false -a -s "data/part/forms/te.lst" ] ||
-awk '$1 ~ /eval/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
+gawk '$1 ~ /eval/{ n = match($1, /^([^ ]+)-[0-9]+$/, A); print A[1]; }' \
   data/lang/lines/word/all.txt | sort -V | uniq > "data/part/forms/te.lst" ||
 { echo "ERROR: Creating file \"data/part/forms/te.lst\"!" >&2 && exit 1; }
 
 for p in tr va te; do
   # Extract LINE IDs for partition $p
   [ "$overwrite" = false -a -s "data/part/lines/$p.lst" ] ||
-  awk -v KF="data/part/forms/$p.lst" '
+  gawk -v KF="data/part/forms/$p.lst" '
   BEGIN{
     while((getline < KF) > 0) { KEEP[$1] = 1; }
   }{
@@ -180,7 +180,7 @@ for p in tr va te; do
     { echo "ERROR: Creating file data/lang/lines/$t/$p.txt" >&2 && exit 1; }
     # Extract FORM {char,word}-level transcript for partition $p
     [[ "$overwrite" = false && -s "data/lang/forms/$t/$p.txt" ]] ||
-    awk -v t="$t" 'BEGIN{ sent_id=""; }{
+    gawk -v t="$t" 'BEGIN{ sent_id=""; }{
       if (match($0, /^([^ ]+)-[0-9]+ (.+)$/, A)) {
         if (A[1] != sent_id) {
           if (sent_id != "") printf("\n");
@@ -210,11 +210,11 @@ for p in tr va te; do
   done;
   # Create lists of line images.
   [[ "$overwrite" = false && -s "data/lists/$p.lst" ]] ||
-  awk '{ print "data/imgs/lines/"$1".jpg" }' "data/part/lines/$p.lst" |
+  gawk '{ print "data/imgs/lines/"$1".jpg" }' "data/part/lines/$p.lst" |
   sort -V > "data/lists/$p.lst" ||
   { echo "ERROR: Creating file data/lists/${p}.lst" >&2 && exit 1; }
   [[ "$overwrite" = false && -s "data/lists/${p}_h$height.lst" ]] ||
-  awk -v H="$height" '{ print "data/imgs/lines_h"H"/"$1".jpg" }' \
+  gawk -v H="$height" '{ print "data/imgs/lines_h"H"/"$1".jpg" }' \
     "data/part/lines/$p.lst" |
   sort -V > "data/lists/${p}_h$height.lst" ||
   { echo "ERROR: Creating file data/lists/${p}_h${height}.lst" >&2 && exit 1; }
@@ -225,7 +225,7 @@ done;
     ( ! train/syms.txt -ot data/lang/lines/char/tr.txt ) &&
     ( ! train/syms.txt -ot data/lang/lines/char/va.txt ) ]] ||
 cut -d\  -f2-  data/lang/lines/char/{tr,va}.txt | tr \  \\n | sort -V | uniq |
-awk '
+gawk '
 BEGIN{
   N = 0;
   printf("%-12s %d\n", "<eps>", N++);

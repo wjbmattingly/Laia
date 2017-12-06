@@ -47,7 +47,7 @@ fi;
 # Count number of samples in the input file (i.e. lines).
 N="$(wc -l "$input" | cut -d\  -f1)";
 
-stats=( $(awk -v C="$column" -v N="$N" '
+stats=( $(gawk -v C="$column" -v N="$N" '
 function ceil(v) { return (v == int(v)) ? v : int(v)+1 }
 BEGIN{
   pidx[0]   = 1;  # Minimum

@@ -66,7 +66,7 @@ for p in va te; do
     "$model" "data/lists/${p}_h$height.lst" > "$txt_char";
   # Get word-level transcript hypotheses for lines
   [ "$overwrite" = false -a -s "$txt_word" ] ||
-  awk '{
+  gawk '{
     printf("%s ", $1);
     for (i=2;i<=NF;++i) {
       if ($i == "@")
@@ -81,21 +81,21 @@ for p in va te; do
     ./utils/compute-errors.py \
       "data/lang/char/${p}_diplomatic.txt" "$txt_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%CER %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
     ./utils/compute-errors.py \
       "data/lang/word/${p}_diplomatic.txt" "$txt_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%WER %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
   elif [ $hasComputeWer -eq 1 ]; then
     # Compute CER and WER using Kaldi's compute-wer
     compute-wer --text --mode=strict \
       "ark:data/lang/char/${p}_diplomatic.txt" "ark:$txt_char" 2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%CER %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%CER %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
       "ark:data/lang/word/${p}_diplomatic.txt" "ark:$txt_word" 2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%WER %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%WER %s: %.2f\n", p, $2); }';
   fi;
 done;
 rm -f "$tmpf";

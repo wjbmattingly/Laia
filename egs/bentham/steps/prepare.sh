@@ -33,7 +33,7 @@ mkdir -p data/lang/{char,word};
 for f in data/original/contestHTRtS{/BenthamData,-test}/Transcriptions/*.txt; do
   bn="$(basename "$f" .txt)";
   echo -n "$bn " && head -n1 "$f" && echo "";
-done | awk 'NF > 0' |
+done | gawk 'NF > 0' |
 sed -r 's|<gap/>|~|g;s|\ +| |g;s|^ ||g;s| $||g' |
 sort -k1 > data/lang/word/all.txt ||
 ( echo "ERROR: Creating file data/lang/word/all.txt" >&2 && exit 1 );
@@ -115,11 +115,11 @@ mkdir -p data/imgs/lines "data/imgs/lines_h$height";
 mkdir -p data/lists;
 for p in te tr va; do
   [ -s "data/lists/$p.lst" ] ||
-  awk '{ print "data/imgs/lines/"$1".jpg" }' "data/lang/char/$p.txt" \
+  gawk '{ print "data/imgs/lines/"$1".jpg" }' "data/lang/char/$p.txt" \
     > "data/lists/$p.lst" ||
   { echo "ERROR: Creating list of images data/lists/$p.lst" >&2 && exit 1; }
   [ -s "data/lists/${p}_h$height.lst" ] ||
-  awk -v height=$height '{ print "data/imgs/lines_h"height"/"$1".jpg" }' \
+  gawk -v height=$height '{ print "data/imgs/lines_h"height"/"$1".jpg" }' \
     "data/lang/char/$p.txt" > "data/lists/${p}_h$height.lst" ||
   { echo "ERROR: Creating list of images data/lists/${p}_h$height.lst" >&2 &&
     exit 1; }
@@ -129,7 +129,7 @@ done;
 mkdir -p train;
 [ -s train/syms.txt ] ||
 cut -d\  -f2- data/lang/char/{tr,va}.txt | tr \  \\n | sort | uniq |
-awk 'BEGIN{
+gawk 'BEGIN{
   printf("%-12s %d\n", "<eps>", 0);
   printf("%-12s %d\n", "<ctc>", 1);
   N = 2;

@@ -34,14 +34,14 @@ out_wspecifier="$4";
 
 # Get the number of symbols (including CTC, but excluding epsilon) and
 # the ID of the whitespace symbol.
-info=( $(awk -v eps="$eps" -v ws="$symbol" '{
+info=( $(gawk -v eps="$eps" -v ws="$symbol" '{
   if ($1 != eps) N++;
   if ($1 == ws) wss=$2;
 }END{ print N, wss }' "$syms") );
 
 # Add frames to all utterances in the input.
 copy-matrix "$inp_rspecifier" ark,t:- |
-awk -v ND="${info[0]}" -v ws="${info[1]}" '
+gawk -v ND="${info[0]}" -v ws="${info[1]}" '
   function add_fake_frame(n) {
     infv=-3.4 * 10^38;
     for (i = 1; i < ws; ++i) { printf(" %g", infv); }

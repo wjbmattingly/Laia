@@ -71,7 +71,7 @@ for f in "${corpora[@]}"; do
   # Prepare character-level transcripts.
   [[ "$overwrite" = false && -s "data/lang/external/char/$c.txt" &&
       ( ! "data/lang/external/char/$c.txt" -ot "$txt" ) ]] ||
-  awk -v ws="$wspace" '{
+  gawk -v ws="$wspace" '{
     for(i=1;i<=NF;++i) {
       for(j=1;j<=length($i);++j) {
         printf(" %s", substr($i, j, 1));

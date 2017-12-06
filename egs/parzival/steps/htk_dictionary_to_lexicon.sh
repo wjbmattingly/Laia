@@ -22,7 +22,7 @@ echo "ERROR: File \"$f\" was not found!" >&2 && exit 1;
 
 mkdir -p data/lang/word;
 
-awk '{
+gawk '{
   # Get lexicon word
   if (substr($1, 1, 1) == "\"") {
     w = substr($1, 2, length($1) - 2);

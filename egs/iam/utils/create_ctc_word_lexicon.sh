@@ -98,7 +98,7 @@ max_char_disambig=$(./utils/add_lex_disambig.pl --pron-probs \
 
 # Add missing symbols to the char/hmm symbols map.
 tmpf="$(mktemp)";
-awk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v md="$max_char_disambig" '
+gawk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v md="$max_char_disambig" '
 BEGIN{
   maxid=0;
   printf("%-15s %d\n", eps, 0);
@@ -132,7 +132,7 @@ mv "$tmpf" "$char_syms_out" ||
 
 # Add missing symbols tot the word symbols map.
 tmpf="$(mktemp)";
-awk -v eps="$eps" -v dm="$dummy" '
+gawk -v eps="$eps" -v dm="$dummy" '
 BEGIN {
   maxid=0;
   printf("%-25s %d\n", eps, 0);
@@ -167,7 +167,7 @@ mv "$tmpf" "$word_syms_out" ||
 [[ "$overwite" = false && -s "$ofst" &&
     ( ! "$ofst" -ot "$no_space_words" ) &&
     ( ! "$ofst" -ot "$lexicon_prob" ) ]] ||
-awk -v eps="$eps" -v dm="$dummy" -v ws="$wspace" \
+gawk -v eps="$eps" -v dm="$dummy" -v ws="$wspace" \
   -v no_space_words="$no_space_words" '
 BEGIN{
   if (no_space_words != "") {

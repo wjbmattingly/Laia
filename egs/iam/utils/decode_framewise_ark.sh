@@ -17,7 +17,7 @@ source utils/parse_options.inc.sh || exit 1;
 
 [ ! -s "$1" ] && echo "ERROR: File \"$2\" was not found!" >&2 && exit 1;
 
-copy-matrix "$2" ark,t:- | awk '{
+copy-matrix "$2" ark,t:- | gawk '{
  if ($2 == "[") printf("%s", $1);
  else {
    maxi = ($NF == "]" ? NF - 1 : NF);
@@ -28,11 +28,11 @@ copy-matrix "$2" ark,t:- | awk '{
    printf(" %d", maxs);
    if ( $NF == "]" ) printf("\n");
  }
-}' | awk '{
+}' | gawk '{
  printf("%s", $1);
  for (i=2; i <= NF; ++i) if (i == 2 || $i != $(i - 1)) printf(" %s", $i);
  printf("\n");
-}' | awk -v ctc="$ctc" -v SF="$1" '
+}' | gawk -v ctc="$ctc" -v SF="$1" '
 BEGIN{
   while ((getline < SF) > 0) { S[$2] = $1; if ($1 == ctc) ctc_int=$2; }
 }{

@@ -71,7 +71,7 @@ for p in va te; do
     "$model" "data/lists/lines/$partition/${p}_h$height.lst" > "$lines_char";
   # Get word-level transcript hypotheses for lines
   [ "$overwrite" = false -a -s "$lines_word" ] ||
-  awk '{
+  gawk '{
     printf("%s ", $1);
     for (i=2;i<=NF;++i) {
       if ($i == "<space>")
@@ -83,7 +83,7 @@ for p in va te; do
   }' "$lines_char" > "$lines_word";
   # Get form char-level transcript hypothesis
   [ "$overwrite" = false -a -s "$forms_char" ] ||
-  awk '{
+  gawk '{
     if (match($1, /^([^ ]+)-[0-9]+$/, A)) {
       if (A[1] != form_id) {
         if (form_id != "") printf("\n");
@@ -98,7 +98,7 @@ for p in va te; do
   }' "$lines_char" > "$forms_char";
   # Get form word-level transcript hypothesis
   [ "$overwrite" = false -a -s "$forms_word" ] ||
-  awk '{
+  gawk '{
     if (match($1, /^([^ ]+)-[0-9]+$/, A)) {
       if (A[1] != form_id) {
         if (form_id != "") printf("\n");
@@ -114,40 +114,40 @@ for p in va te; do
     ./utils/compute-errors.py \
       "data/lang/lines/char/$partition/${p}.txt" "$lines_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%CER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
     ./utils/compute-errors.py \
       "data/lang/lines/word/$partition/${p}.txt" "$lines_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%WER lines %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
     ./utils/compute-errors.py \
       "data/lang/forms/char/$partition/${p}.txt" "$forms_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%CER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
     ./utils/compute-errors.py \
       "data/lang/forms/word/$partition/${p}.txt" "$forms_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%WER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
   elif [ $hasComputeWer -eq 1 ]; then
     # Compute CER and WER using Kaldi's compute-wer
     compute-wer --text --mode=strict \
       "ark:data/lang/lines/char/$partition/${p}.txt" "ark:$lines_char" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%CER lines %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%CER lines %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
       "ark:data/lang/lines/word/$partition/${p}.txt" "ark:$lines_word" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%WER lines %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%WER lines %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
       "ark:data/lang/forms/char/$partition/${p}.txt" "ark:$forms_char" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%CER forms %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%CER forms %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict \
       "ark:data/lang/forms/word/$partition/${p}.txt" "ark:$forms_word" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
   fi;
 done;

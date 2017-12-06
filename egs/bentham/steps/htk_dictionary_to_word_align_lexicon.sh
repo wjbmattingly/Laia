@@ -22,7 +22,7 @@ for f in "$1" "$2" "$3"; do
   [ ! -f "$f" ] && echo "ERROR: File \"$f\" does not exist!" >&2 && exit 1;
 done;
 
-awk -v PIT="$2" -v WIT="$3" -v WOT="$4" 'BEGIN{
+gawk -v PIT="$2" -v WIT="$3" -v WOT="$4" 'BEGIN{
   while ((getline < PIT) > 0) {
     phon2int[$1] = $2;
   }

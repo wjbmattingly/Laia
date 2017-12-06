@@ -90,10 +90,10 @@ for c in aachen original; do
   for f in data/part/$partition/$c/*.lst; do
     bn=$(basename "$f" .lst);
     [ -s "data/lists/$partition/$c/$bn.lst" ] ||
-    awk -v p="$partition" '{ print "data/imgs/"p"/"$1".jpg" }' "$f" \
+    gawk -v p="$partition" '{ print "data/imgs/"p"/"$1".jpg" }' "$f" \
       > "data/lists/$partition/$c/$bn.lst" || exit 1;
     [ -s "data/lists/$partition/$c/${bn}_h${h}.lst" ] ||
-    awk -v h="$height" -v p="$partition" \
+    gawk -v h="$height" -v p="$partition" \
       '{ print "data/imgs/"p"_h"h"/"$1".jpg" }' "$f" \
       > "data/lists/$partition/$c/${bn}_h${height}.lst" || exit 1;
   done;

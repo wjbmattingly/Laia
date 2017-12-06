@@ -17,7 +17,7 @@ histo=false;
 [[ $# -eq 4 && "$1" = "--histo" ]] && { histo=true; shift 1; };
 
 tmpf="$(mktemp)";
-awk -v F="$1" -v D="$2" '
+gawk -v F="$1" -v D="$2" '
 BEGIN{ sexts="jpg,jpeg,png,pgm"; NE = split(sexts, exts, ","); }
 {
   for (i=1;i<=NE;++i) {

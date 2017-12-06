@@ -4,7 +4,7 @@ set -e;
 
 n=0;
 while true; do
-  mem="$(nvidia-smi | awk -v pid="$1" '$3 == pid{print $(NF - 1)}')"
+  mem="$(nvidia-smi | gawk -v pid="$1" '$3 == pid{print $(NF - 1)}')"
   [ -z "$mem" ] && exit 0;
   echo "$mem";
   n=$[n+1];

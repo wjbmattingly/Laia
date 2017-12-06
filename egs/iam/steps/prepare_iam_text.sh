@@ -33,8 +33,8 @@ mkdir -p data/lang/{lines,forms}/{char,word};
 
 # Prepare word-level transcripts.
 [ "$overwrite" = false -a -s "data/lang/lines/word/all.txt" ] ||
-awk '$1 !~ /^#/' "data/original/lines.txt" | cut -d\  -f1,9- |
-awk '{ $1=$1"|"; print; }' |
+gawk '$1 !~ /^#/' "data/original/lines.txt" | cut -d\  -f1,9- |
+gawk '{ $1=$1"|"; print; }' |
 # Some words include spaces (e.g. "B B C" -> "BBC"), remove them.
 sed -r 's| +||g' |
 # Replace character | with whitespaces.
@@ -47,7 +47,7 @@ sort -k1 > "data/lang/lines/word/all.txt" ||
 
 # Prepare character-level transcripts.
 [ "$overwrite" = false -a -s "data/lang/lines/char/all.txt" ] ||
-awk -v ws="$wspace" '{
+gawk -v ws="$wspace" '{
   printf("%s", $1);
   for(i=2;i<=NF;++i) {
     for(j=1;j<=length($i);++j) {
@@ -63,7 +63,7 @@ sort -k1 > "data/lang/lines/char/all.txt" ||
 # Add whitespace boundaries to the character-level transcripts.
 # Note: Actually not used, but could be used in the future.
 [ "$overwrite" = false -a -s "data/lang/lines/char/all_wspace.txt" ] ||
-awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
+gawk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
   "data/lang/lines/char/all.txt" \
   > "data/lang/lines/char/all_wspace.txt" ||
 { echo "ERROR: Creating file data/lang/lines/char/all_wspace.txt" >&2 &&
@@ -73,7 +73,7 @@ awk -v ws="$wspace" '{ $1=$1" "ws; printf("%s %s\n", $0, ws); }' \
 mkdir -p "train";
 [ "$overwrite" = false -a -s "train/syms.txt" ] ||
 cut -d\  -f2- "data/lang/lines/char/all.txt" | tr \  \\n | sort | uniq |
-awk -v ws="$wspace" 'BEGIN{
+gawk -v ws="$wspace" 'BEGIN{
   printf("%-12s %d\n", "<eps>", 0);
   printf("%-12s %d\n", "<ctc>", 1);
   printf("%-12s %d\n", ws, 2);
@@ -124,7 +124,7 @@ for p in tr te va; do
   # Get the word-level transcript of the whole form.
   [[ "$overwrite" = false && -s "$txtw" &&
       ( ! "$txtw" -ot "data/lang/lines/word/$partition/$p.txt" ) ]] ||
-  awk 'BEGIN{ sent_id=""; }{
+  gawk 'BEGIN{ sent_id=""; }{
     if (match($0, /^([^ ]+)-[0-9]+ (.+)$/, A)) {
       if (A[1] != sent_id) {
         if (sent_id != "") printf("\n");
@@ -146,7 +146,7 @@ for p in tr te va; do
   { echo "ERROR: Creating file $tok" >&2 && exit 1; }
   # Prepare character-level transcripts.
   [ "$overwrite" = false -a -s "$txtc" ] ||
-  awk -v ws="$wspace" '{
+  gawk -v ws="$wspace" '{
     printf("%s", $1);
     for(i=2;i<=NF;++i) {
       for(j=1;j<=length($i);++j) {

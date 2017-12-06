@@ -12,7 +12,7 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
 
 function getVocFromARPA () {
   if [ "${1:(-3)}" = ".gz" ]; then zcat "$1"; else cat "$1"; fi |
-  awk -v unk="$unk" -v bos="$bos" -v eos="$eos" 'BEGIN{ og=0; }{
+  gawk -v unk="$unk" -v bos="$bos" -v eos="$eos" 'BEGIN{ og=0; }{
     if ($0 == "\\1-grams:") og=1;
     else if ($0 == "\\2-grams:") { og=0; exit; }
     else if (og == 1 && NF > 1 && $2 != bos && $2 != eos && $2 != unk) print $2;
@@ -69,7 +69,7 @@ tmpd="$(mktemp -d)";
 # List of characters present in the language model
 getVocFromARPA "$arpalm" > "$tmpd/lm.chars";
 # List of characters present in the character map
-awk '{print $1}' "$charmap" | sort | uniq > "$tmpd/lex.chars";
+gawk '{print $1}' "$charmap" | sort | uniq > "$tmpd/lex.chars";
 # List of chars present in the input lexicon, but not present in the ARPA LM.
 comm -13 "$tmpd/lm.chars" "$tmpd/lex.chars" > "$tmpd/lex.oov";
 num_oovc_lex="$(wc -l "$tmpd/lex.oov"  | cut -d\  -f1)";
@@ -86,7 +86,7 @@ echo "WARNING: #OOV chars in the input ARPA LM: $num_oovc_lm" \
 
 
 # Create lexicon with pronunciations for each character.
-awk -v IGNORE_FILE="$tmpd/lex.oov" -v bos="$bos" -v eos="$eos" -v dm="$dummy" '
+gawk -v IGNORE_FILE="$tmpd/lex.oov" -v bos="$bos" -v eos="$eos" -v dm="$dummy" '
 BEGIN{
   while((getline < IGNORE_FILE) > 0){ IGNORE[$1]=1; }
   seen_bos = seen_eos = 0;
@@ -119,7 +119,7 @@ fi;
 # Check that all the HMMs in the lexicon are in the set of Laia symbols
 # used for training!
 # This is just for safety.
-missing_hmm=( $(awk -v LSF="$laia_syms" -v dm="$dummy" '
+missing_hmm=( $(gawk -v LSF="$laia_syms" -v dm="$dummy" '
 BEGIN{
   while ((getline < LSF) > 0) C[$1]=1;
 }{
@@ -134,8 +134,8 @@ echo "${missing_hmm[@]}" >&2 && exit 1;
 # Note: These are actually characters which appear in the language model.
 [[ "$overwrite" = false && -s "$odir/words.txt" &&
     ( ! "$odir/words.txt" -ot "$odir/lexiconp.txt" ) ]] ||
-awk '{print $1}' "$odir/lexiconp.txt" | sort | uniq |
-awk -v eps="$eps" -v bos="$bos" -v eos="$eos" '
+gawk '{print $1}' "$odir/lexiconp.txt" | sort | uniq |
+gawk -v eps="$eps" -v bos="$bos" -v eos="$eos" '
 BEGIN{
   maxid = 0;
   printf("%-12s %d\n", eps, maxid++);
@@ -154,7 +154,7 @@ BEGIN{
     ( ! "$odir/chars.txt" -ot "$laia_syms" ) &&
     ( ! "$odir/chars.txt" -ot "$odir/lexiconp_disambig.txt" ) ]] ||
 sort -n -k2 "$laia_syms" |
-awk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v ND="$ndisambig" '
+gawk -v eps="$eps" -v ctc="$ctc" -v dm="$dummy" -v ND="$ndisambig" '
 BEGIN{
   printf("%-12s %d\n", eps, 0);
   printf("%-12s %d\n", ctc, 1);
@@ -173,9 +173,9 @@ BEGIN{
 
 
 # Create integer list of disambiguation symbols.
-awk '$1 ~ /^#.+/{ print $2 }' "$odir/chars.txt" > "$odir/chars_disambig.int";
+gawk '$1 ~ /^#.+/{ print $2 }' "$odir/chars.txt" > "$odir/chars_disambig.int";
 # Create integer list of disambiguation symbols.
-awk '$1 ~ /^#.+/{ print $2 }' "$odir/words.txt" > "$odir/words_disambig.int";
+gawk '$1 ~ /^#.+/{ print $2 }' "$odir/words.txt" > "$odir/words_disambig.int";
 
 
 # Create HMM model and tree
@@ -194,8 +194,8 @@ fstcompile --isymbols="$odir/chars.txt" --osymbols="$odir/words.txt" |
 fstdeterminizestar --use-log=true |
 fstminimizeencoded |
 fstaddselfloops \
-  <(egrep \#0 "$odir/chars.txt" | awk '{print $2}') \
-  <(egrep \#0 "$odir/words.txt" | awk '{print $2}') |
+  <(egrep \#0 "$odir/chars.txt" | gawk '{print $2}') \
+  <(egrep \#0 "$odir/words.txt" | gawk '{print $2}') |
 fstarcsort --sort_type=ilabel > "$odir/L.fst" ||
 ( echo "Failed $odir/L.fst creation!" >&2 && exit 1; );
 
@@ -250,7 +250,7 @@ fstarcsort --sort_type=olabel > "$odir/HCL.fst" ||
 if [[ "${arpalm##*.}" = gz ]]; then zcat "$arpalm" ; else cat "$arpalm"; fi |
 grep -v "$bos $bos" | grep -v "$eos $bos" | grep -v "$eos $eos" |
 arpa2fst - 2> /dev/null | fstprint --acceptor |
-awk -v eps="$eps" -v bos="$bos" -v eos="$eos" -v WF="$odir/lexiconp.txt" '
+gawk -v eps="$eps" -v bos="$bos" -v eos="$eos" -v WF="$odir/lexiconp.txt" '
 BEGIN{
   while ((getline < WF) > 0) { W[$1]=1; }
   lex_has_bos = (bos in W) ? 1 : 0;

@@ -26,7 +26,7 @@ done;
 # We need to remove <add>(.+)</add> from the text, since this text is actually
 # present in a different line.
 function remove_add () {
-  awk '{
+  gawk '{
     if (match($0, "(.+)<add>(.+)</add>(.*)", A)) {
       print A[1], A[3];
     } else {
@@ -42,7 +42,7 @@ function remove_unclear () {
 
 # Remove special tags of words.
 function remove_tags () {
-  awk '{
+  gawk '{
     printf("%s", $1);
     for (i = 2; i <= NF; ++i) {
       if (match($i, /^(.+)\$\.(.+)$/, A)) {     # Abbrev
@@ -122,7 +122,7 @@ done;
 for f in data/lang/word/{va,te}_diplomatic.txt; do
   f2="data/lang/char/$(basename "$f")";
   [ "$overwrite" = false  -a  -f "$f2" ] && continue;
-  awk '{
+  gawk '{
     printf("%s", $1);
     for (i=2; i <= NF; ++i) {
       for (j = 1; j <= length($i); ++j) {

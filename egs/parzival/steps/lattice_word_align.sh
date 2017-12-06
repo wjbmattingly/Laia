@@ -48,7 +48,7 @@ for p in va te; do
     (
       lattice-push "ark:zcat $ilat|" ark:- |
       lattice-align-words-lexicon \
-	<(awk 'BEGIN{
+	<(gawk 'BEGIN{
                  while((getline < "decode/lm/word_fst_htk/words.txt") > 0)
                   WID[$1] = $2;
                  while((getline < "decode/lm/word_fst_htk/chars.txt") > 0)

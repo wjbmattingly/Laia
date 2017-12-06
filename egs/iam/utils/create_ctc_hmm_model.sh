@@ -59,14 +59,14 @@ mkdir -p "$(dirname "$model")" "$(dirname "$tree")";
 
 # This is the list of all the actual characters (no epsilon, no ctc, no dummy,
 # and no disambiguation symbols).
-char_ids=( $(awk -v ctc="$ctc" -v eps="$eps" -v dm="$dummy" -v dr="$dregex" \
+char_ids=( $(gawk -v ctc="$ctc" -v eps="$eps" -v dm="$dummy" -v dr="$dregex" \
   '$1!=eps && $1!=ctc && $1!=dm && $1!~dr{print $2;}' $symbs_all | sort -n) );
 # This is the integer ID for the epsilon symbol. MUST BE 0
-eps_id="$(awk -v eps="$eps" '$1 == eps{print $2}' $symbs_all)";
+eps_id="$(gawk -v eps="$eps" '$1 == eps{print $2}' $symbs_all)";
 # This is the integer ID for the CTC symbol.
-ctc_id="$(awk -v ctc="$ctc" '$1 == ctc{print $2}' $symbs_all)";
+ctc_id="$(gawk -v ctc="$ctc" '$1 == ctc{print $2}' $symbs_all)";
 # This is the integer ID for the dummy symbol.
-dummy_id="$(awk -v dm="$dummy" '$1 == dm{print $2}' $symbs_all)";
+dummy_id="$(gawk -v dm="$dummy" '$1 == dm{print $2}' $symbs_all)";
 # Maximum symbol ID, excluding disambiguation and epsilon
 max_id=$(printf "%d\n" ${char_ids[@]} $ctc_id $dummy_id | sort -nr | head -n1);
 

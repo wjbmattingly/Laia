@@ -101,7 +101,7 @@ for f in  "data/lists/lines/$partition/te_h$height.lst" \
 done;
 
 # Get number of symbols
-num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
+num_syms="$(tail -n1 train/syms.txt | gawk '{ print $2 }')";
 
 # Create directory
 mkdir -p "train/$partition";

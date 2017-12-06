@@ -20,7 +20,7 @@ source utils/parse_options.inc.sh || exit 1;
 [ ! -f "data/original/Bentham-Batch1_newTok.dic" ] &&
 echo "ERROR: File \"$f\" was not found!" >&2 && exit 1;
 
-awk 'BEGIN{
+gawk 'BEGIN{
   printf("\"<s>\" [<s>] 1\n");
   printf("\"</s>\" [</s>] 1 @\n");
 }{

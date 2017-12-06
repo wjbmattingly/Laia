@@ -20,7 +20,7 @@ source utils/parse_options.inc.sh || exit 1;
 [ ! -f "data/original/Bentham-Batch1_newTok.dic" ] &&
 echo "ERROR: File \"$f\" was not found!" >&2 && exit 1;
 
-awk 'BEGIN{
+gawk 'BEGIN{
   printf("%20-s %f    @\n", "</s>", 1.0);
 }{
   # Get lexicon word

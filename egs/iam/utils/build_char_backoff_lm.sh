@@ -91,12 +91,12 @@ function check_not_older () {
 
 # Convert a lines of word-level sentences into words.
 function sent2word () {
-  sed -r 's| +|\n|g;s|^\ +||g;s|\ +$||g;s|\ +| |g' $@ | awk 'NF > 0';
+  sed -r 's| +|\n|g;s|^\ +||g;s|\ +$||g;s|\ +| |g' $@ | gawk 'NF > 0';
 }
 
 # Exclude lines present in the file $exclude_vocab
 function excludevoc () {
-  awk -v VF="$exclude_vocab" '
+  gawk -v VF="$exclude_vocab" '
 BEGIN{ if (VF != "") { while((getline < VF) > 0) V[$0]=1; } }
 !($0 in V){ print; }' $@;
 }
@@ -112,7 +112,7 @@ function interpolate_arpa_files () {
   for arpa in $@; do
     info="${arpa/.arpa.gz/.info}";
     [[ "$overwrite" = false && -s "$info" && ( ! "$info" -ot "$arpa" ) ]] ||
-    awk '{$1=""; print;}' "$va_txt" | sent2word | excludevoc | word2char |
+    gawk '{$1=""; print;}' "$va_txt" | sent2word | excludevoc | word2char |
     ngram -order "$order" -debug 2 -ppl - -lm <(zcat "$arpa") &> "$info" ||
     { echo "ERROR: Creating file \"$info\"!" >&2 && exit 1; }
     info_files+=("$info");
@@ -123,7 +123,7 @@ function interpolate_arpa_files () {
     check_not_older "$mixf" "${info_files[@]}" ) ||
   compute-best-mix "${info_files[@]}" &> "$mixf" ||
   { echo "ERROR: Creating file \"$mixf\"!" >&2 && exit 1; }
-  lambdas=( $(grep "best lambda" "$mixf" | awk -F\( '{print $2}' | tr -d \)) );
+  lambdas=( $(grep "best lambda" "$mixf" | gawk -F\( '{print $2}' | tr -d \)) );
   # Interpolate language models.
   tmpfs=();
   args=();
@@ -161,7 +161,7 @@ grep -v "$eps" | grep -v "$ctc" | grep -v "$wspace" > "$vocf";
 outf="$odir/$(basename "$tr_txt" .txt)-${order}gram.arpa.gz";
 [[ "$overwrite" = false && -s "$outf" &&
     ( ! "$outf" -ot "$tr_txt" ) && ( ! "$outf" -ot "$syms" ) ]] ||
-awk '{$1=""; print;}' "$tr_txt" | sent2word | excludevoc | word2char |
+gawk '{$1=""; print;}' "$tr_txt" | sent2word | excludevoc | word2char |
 ngram-count -order "$order" -vocab "$vocf" $srilm_options -text - -lm - |
 gzip -9 -c > "$outf" ||
 { echo "ERROR: Failed creating file \"$outf\"!" >&2 && exit 1; }
@@ -189,18 +189,18 @@ ppl=();
 oov=();
 oovp=();
 for f in "$tr_txt" "$va_txt" "$te_txt"; do
-  ppl+=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
+  ppl+=( $(gawk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
       ngram -order "$order" -ppl - -lm <(zcat "$outf") 2>&1 |
       tail -n1 | sed -r 's|^.+\bppl= ([0-9.]+)\b.+$|\1|g' |
-      awk '{printf("%.2f", $1);}') );
-  aux=( $(awk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
-      awk -v VF="$vocf" '
+      gawk '{printf("%.2f", $1);}') );
+  aux=( $(gawk '{$1=""; print;}' "$f" | sent2word | excludevoc | word2char |
+      gawk -v VF="$vocf" '
 BEGIN{ N=0; OOV=0; while((getline < VF) > 0) V[$1]=1; }
 { for (i=1;i<=NF;++i) { ++N; if (!($i in V)) ++OOV; } }
 END{ print OOV, N; }') );
   oov+=(${aux[0]});
   oovp+=( $(echo "${aux[0]} ${aux[1]}" |
-      awk '{ printf("%.2f", 100 * $1 / $2); }') );
+      gawk '{ printf("%.2f", 100 * $1 / $2); }') );
 done;
 
 # Print statistics

@@ -53,7 +53,7 @@ for p in train test; do
   # <él>  -> ;
   # For the character-level transcripts, use @ as the whitespace symbol.
   sed -r 's/(\S*\[\S*\]\S*)/\1./g;s/\[\S*\]//g;s/<\S*>//g' \
-    data/lang/word/$p.orig.txt | awk '{
+    data/lang/word/$p.orig.txt | gawk '{
       printf("%s", $1);
       for (i=2; i<=NF; ++i) {
         for(j=1;j<=length($i);++j) {
@@ -72,7 +72,7 @@ done;
   for p in train test; do
     cut -f 2- -d\  data/lang/char/$p.txt | tr \  \\n;
   done | sort -u -V |
-  awk 'BEGIN{
+  gawk 'BEGIN{
     N=0;
     printf("%-12s %d\n", "<eps>", N++);
     printf("%-12s %d\n", "<ctc>", N++);
@@ -87,7 +87,7 @@ mkdir -p data/imgs_proc;
 bkg_pids=();
 bkg_errs=();
 np="$(nproc)";
-for f in $(awk '{print $1}' data/lang/char/train.txt \
+for f in $(gawk '{print $1}' data/lang/char/train.txt \
   data/lang/char/test.txt); do
   finp=data/corpus/Line-Level/$f.png;
   fout=data/imgs_proc/$f.jpg;
@@ -128,11 +128,11 @@ done;
 
 
 ## Prepare test, train and valid files.
-awk '{ print "data/imgs_proc/"$1".jpg"; }' data/lang/char/test.txt \
+gawk '{ print "data/imgs_proc/"$1".jpg"; }' data/lang/char/test.txt \
   > data/test.lst;
 TMPF="$(mktemp)";
 sort -R --random-source=data/lang/char/train.txt data/lang/char/train.txt |
-awk '{ print "data/imgs_proc/"$1".jpg"; }' > "$TMPF";
+gawk '{ print "data/imgs_proc/"$1".jpg"; }' > "$TMPF";
 head -n100  "$TMPF" | sort -V > data/valid.lst;
 tail -n+101 "$TMPF" | sort -V > data/train.lst;
 rm -f "$TMPF";

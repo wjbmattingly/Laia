@@ -55,7 +55,7 @@ for f in  "data/lists/te_h$height.lst" \
 done;
 
 # Get number of symbols
-num_syms="$(tail -n1 train/syms.txt | awk '{ print $2 }')";
+num_syms="$(tail -n1 train/syms.txt | gawk '{ print $2 }')";
 
 if [[ "$overwrite" = true || ( ! -s "train/$model_name.t7" ) ]]; then
     # Create model

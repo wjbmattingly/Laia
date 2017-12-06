@@ -39,7 +39,7 @@ mkdir -p data/lang/char;
 
 # Obtain character-level transcriptions of ALL the dataset.
 [[ "$overwrite" = false && -s data/lang/char/transcript.txt ]] ||
-awk '{
+gawk '{
   x=$1; y=$2;
   gsub(/-/, " ", y);
   gsub(/\|/, " <space> ", y);
@@ -51,7 +51,7 @@ awk '{
 [[ "$overwrite" = false && -s data/lang/lexiconp.txt ]] ||
 cut -d\  -f2- data/washingtondb-v1.0/ground_truth/transcription.txt |
 tr \|  \\n | tr \- \  | sort | uniq |
-awk '{
+gawk '{
   w = "";
   for (i=1;i<=NF;++i) {
     if ($i == "s_bl")      w = sprintf("%s(", w);
@@ -75,7 +75,7 @@ awk '{
 # Get list of characters
 [[ "$overwrite" = false && -s data/lang/char/syms.txt ]] ||
 cut -d\  -f2- data/lang/char/transcript.txt | tr \  \\n | sort -uV |
-awk 'BEGIN{
+gawk 'BEGIN{
   N = 0;
   printf("%-12s %d\n", "<eps>", N++);
   printf("%-12s %d\n", "<ctc>", N++);
@@ -97,7 +97,7 @@ for cv in cv1 cv2 cv3 cv4; do
     exit 1;
     # Transcript filess for each partition
     [[ "$overwrite" = false && -s "data/lang/char/$cv/${p:0:2}.txt" ]] ||
-    awk -v LF="data/washingtondb-v1.0/sets/$cv/$p.txt" \
+    gawk -v LF="data/washingtondb-v1.0/sets/$cv/$p.txt" \
       'BEGIN{ while((getline < LF) > 0) { L[$1]=1; } }($1 in L){ print; }' \
       "data/lang/char/transcript.txt" > "data/lang/char/$cv/${p:0:2}.txt" ||
     exit 1;

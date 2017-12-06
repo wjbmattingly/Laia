@@ -60,7 +60,7 @@ echo -n "Creating symbols table..." >&2;
   for p in train test; do
     cut -f 2- -d\  data/lang/char/$p.txt | tr \  \\n;
   done | sort -u -V |
-  awk 'BEGIN{
+  gawk 'BEGIN{
     N=0;
     printf("%-12s %d\n", "<eps>", N++);
     printf("%-12s %d\n", "<ctc>", N++);
@@ -83,7 +83,7 @@ for p in train test; do
       #echo "File data/$dataset_name/adq3/frases2/$f.pbm..." >&2;
       convert -interpolative-resize "x$height" data/$dataset_name/adq3/frases2/$f.pbm data/imgs_proc/$f.png
   done;
-  awk '{ print "data/imgs_proc/"$1".png" }' data/$dataset_name/$p.lst > data/$p.lst;
+  gawk '{ print "data/imgs_proc/"$1".png" }' data/$dataset_name/$p.lst > data/$p.lst;
 done;
 echo -e "  \tDone." >&2;
 

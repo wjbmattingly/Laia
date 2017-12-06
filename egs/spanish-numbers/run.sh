@@ -54,7 +54,7 @@ th ../../laia-decode \
   model.t7 data/test.lst > decode/char/test.txt;
 
 # Get word-level transcript hypotheses
-awk '{
+gawk '{
   printf("%s ", $1);
   for (i=2;i<=NF;++i) {
     if ($i == "{space}")

@@ -183,8 +183,8 @@ function compute_errors () {
   ref_char="data/lang/forms/char/$p.txt";
   ref_word="data/lang/forms/word/$p.txt";
   # Some checks
-  nc=( $(wc -l "$ref_char" "$1" | head -n2 | awk '{print $1}') );
-  nw=( $(wc -l "$ref_word" "$2" | head -n2 | awk '{print $1}') );
+  nc=( $(wc -l "$ref_char" "$1" | head -n2 | gawk '{print $1}') );
+  nw=( $(wc -l "$ref_word" "$2" | head -n2 | gawk '{print $1}') );
   [[ "${nc[0]}" -eq "${nc[1]}" ]] ||
   echo "WARNING: The number of reference forms does not match your char" \
     "hypothesis (${nc[0]} vs. ${nc[1]})" >&2
@@ -195,20 +195,20 @@ function compute_errors () {
     # Compute CER and WER with Confidence Intervals using R
     ./utils/compute-errors.py "$ref_char" "$forms_char" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%CER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
     ./utils/compute-errors.py "$ref_word" "$forms_word" > "$tmpf";
     ./utils/compute-confidence.R "$tmpf" |
-    awk -v p="$p" '$1 == "%ERR"{
+    gawk -v p="$p" '$1 == "%ERR"{
       printf("%WER forms %s: %.2f %s %s %s\n", p, $2, $3, $4, $5); }';
   elif [ $hasComputeWer -eq 1 ]; then
     # Compute CER and WER using Kaldi's compute-wer
     compute-wer --text --mode=strict "ark:$ref_char" "ark:$lines_char" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%CER forms %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%CER forms %s: %.2f\n", p, $2); }';
     compute-wer --text --mode=strict "ark:$ref_word" "ark:$lines_word" \
       2>/dev/null |
-    awk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
+    gawk -v p="$p" '$1 == "%WER"{ printf("%WER forms %s: %.2f\n", p, $2); }';
   fi;
   rm -f "$tmpf";
   return 0;

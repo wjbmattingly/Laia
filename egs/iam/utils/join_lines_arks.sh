@@ -54,12 +54,12 @@ mkdir -p "$(dirname "$outf")";
 
 # Get the number of symbols (including CTC, but excluding epsilon) and
 # the ID of the whitespace symbol.
-info=( $(awk -v eps="$eps" -v ws="$wspace" '{
+info=( $(gawk -v eps="$eps" -v ws="$wspace" '{
   if ($1 != eps) N++;
   if ($1 == ws) wss=$2;
 }END{ print N, wss }' "$syms") );
 
-copy-matrix "ark:$inpf" ark,t:- | awk -v AW="$add_wspace_border" \
+copy-matrix "ark:$inpf" ark,t:- | gawk -v AW="$add_wspace_border" \
   -v AD="$add_dummy_ctc_end" -v ND="${info[0]}" -v WSS="${info[1]}" \
   -v RE="$regex" '
   function add_dummy_frame(n) {
@@ -112,7 +112,7 @@ copy-matrix "ark:$inpf" ark,t:- | awk -v AW="$add_wspace_border" \
     if (AD == "true" && form_id != "") {
       add_dummy_frame(form_id);
     }
-  }' | awk '
+  }' | gawk '
   BEGIN{
     form_id="";
   }{
