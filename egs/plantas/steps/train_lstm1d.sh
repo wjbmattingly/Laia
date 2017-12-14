@@ -60,7 +60,10 @@ Options:
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 [ $# -ne 0 ] && echo "$help_message" >&2 && exit 1;
 
-# Check required files
+export CUDA_VISIBLE_DEVICES=$((gpu-1))
+gpu=1
+
+ #Check required files
 for f in "data/lists/tr_h$height.lst" \
 	 "data/lists/va_h$height.lst" \
 	 "data/lang/char/tr.txt" \

@@ -35,6 +35,9 @@ Options:
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 [ $# -ne 0 ] && echo "$help_message" >&2 && exit 1;
 
+export CUDA_VISIBLE_DEVICES=$((gpu-1))
+gpu=1
+
 # Get "lines" or "sentences" from the full partition string (e.g. lines/aachen)
 ptype="${partition%%/*}";
 

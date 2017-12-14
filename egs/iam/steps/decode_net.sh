@@ -33,6 +33,10 @@ Options:
 ";
 source "$(pwd)/utils/parse_options.inc.sh" || exit 1;
 [ $# -ne 1 ] && echo "$help_message" >&2 && exit 1;
+
+export CUDA_VISIBLE_DEVICES=$((gpu-1))
+gpu=1
+
 model="$1";
 model_name="$(basename "$1" .t7)";
 
