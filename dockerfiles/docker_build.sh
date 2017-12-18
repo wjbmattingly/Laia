@@ -19,7 +19,7 @@ mkdir -p logs;
 } 2>logs/torch-cuda$CUDA-$OS.err >logs/torch-cuda$CUDA-$OS.log;
 
 ### Laia ###
-REV=$(sed -rn '/^Version.DATE/{ s|.*Date: *([0-9]+)-([0-9]+)-([0-9]+).*|\1.\2.\3|; p; }' ../laia/Version.lua);
+REV=$(git log --date=iso ../laia/Version.lua Dockerfile laia-docker | sed -n '/^Date:/{s|^Date: *||;s| .*||;s|-|.|g;p;}' | sort -r | head -n 1);
 { DS=$(date +%s);
   nvidia-docker build --no-cache -t mauvilsa/laia:${REV}-cuda$CUDA-$OS --build-arg CUDA=$CUDA .;
   echo "time: $(( $(date +%s) - DS )) seconds";
