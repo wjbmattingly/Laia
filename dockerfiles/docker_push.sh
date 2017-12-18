@@ -3,5 +3,5 @@
 
 CUDA="8.0";
 OS="ubuntu16.04";
-REV=$(sed -rn '/^Version.DATE/{ s|.*Date: *([0-9]+)-([0-9]+)-([0-9]+).*|\1.\2.\3|; p; }' ../laia/Version.lua);
+REV=$(git log --date=iso ../laia/Version.lua Dockerfile laia-docker | sed -n '/^Date:/{s|^Date: *||;s| .*||;s|-|.|g;p;}' | sort -r | head -n 1);
 docker push mauvilsa/laia:${REV}-cuda$CUDA-$OS;
