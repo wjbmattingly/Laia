@@ -7,7 +7,7 @@ FROM mauvilsa/torch-cuda:8.0-ubuntu16.04
 
 MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 
-### Install pre-requisits ###
+### Install pre-requisites ###
 RUN add-apt-repository -y ppa:george-edison55/cmake-3.x \
  && apt-get update --fix-missing \
  && apt-get purge -y cmake \
@@ -34,4 +34,5 @@ RUN add-apt-repository -y ppa:george-edison55/cmake-3.x \
  && LIBRARY_PATH=$(echo "$LIBRARY_PATH" | sed 's|^:||; s|:$||; s|::|:|g;') \
  && luarocks install http://raw.githubusercontent.com/jpuigcerver/Laia/master/rocks/laia-scm-1.rockspec \
  && curl -o /usr/local/bin/laia-docker https://raw.githubusercontent.com/jpuigcerver/Laia/master/dockerfiles/laia-docker \
- && chmod +x /usr/local/bin/laia-docker
+ && chmod +x /usr/local/bin/laia-docker \
+ && luarocks install lalarm

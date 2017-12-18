@@ -3,12 +3,12 @@
 if ( [ "$#" = 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] ); then
   echo "
 DESCRIPTION
-  Command line interface to the Laia handwritten text recognition (HTR)
-  toolkit installed as a docker image. It assumes that docker is installed,
-  that it can be executed without sudo and that the corresponding image is
-  tagged as laia:active. It will only work if the arguments do not contain
-  spaces or bash special characters and is executed from and referencing only
-  files in the host's /home, /mnt, /media or /tmp directories.
+  Command line interface to the Laia handwritten text recognition (HTR) toolkit
+  installed as a docker image. It assumes that docker and nvidia-docker are
+  installed, that these can be executed without sudo and that the corresponding
+  image is tagged as laia:active. It will only work if the arguments do not
+  contain spaces or bash special characters and is executed from and referencing
+  only files in the host's /home, /mnt, /media or /tmp directories.
 
   The interface can also be used to execute custom scripts inside the
   container, e.g. to create a model with a different architecture than the
@@ -36,5 +36,5 @@ OPTS=( -u $(id -u):$(id -g) );
 [ -d "/media" ] && OPTS+=( -v /media:/media );
 [ -d "/tmp" ]   && OPTS+=( -v /tmp:/tmp );
 
-nvidia-docker run --rm -t "${OPTS[@]}" laia:active \
-  bash -c "cd $(pwd) && PATH=\".:$PATH:\$PATH\" laia-$COMMAND $*";
+nvidia-docker run --rm "${OPTS[@]}" laia:active \
+  bash -c "cd $(pwd) && PATH=\".:$PATH:\$PATH\" TERM=xterm-256color laia-$COMMAND $*";
