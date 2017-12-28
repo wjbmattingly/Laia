@@ -18,7 +18,7 @@ parser:argument('input_file', 'File containing the model to reuse.')
 parser:argument(
   'output_size',
   'Number of output symbols. If you are going to use the CTC ' ..
-  'loss include one additional element! (if 0 the last fully connected layer is kept as given)')
+  'loss include one additional element! If 0 the last fully connected layer is kept as given.')
   :convert(laia.toint)
   :ge(0)
 parser:argument(
