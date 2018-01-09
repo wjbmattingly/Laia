@@ -50,6 +50,10 @@ parser:option(
   '--output_hpad', 'If given, write the horizontal padding applied to each ' ..
     'image to this file.', '')
   :argname('<file>')
+parser:option(
+  '--skip_alignments', 'If true, does not output the alignments.',
+  false, laia.toboolean)
+  :argname('<bool>')
 
 -- Parse options
 local opts = parser:parse()
@@ -92,10 +96,13 @@ batcher:load(opts.image_list, opts.text_table, opts.symbols_table)
 batcher:epochReset()
 
 -- Open file to output the alignments.
-local output_align = opts.output_align == '-' and io.stdout or
-  io.open(opts.output_align, 'w')
-assert(output_align ~= nil, 'File %q could not be opened for writing!',
-       opts.output_align)
+local output_align = nil
+if not opts.skip_alignments then
+  output_align = opts.output_align == '-' and io.stdout or
+    io.open(opts.output_align, 'w')
+  assert(output_align ~= nil, 'File %q could not be opened for writing!',
+         opts.output_align)
+end
 
 -- Open file to write the horizontal padding of each sample.
 local output_hpad = nil
@@ -142,17 +149,19 @@ for b=1,batcher:numSamples(),opts.batch_size do
     -- Batch can contain more images, stop here.
     if i+b-1 > batcher:numSamples() then break end
 
-    -- Do forced alignment of the sample w.r.t. batch_gt[i]
-    laia.log.info('Performing forced alignment of sample %q', batch_ids[i])
-    local alignment = laia.force_alignment(output[i], batch_gt[i])
+    if not opts.skip_alignments then
+      -- Do forced alignment of the sample w.r.t. batch_gt[i]
+      laia.log.info('Performing forced alignment of sample %q', batch_ids[i])
+      local alignment = laia.force_alignment(output[i], batch_gt[i])
 
-    -- Print alignment
-    output_align:write(batch_ids[i])
-    for f=1,#alignment do
-      output_align:write(' ' .. alignment[f])
+      -- Print alignment
+      output_align:write(batch_ids[i])
+      for f=1,#alignment do
+        output_align:write(' ' .. alignment[f])
+      end
+      output_align:write('\n')
+      output_align:flush()
     end
-    output_align:write('\n')
-    output_align:flush()
 
     if output_prior then
       -- print(output[i]:exp():sum(1):size())
@@ -167,7 +176,9 @@ for b=1,batcher:numSamples(),opts.batch_size do
 end
 
 -- Close files
-output_align:close()
+if not opts.skip_alignments then
+  output_align:close()
+end
 if output_hpad then
   output_hpad:close()
 end

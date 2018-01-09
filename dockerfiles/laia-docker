@@ -4,37 +4,44 @@ if ( [ "$#" = 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] ); then
   echo "
 DESCRIPTION
   Command line interface to the Laia handwritten text recognition (HTR) toolkit
-  installed as a docker image. It assumes that docker and nvidia-docker are
+  installed in a docker image. It assumes that docker and nvidia-docker are
   installed, that these can be executed without sudo and that the corresponding
   image is tagged as laia:active. It will only work if the arguments do not
-  contain spaces or bash special characters and is executed from and referencing
-  only files in the host's /home, /mnt, /media or /tmp directories.
+  contain bash special characters and is executed from and referencing only
+  files in the host's /Users, /home, /mnt, /media or /tmp directories.
 
-  The interface can also be used to execute custom scripts inside the
-  container, e.g. to create a model with a different architecture than the
-  ones provided by laia-create-model. For this to work, the name of the
-  custom script must start with laia- and it must be located either in your
-  current directory or in \$PATH though restricted to the directories
-  accessible to the container.
+  The interface can also be used to execute custom scripts inside the container,
+  e.g. to create a model with a different architecture than what create-model
+  provides. For this to work, the custom script must be located in a directory
+  accessible to the container (see above) and be in your \$PATH or be referenced
+  with its full or relative path.
 
 SYNOPSIS
   laia-docker COMMAND ARGUMENTS
 
-  COMMAND is any of the Laia command line tools excluding the laia- prefix,
-  e.g. create-model, train-ctc, decode. To see the detailed help of a command,
-  just provide --help as argument, e.g. laia-docker decode --help.
+  COMMAND is any of the Laia command line tools (optionally excluding the laia-
+  prefix), e.g. create-model, train-ctc, decode. To see the detailed help of a
+  command, just provide --help as argument, e.g. laia-docker decode --help.
 ";
   exit 0;
 fi
 
-COMMAND="$1";
-shift;
-
-OPTS=( -u $(id -u):$(id -g) );
+OPTS=( --user $(id -u):$(id -g) );
+OPTS+=( --rm );
+OPTS+=( --interactive );
+OPTS+=( --log-driver none );
+OPTS+=( --workdir "$(pwd)" );
+OPTS+=( --env TERM=xterm-256color );
+[ -d "/Users" ] && OPTS+=( -v /Users:/Users );
 [ -d "/home" ]  && OPTS+=( -v /home:/home );
 [ -d "/mnt" ]   && OPTS+=( -v /mnt:/mnt );
 [ -d "/media" ] && OPTS+=( -v /media:/media );
 [ -d "/tmp" ]   && OPTS+=( -v /tmp:/tmp );
 
-nvidia-docker run --rm "${OPTS[@]}" laia:active \
-  bash -c "cd $(pwd) && PATH=\".:$PATH:\$PATH\" TERM=xterm-256color laia-$COMMAND $*";
+CMD=("${@// /\\ }");
+case "${CMD[0]}" in
+  create-model|decode|force-align|netout|reuse-model|train-ctc) CMD[0]="laia-${CMD[0]}";;
+esac
+
+nvidia-docker run "${OPTS[@]}" laia:active \
+  bash -c "PATH=\"$PATH:\$PATH\" $*";
