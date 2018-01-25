@@ -42,9 +42,10 @@ To ease the installation, there is a public [docker image for Laia](https://hub.
     docker pull mauvilsa/laia:[SOME_TAG]
     docker tag mauvilsa/laia:[SOME_TAG] laia:active
 
-Then copy the command line interface script to some directory in your path for easily use from the host.
+Replace SOME_TAG with one of the tags available [here](https://hub.docker.com/r/mauvilsa/laia/tags/). Then copy the command line interface script to some directory in your path for easily use from the host.
 
-    docker run --rm -it -u $(id -u):$(id -g) -v $HOME:$HOME laia:active bash -c "cp /usr/local/bin/laia-docker $HOME/bin"
+    mkdir -p $HOME/bin
+    docker run --rm -u $(id -u):$(id -g) -v $HOME:$HOME laia:active bash -c "cp /usr/local/bin/laia-docker $HOME/bin"
 
 After this, all Laia commands can be executed by using the laia-docker command. For further details run.
 
