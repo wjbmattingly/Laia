@@ -44,4 +44,4 @@ case "${CMD[0]}" in
 esac
 
 nvidia-docker run "${OPTS[@]}" laia:active \
-  bash -c "PATH=\"$PATH:\$PATH\" $*";
+  bash -c "PATH=\"$PATH:\$PATH\" ${CMD[*]}";
