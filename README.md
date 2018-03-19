@@ -8,7 +8,9 @@ If you find this toolkit useful in your research, please cite:
 
 ```
 @misc{laia2016,
-  author = {Joan Puigcerver, Daniel Martin-Albo, Mauricio Villegas},
+  author = {Joan Puigcerver and
+            Daniel Martin-Albo and
+            Mauricio Villegas},
   title = {Laia: A deep learning toolkit for HTR},
   year = {2016},
   publisher = {GitHub},
