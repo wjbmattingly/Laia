@@ -1,5 +1,6 @@
 require 'laia.ClassWithOptions'
 require 'image'
+tds = require 'tds'
 
 local CachedBatcher, Parent = torch.class('laia.CachedBatcher',
 					  'laia.ClassWithOptions')
@@ -105,9 +106,12 @@ end
 
 function CachedBatcher:clearDataset()
   self._num_samples = 0
-  self._samples = {}
-  self._imglist = {}
+  --self._samples = {}
+  --self._imglist = {}
   self._gt = {}
+  self._samples = tds.Vec()
+  self._imglist = tds.Vec()
+  --self._gt = tds.Hash()
   self._has_gt = false
   self._num_symbols = 0
   self._sym2int = {}

@@ -21,6 +21,7 @@ description = {
 dependencies = {
   "torch >= 7.0",
   "cutorch",
+  "tds",
   "nn",
   "cunn",
   "cudnn",

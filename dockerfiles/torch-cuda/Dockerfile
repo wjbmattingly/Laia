@@ -1,12 +1,14 @@
-### Input arguments (https://github.com/moby/moby/pull/31352) ###
-#ARG CUDA=8.0
+### Input arguments ###
+ARG CUDA_TAG=8.0-cudnn5-devel-ubuntu16.04
 
 ### Start with NVIDIA cuDNN base image ###
-FROM nvidia/cuda:8.0-cudnn5-devel-ubuntu16.04
+FROM nvidia/cuda:$CUDA_TAG
 
 MAINTAINER Mauricio Villegas <mauricio_ville@yahoo.com>
 
-### Install pre-requisits ###
+ENV DEBIAN_FRONTEND=noninteractive
+
+### Install pre-requisites ###
 RUN apt-get update --fix-missing \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -26,7 +28,7 @@ ENV DYLD_LIBRARY_PATH=/opt/torch/lib:$DYLD_LIBRARY_PATH
 ENV LUA_CPATH='/opt/torch/lib/?.so;'$LUA_CPATH
 
 ### Install Torch7 dependencies ###
-RUN git clone https://github.com/torch/distro.git ~/torch --recursive \
+RUN git clone --depth 1 https://github.com/torch/distro.git ~/torch --recursive \
  && cd ~/torch \
  && bash install-deps \
 

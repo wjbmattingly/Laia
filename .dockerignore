@@ -1,0 +1,8 @@
+.git
+githook-pre-commit
+Dockerfile
+*.md
+logs
+egs
+test
+travis

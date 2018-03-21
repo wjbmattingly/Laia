@@ -1,4 +1,5 @@
 require 'laia.util.types'
+tds = require 'tds'
 
 -- read symbols_table file. this file contains
 -- two columns: "symbol     id"
@@ -40,6 +41,7 @@ end
 function laia.read_transcripts_table(filename, sym2int, transcripts, sym_count)
   local num_transcripts = 0
   transcripts = transcripts or {}  -- If transcripts table is given, update it
+  --transcripts = transcripts or tds.Hash()  -- If transcripts table is given, update it
   sym_count = sym_count or {}  -- If counts table is given, update it
   for key,val in pairs(sym2int) do
     if sym_count[val] == nil then
@@ -58,12 +60,14 @@ function laia.read_transcripts_table(filename, sym2int, transcripts, sym_count)
 	   ('Wrong transcript format at line %d in file %q')
 	     :format(ln, filename))
     transcripts[id] = {}
+    --transcripts[id] = tds.Vec()
     num_transcripts = num_transcripts + 1
     for sym in txt:gmatch('%S+') do
       if sym2int ~= nil then
 	assert(sym2int[sym] ~= nil,
 	       ('Symbol %q is not in the symbols table'):format(sym))
 	table.insert(transcripts[id], sym2int[sym])
+	--transcripts[id]:insert(sym2int[sym])
         local isym = sym2int[sym]
         sym_count[isym] = sym_count[isym] + 1
       else
@@ -71,6 +75,7 @@ function laia.read_transcripts_table(filename, sym2int, transcripts, sym_count)
 	       ('Token %q is not an integer and no symbols table was given.')
 		 :format(sym))
 	table.insert(transcripts[id], sym)
+	--transcripts[id]:insert(sym)
       end
     end
   end
@@ -82,8 +87,10 @@ end
 -- i.e., removing directory and extension.
 function laia.read_files_list(filename, transcripts, file_list, sample_list)
   local num_samples = 0
-  file_list = file_list or {}      -- If file_list table is given, update it
-  sample_list = sample_list or {}  -- If sample_list table is given, update it
+  --file_list = file_list or {}      -- If file_list table is given, update it
+  --sample_list = sample_list or {}  -- If sample_list table is given, update it
+  file_list = file_list or tds.Vec()      -- If file_list table is given, update it
+  sample_list = sample_list or tds.Vec()  -- If sample_list table is given, update it
   local f = io.open(filename, 'r')
   assert(f ~= nil, ('Unable to read image list file: %q'):format(filename))
   local ln = 0
@@ -96,8 +103,10 @@ function laia.read_files_list(filename, transcripts, file_list, sample_list)
 	     :format(ln, filename))
     assert(transcripts == nil or transcripts[id] ~= nil,
 	   ('No transcription was found for sample ID %q'):format(id))
-    table.insert(file_list, line)
-    table.insert(sample_list, id)
+    --table.insert(file_list, line)
+    --table.insert(sample_list, id)
+    file_list:insert(line)
+    sample_list:insert(id)
     num_samples = num_samples + 1
   end
   f:close()

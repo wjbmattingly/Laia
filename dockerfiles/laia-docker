@@ -6,15 +6,15 @@ DESCRIPTION
   Command line interface to the Laia handwritten text recognition (HTR) toolkit
   installed in a docker image. It assumes that docker and nvidia-docker are
   installed, that these can be executed without sudo and that the corresponding
-  image is tagged as laia:active. It will only work if the arguments do not
-  contain bash special characters and is executed from and referencing only
-  files in the host's /Users, /home, /mnt, /media or /tmp directories.
+  image is tagged as laia:active. It will only work if executed from and
+  referencing only files in the host's /Users, /home, /mnt, /media or /tmp
+  directories.
 
   The interface can also be used to execute custom scripts inside the container,
   e.g. to create a model with a different architecture than what create-model
   provides. For this to work, the custom script must be located in a directory
-  accessible to the container (see above) and be in your \$PATH or be referenced
-  with its full or relative path.
+  accessible to the container (see above) and be in the \$DPATH variable (same
+  syntax as PATH) or be referenced with its full or relative path.
 
 SYNOPSIS
   laia-docker COMMAND ARGUMENTS
@@ -26,22 +26,42 @@ SYNOPSIS
   exit 0;
 fi
 
+CMD=("$@");
+case "${CMD[0]}" in
+  create-model|decode|force-align|netout|reuse-model|train-ctc) CMD[0]="laia-${CMD[0]}";;
+esac
+CMD=("${CMD[@]//$'\x27'/$'\x27\x22\x27\x22\x27'}");
+CMD=("${CMD[@]/#/$'\x27'}");
+CMD=("${CMD[@]/%/$'\x27'}");
+
 OPTS=( --user $(id -u):$(id -g) );
 OPTS+=( --rm );
-OPTS+=( --interactive );
-OPTS+=( --log-driver none );
 OPTS+=( --workdir "$(pwd)" );
-OPTS+=( --env TERM=xterm-256color );
+OPTS+=( --interactive );
+if ! ( [ "${#CMD[@]}" = 1 ] && [ "${CMD[0]}" = "'bash'" ] ); then
+  OPTS+=( --log-driver none );
+  OPTS+=( --env TERM=xterm-256color );
+fi
 [ -d "/Users" ] && OPTS+=( -v /Users:/Users );
 [ -d "/home" ]  && OPTS+=( -v /home:/home );
 [ -d "/mnt" ]   && OPTS+=( -v /mnt:/mnt );
 [ -d "/media" ] && OPTS+=( -v /media:/media );
 [ -d "/tmp" ]   && OPTS+=( -v /tmp:/tmp );
 
-CMD=("${@// /\\ }");
-case "${CMD[0]}" in
-  create-model|decode|force-align|netout|reuse-model|train-ctc) CMD[0]="laia-${CMD[0]}";;
-esac
+[ "$DPATH" != "" ] && DPATH="PATH=\"$DPATH:\$PATH\" ";
 
-nvidia-docker run "${OPTS[@]}" laia:active \
-  bash -c "PATH=\"$PATH:\$PATH\" ${CMD[*]}";
+if [ "${#CMD[@]}" = 1 ] && [ "${CMD[0]}" = "'bash'" ]; then
+  [ "$DPATH" != "" ] && DPATH="export $DPATH;";
+  TMP=$(mktemp laia-docker.init_XXXXXX);
+  echo "
+    export PS1='\h:\w\$ ';
+    $DPATH
+    alias ls='ls --color=auto';
+    rm $TMP;
+    " > $TMP;
+  nvidia-docker run -t "${OPTS[@]}" laia:active \
+    bash --init-file $TMP;
+else
+  nvidia-docker run "${OPTS[@]}" laia:active \
+    bash -c "$DPATH${CMD[*]}";
+fi
