@@ -123,7 +123,7 @@ done;
 # Build lexicon from the boundaries file.
 lexiconp=data/lang/forms/word/lexiconp.txt;
 [ "$overwrite" = false -a -s "$lexiconp" ] ||
-./utils/prepare_word_lexicon_from_boundaries.sh \
+./utils/build_word_lexicon.sh \
   data/lang/forms/word/tr_boundaries.txt > "$lexiconp" ||
 { echo "ERROR: Creating file \"$lexiconp\"!" >&2 && exit 1; }
 
