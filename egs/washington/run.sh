@@ -39,7 +39,15 @@ for cv in cv1 cv2 cv3 cv4; do
   [[ "$overwrite" = false && -s train/$cv/model.t7 ]] && continue;
   th ../../laia-create-model \
     --cnn_batch_norm true \
+    --cnn_num_features 16 32 64 64 \
+    --cnn_maxpool_size 2 2 2 0 \
+    --cnn_kernel_size 3 \
     --cnn_type leakyrelu \
+    --rnn_num_units 128 \
+    --rnn_num_layers 4 \
+    --log_also_to_stderr info \
+    --log_file train/$cv/log \
+    --log_level info \
     -- 1 "$height" "$num_symbols" train/$cv/model.t7 &&
   th ../../laia-train-ctc \
     --batch_size "$batch_size" \
@@ -49,7 +57,7 @@ for cv in cv1 cv2 cv3 cv4; do
     --progress_table_output train/$cv/dat \
     --use_distortions true \
     --early_stop_epochs 100 \
-    --learning_rate 0.0005 \
+    --learning_rate 0.0003 \
     train/$cv/model.t7 data/lang/char/syms.txt \
     data/lists/$cv/tr.txt data/lang/char/$cv/tr.txt \
     data/lists/$cv/va.txt data/lang/char/$cv/va.txt;
@@ -72,18 +80,18 @@ for cv in cv1 cv2 cv3 cv4; do
 done;
 
 ## Compute CER/WER.
-if $(which compute-wer &> /dev/null); then
+if $(which compute-wer-bootci &> /dev/null); then
   for cv in cv1 cv2 cv3 cv4; do
     echo -n "$cv Valid ";
-    compute-wer --mode=strict --print-args=false \
+    compute-wer-bootci --mode=strict --print-args=false \
       ark:data/lang/char/$cv/va.txt ark:decode/no_lm/char/$cv/va.txt |
     grep WER | sed -r 's|%WER|%CER|g';
 
     echo -n "$cv Test ";
-    compute-wer --mode=strict --print-args=false \
+    compute-wer-bootci --mode=strict --print-args=false \
       ark:data/lang/char/$cv/te.txt ark:decode/no_lm/char/$cv/te.txt |
     grep WER | sed -r 's|%WER|%CER|g';
   done;
 else
-  echo "ERROR: Kaldi's compute-wer was not found in your PATH!" >&2;
+  echo "ERROR: Kaldi's compute-wer-bootci was not found in your PATH!" >&2;
 fi;
