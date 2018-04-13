@@ -32,9 +32,6 @@ for f in data/washingtondb-v1.0/ground_truth/transcription.txt; do
   exit 1;
 done;
 
-
-
-
 mkdir -p data/lang/char;
 
 # Obtain character-level transcriptions of ALL the dataset.

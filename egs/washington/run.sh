@@ -63,35 +63,4 @@ for cv in cv1 cv2 cv3 cv4; do
     data/lists/$cv/va.txt data/lang/char/$cv/va.txt;
 done;
 
-## Get character-level transcript hypotheses
-mkdir -p decode/no_lm/{char,word}/{cv1,cv2,cv3,cv4};
-for cv in cv1 cv2 cv3 cv4; do
-  for p in va te; do
-    [[ "$overwrite" = false && -s decode/no_lm/char/$cv/$p.txt && \
-      train/$cv/model.t7 -ot decode/no_lm/char/$cv/$p.txt ]] ||
-    ../../laia-decode \
-      --batch_size "$batch_size" \
-      --log_level info \
-      --symbols_table data/lang/char/syms.txt \
-      train/$cv/model.t7 data/lists/$cv/$p.txt \
-      > decode/no_lm/char/$cv/$p.txt ||
-    exit 1;
-  done;
-done;
-
-## Compute CER/WER.
-if $(which compute-wer-bootci &> /dev/null); then
-  for cv in cv1 cv2 cv3 cv4; do
-    echo -n "$cv Valid ";
-    compute-wer-bootci --mode=strict --print-args=false \
-      ark:data/lang/char/$cv/va.txt ark:decode/no_lm/char/$cv/va.txt |
-    grep WER | sed -r 's|%WER|%CER|g';
-
-    echo -n "$cv Test ";
-    compute-wer-bootci --mode=strict --print-args=false \
-      ark:data/lang/char/$cv/te.txt ark:decode/no_lm/char/$cv/te.txt |
-    grep WER | sed -r 's|%WER|%CER|g';
-  done;
-else
-  echo "ERROR: Kaldi's compute-wer-bootci was not found in your PATH!" >&2;
-fi;
+./steps/decode_net.sh --overwrite "$overwrite"
