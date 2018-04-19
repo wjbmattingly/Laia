@@ -39,12 +39,14 @@
 -- range [1..num_data], i.e. resampling with repetitions.
 --
 -- See https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Case_resampling
+local tds = require 'tds'
+
 laia.bootstrap_sample = function(num_data, num_samples)
-  local bootstrap_samples = {}
+  local bootstrap_samples = tds.Vec()
   for s=1,num_samples do
-    table.insert(bootstrap_samples, {})
+	bootstrap_samples:insert(tds.Vec())
     for i=1,num_data do
-      table.insert(bootstrap_samples[s], torch.random(num_data))
+	    bootstrap_samples[s]:insert(torch.random(num_data))
     end
   end
   return bootstrap_samples
@@ -61,13 +63,13 @@ laia.bootstrap_data = function(data, bootstrap_samples)
   assert(data ~= nil and type(data) == 'table',
 	 'laia.bootstrap_data expects an input "data" table')
   assert(bootstrap_samples ~= nil and (type(bootstrap_samples) == 'table' or
-					 laia.isint(bootstrap_samples)),
+			type(bootstrap_samples) == 'cdata' or laia.isint(bootstrap_samples)),
 	 'laia.bootstrap_data expects an input "bootstrap_samples" table ' ..
 	   'or integer')
   if laia.isint(bootstrap_samples) then
     bootstrap_samples = laia.bootstrap_sample(#data, bootstrap_samples)
   end
-  local bootstrap_data = {}
+  local bootstrap_data = tds.Vec()
   for s=1,#bootstrap_samples do
     if #data ~= #bootstrap_samples[s] then
       laia.log.warn('The number of data items in the bootstrap sample %d ' ..
@@ -75,9 +77,9 @@ laia.bootstrap_data = function(data, bootstrap_samples)
 		      '(expected = %d, actual = %d)',
 		    s, #data, #bootstrap_samples[s])
     end
-    table.insert(bootstrap_data, {})
+    bootstrap_data:insert(tds.Vec())
     for _,i in ipairs(bootstrap_samples[s]) do
-      table.insert(bootstrap_data[s], data[i])
+	bootstrap_data[s]:insert(data[i])  
     end
   end
   return bootstrap_data
@@ -111,3 +113,4 @@ laia.t_statistic_paired = function(data1, data2)
   -- Return t-statistic for the paired sample t-test (N - 1 degrees of freedom)
   return (m / s) * math.sqrt(N)
 end
+
