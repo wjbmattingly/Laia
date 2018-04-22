@@ -10,7 +10,7 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     echo "Missing $(pwd)/utils/parse_options.inc.sh file!" >&2 && exit 1;
 
 overwrite=false;
-height=64;
+height=120;
 help_message="
 Usage: ${0##*/} [options]
 

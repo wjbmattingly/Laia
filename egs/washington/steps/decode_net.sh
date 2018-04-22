@@ -9,11 +9,14 @@ SDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)";
     echo "Please, run this script from the experiment top directory!" >&2 && \
   exit 1;
 
+batch_size=16;
 overwrite=false;
 help_message="
 Usage: ${0##*/} [options]
 
 Options:
+  --batch_size : (type = integer, default = $batch_size)
+                 Batch size.
   --overwrite  : (type = boolean, default = $overwrite)
                  Overwrite previously created files.
 ";
@@ -39,7 +42,7 @@ for cv in cv1 cv2 cv3 cv4; do
   mkdir -p data/lang/word/$cv;
   # Convert reference
   for p in te tr va; do
-    [ -s data/lang/word/$cv/$p.txt ] ||
+    [ "$overwrite" = false -a -s "data/lang/word/$cv/$p.txt" ] ||
     gawk '{
       printf("%s ", $1);
       for (i=2;i<=NF;++i) {
@@ -64,7 +67,7 @@ for cv in cv1 cv2 cv3 cv4; do
   done;
 
   for p in te va; do
-    [ -s decode/no_lm/word/$cv/$p.txt ] ||
+    [ "$overwrite" = false -a -s "decode/no_lm/word/$cv/$p.txt" ] ||
     gawk '{
       printf("%s ", $1);
       for (i=2;i<=NF;++i) {
