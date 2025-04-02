@@ -7,3 +7,4 @@ tensorboard>=2.13.0
 einops>=0.6.0
 pytorch-lightning>=2.0.0  # For structured training loops
 wandb>=0.15.0  # For experiment tracking 
+editdistance

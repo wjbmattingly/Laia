@@ -138,10 +138,10 @@ To use this with the training script:
 
 ```bash
 python train.py \
-    --data_dir data/images \
-    --train_gt data/train.json \
+    --data_dir sample_data/images \
+    --train_gt sample_data/train.json \
     --val_gt data/val.json \
-    --char_map data/char_map.json \
+    --char_map sample_data/char_map.json \
     --img_height 64 \
     --batch_size 32
 ```

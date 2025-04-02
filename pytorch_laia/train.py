@@ -1,3 +1,5 @@
+import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import argparse
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -22,11 +24,17 @@ def main():
     parser.add_argument("--char_map", type=str, required=True, help="Character map JSON file")
     parser.add_argument("--img_height", type=int, default=64, help="Input image height")
     parser.add_argument("--max_width", type=int, default=None, help="Max input image width")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of data loading workers")
     parser.add_argument("--max_epochs", type=int, default=100, help="Maximum number of epochs")
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use")
     parser.add_argument("--wandb_project", type=str, default="laia", help="Weights & Biases project name")
+    
+    # Add model specific args from each component
+    temp_args, _ = parser.parse_known_args()
+    
+    # Load character map to get num_classes
+    with open(temp_args.char_map, 'r', encoding='utf-8') as f:
+        char_map = json.load(f)
     
     # Add model specific args
     parser = CRNN.add_model_specific_args(parser)
@@ -34,10 +42,6 @@ def main():
     parser = ImageDistorter.add_model_specific_args(parser)
     
     args = parser.parse_args()
-    
-    # Load character map
-    with open(args.char_map, 'r', encoding='utf-8') as f:
-        char_map = json.load(f)
     
     # Create datasets
     train_transform = ImageDistorter(
@@ -98,10 +102,12 @@ def main():
     # Create trainer
     trainer = CTCTrainer(
         model=model,
+        char_map=char_map,
         learning_rate=args.learning_rate,
         batch_size=args.batch_size,
         use_distortions=args.use_distortions,
-        grad_clip=args.grad_clip
+        grad_clip=args.grad_clip,
+        cer_trim=args.cer_trim
     )
     
     # Setup training
