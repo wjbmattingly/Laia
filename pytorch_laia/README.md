@@ -157,9 +157,6 @@ python evaluate.py \
     --output_file predictions.json
 ```
 
-like me to create a utility script to help prepare your data in this format, or would you like more details about any specific aspect of the data format?
-
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
